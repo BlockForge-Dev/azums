@@ -1,0 +1,14 @@
+{
+  "intent_kind": "solana.transfer.v1",
+  "payload": {
+    "intent_id": "intent_example_solana_001",
+    "type": "transfer",
+    "to_addr": "11111111111111111111111111111111",
+    "amount": 1,
+    "skip_preflight": false
+  },
+  "metadata": {
+    "example": "solana_flow",
+    "source": "examples/solana_flow"
+  }
+}

@@ -1,0 +1,16 @@
+[package]
+name = "observability"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Shared observability helpers for logging, correlation headers, and HTTP metrics."
+
+[dependencies]
+http = "1"
+metrics = "0.22"
+metrics-exporter-prometheus = "0.13"
+once_cell = "1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1", features = ["v4"] }

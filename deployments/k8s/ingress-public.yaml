@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: azums-public
+  namespace: azums
+spec:
+  rules:
+    - host: azums.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: reverse-proxy
+                port:
+                  number: 8000

@@ -1,0 +1,21 @@
+[package]
+name = "ingress_api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+adapter_contract = { path = "../../crates/adapter_contract" }
+anyhow = "1"
+axum = { version = "0.7", features = ["json"] }
+execution_core = { path = "../../crates/execution_core", features = ["postgresq"] }
+hex = "0.4"
+hmac = "0.12"
+observability = { path = "../../crates/observability" }
+platform_auth = { path = "../../crates/auth" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio", "postgres"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tracing = "0.1"
+uuid = { version = "1", features = ["v4"] }

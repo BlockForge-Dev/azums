@@ -1,0 +1,13 @@
+[package]
+name = "execution_core_worker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+adapter_contract = { path = "../../crates/adapter_contract" }
+adapter_solana = { path = "../../crates/adapter_solana" }
+anyhow = "1"
+callback_core = { path = "../../crates/callback_core" }
+execution_core = { path = "../../crates/execution_core", features = ["postgresq"] }
+sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio", "postgres"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

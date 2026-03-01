@@ -1,0 +1,10 @@
+[package]
+name = "platform_auth"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Shared auth utilities for ingress and status surfaces."
+
+[dependencies]
+execution_core = { path = "../execution_core" }
+http = "1"

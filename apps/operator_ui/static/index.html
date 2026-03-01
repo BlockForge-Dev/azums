@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Operator UI | Durable Execution Platform</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <header class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">Durable Execution Platform</p>
+        <h1>Operator UI</h1>
+        <p class="subtitle">
+          Query durable truth, inspect execution receipts, and trigger controlled replay actions.
+        </p>
+      </div>
+      <div class="hero-meta" id="operator-meta"></div>
+    </header>
+
+    <main class="dashboard">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Jobs</h2>
+          <button id="refresh-jobs" class="btn ghost" type="button">Refresh</button>
+        </div>
+        <form id="jobs-form" class="controls">
+          <label>
+            State
+            <input id="jobs-state" type="text" placeholder="succeeded / failed_terminal / queued" />
+          </label>
+          <label>
+            Limit
+            <input id="jobs-limit" type="number" min="1" max="200" value="20" />
+          </label>
+          <label>
+            Offset
+            <input id="jobs-offset" type="number" min="0" value="0" />
+          </label>
+          <button class="btn primary" type="submit">Load Jobs</button>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Intent</th>
+                <th>State</th>
+                <th>Class</th>
+                <th>Attempt</th>
+                <th>Updated</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="jobs-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Request Inspector</h2>
+          <button id="refresh-request" class="btn ghost" type="button">Refresh</button>
+        </div>
+        <form id="request-form" class="controls">
+          <label class="wide">
+            Intent ID
+            <input id="intent-id-input" type="text" placeholder="intent_xxx" />
+          </label>
+          <button class="btn primary" type="submit">Load Request</button>
+        </form>
+        <div id="request-summary" class="summary-grid"></div>
+        <div class="triple">
+          <article>
+            <h3>Receipt</h3>
+            <pre id="receipt-json"></pre>
+          </article>
+          <article>
+            <h3>History</h3>
+            <pre id="history-json"></pre>
+          </article>
+          <article>
+            <h3>Callbacks</h3>
+            <pre id="callbacks-json"></pre>
+          </article>
+        </div>
+        <form id="replay-form" class="controls">
+          <label class="wide">
+            Replay reason
+            <input id="replay-reason" type="text" placeholder="operator replay rationale" />
+          </label>
+          <button class="btn danger" type="submit">Trigger Replay</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Ingress Intake Audits</h2>
+          <button id="refresh-audits" class="btn ghost" type="button">Refresh</button>
+        </div>
+        <form id="audits-form" class="controls">
+          <label>
+            Validation
+            <select id="audit-validation">
+              <option value="">all</option>
+              <option value="accepted">accepted</option>
+              <option value="rejected">rejected</option>
+            </select>
+          </label>
+          <label>
+            Channel
+            <select id="audit-channel">
+              <option value="">all</option>
+              <option value="api">api</option>
+              <option value="webhook">webhook</option>
+            </select>
+          </label>
+          <label>
+            Limit
+            <input id="audit-limit" type="number" min="1" max="200" value="20" />
+          </label>
+          <button class="btn primary" type="submit">Load Audits</button>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Request</th>
+                <th>Result</th>
+                <th>Reason</th>
+                <th>Channel</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="audit-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Callback Destination</h2>
+          <button id="load-callback-destination" class="btn ghost" type="button">Load</button>
+        </div>
+        <form id="callback-form" class="controls dense">
+          <label class="wide">
+            Delivery URL
+            <input id="callback-delivery-url" type="url" placeholder="https://example.com/callback" />
+          </label>
+          <label>
+            Timeout ms
+            <input id="callback-timeout-ms" type="number" min="100" max="120000" value="10000" />
+          </label>
+          <label>
+            Allowed hosts
+            <input id="callback-allowed-hosts" type="text" placeholder="example.com,api.example.com" />
+          </label>
+          <label class="check">
+            <input id="callback-enabled" type="checkbox" checked />
+            Enabled
+          </label>
+          <label class="check">
+            <input id="callback-allow-private" type="checkbox" />
+            Allow private destinations
+          </label>
+          <button class="btn primary" type="submit">Upsert Destination</button>
+          <button id="delete-callback-destination" class="btn danger" type="button">Delete Destination</button>
+        </form>
+        <pre id="callback-destination-json"></pre>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Activity Log</h2>
+          <button id="clear-log" class="btn ghost" type="button">Clear</button>
+        </div>
+        <pre id="activity-log"></pre>
+      </section>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

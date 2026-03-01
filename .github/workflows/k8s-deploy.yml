@@ -1,0 +1,155 @@
+name: K8s Deploy
+
+on:
+  workflow_run:
+    workflows:
+      - Docker Publish
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit SHA to deploy (defaults to triggering commit)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE || 'blockforge-dev/azums' }}
+  K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'azums' }}
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master'))
+    runs-on: ubuntu-latest
+    concurrency:
+      group: k8s-deploy-${{ vars.K8S_NAMESPACE || 'azums' }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve deploy SHA and image tag
+        id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.sha }}" ]; then
+            DEPLOY_SHA="${{ inputs.sha }}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            DEPLOY_SHA="${{ github.event.workflow_run.head_sha }}"
+          else
+            DEPLOY_SHA="${GITHUB_SHA}"
+          fi
+
+          if ! echo "$DEPLOY_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'; then
+            echo "DEPLOY_SHA must be a full 40-char git SHA, got: $DEPLOY_SHA" >&2
+            exit 1
+          fi
+
+          echo "deploy_sha=$DEPLOY_SHA" >> "$GITHUB_OUTPUT"
+          echo "image_tag=sha-$DEPLOY_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        shell: bash
+        run: |
+          if [ -z "$KUBE_CONFIG_DATA" ]; then
+            echo "KUBE_CONFIG_DATA secret is required (base64-encoded kubeconfig)." >&2
+            exit 1
+          fi
+
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG_DATA" | base64 --decode > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Ensure namespace and runtime secret exist
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          INGRESS_BEARER_TOKEN: ${{ secrets.INGRESS_BEARER_TOKEN }}
+          STATUS_API_BEARER_TOKEN: ${{ secrets.STATUS_API_BEARER_TOKEN }}
+          OPERATOR_UI_STATUS_BEARER_TOKEN: ${{ secrets.OPERATOR_UI_STATUS_BEARER_TOKEN }}
+          INGRESS_TENANT_TOKENS: ${{ secrets.INGRESS_TENANT_TOKENS }}
+          INGRESS_API_KEY: ${{ secrets.INGRESS_API_KEY }}
+          INGRESS_TENANT_API_KEYS: ${{ secrets.INGRESS_TENANT_API_KEYS }}
+          INGRESS_WEBHOOK_SIGNATURE_SECRETS: ${{ secrets.INGRESS_WEBHOOK_SIGNATURE_SECRETS }}
+          STATUS_API_TENANT_TOKENS: ${{ secrets.STATUS_API_TENANT_TOKENS }}
+        shell: bash
+        run: |
+          kubectl get namespace "$K8S_NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$K8S_NAMESPACE"
+
+          required=(DATABASE_URL POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD INGRESS_BEARER_TOKEN STATUS_API_BEARER_TOKEN OPERATOR_UI_STATUS_BEARER_TOKEN)
+          for key in "${required[@]}"; do
+            if [ -z "${!key}" ]; then
+              echo "Missing required secret env: $key" >&2
+              exit 1
+            fi
+          done
+
+          kubectl -n "$K8S_NAMESPACE" create secret generic azums-platform-secrets \
+            --from-literal=DATABASE_URL="${DATABASE_URL}" \
+            --from-literal=POSTGRES_DB="${POSTGRES_DB}" \
+            --from-literal=POSTGRES_USER="${POSTGRES_USER}" \
+            --from-literal=POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+            --from-literal=INGRESS_BEARER_TOKEN="${INGRESS_BEARER_TOKEN}" \
+            --from-literal=STATUS_API_BEARER_TOKEN="${STATUS_API_BEARER_TOKEN}" \
+            --from-literal=OPERATOR_UI_STATUS_BEARER_TOKEN="${OPERATOR_UI_STATUS_BEARER_TOKEN}" \
+            --from-literal=INGRESS_TENANT_TOKENS="${INGRESS_TENANT_TOKENS}" \
+            --from-literal=INGRESS_API_KEY="${INGRESS_API_KEY}" \
+            --from-literal=INGRESS_TENANT_API_KEYS="${INGRESS_TENANT_API_KEYS}" \
+            --from-literal=INGRESS_WEBHOOK_SIGNATURE_SECRETS="${INGRESS_WEBHOOK_SIGNATURE_SECRETS}" \
+            --from-literal=STATUS_API_TENANT_TOKENS="${STATUS_API_TENANT_TOKENS}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Render kustomize overlay pinned to sha image tag
+        shell: bash
+        run: |
+          mkdir -p deployments/k8s/.render
+          cat > deployments/k8s/.render/kustomization.yaml <<EOF
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          resources:
+            - ..
+          namespace: ${K8S_NAMESPACE}
+          images:
+            - name: ghcr.io/blockforge-dev/azums/ingress_api
+              newName: ghcr.io/${IMAGE_NAMESPACE}/ingress_api
+              newTag: ${{ steps.vars.outputs.image_tag }}
+            - name: ghcr.io/blockforge-dev/azums/status_api
+              newName: ghcr.io/${IMAGE_NAMESPACE}/status_api
+              newTag: ${{ steps.vars.outputs.image_tag }}
+            - name: ghcr.io/blockforge-dev/azums/execution_worker
+              newName: ghcr.io/${IMAGE_NAMESPACE}/execution_worker
+              newTag: ${{ steps.vars.outputs.image_tag }}
+            - name: ghcr.io/blockforge-dev/azums/operator_ui
+              newName: ghcr.io/${IMAGE_NAMESPACE}/operator_ui
+              newTag: ${{ steps.vars.outputs.image_tag }}
+            - name: ghcr.io/blockforge-dev/azums/reverse_proxy
+              newName: ghcr.io/${IMAGE_NAMESPACE}/reverse_proxy
+              newTag: ${{ steps.vars.outputs.image_tag }}
+          EOF
+
+      - name: Apply manifests
+        shell: bash
+        run: |
+          kubectl apply -k deployments/k8s/.render
+
+      - name: Wait for rollouts
+        shell: bash
+        run: |
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/ingress-api --timeout=5m
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/status-api --timeout=5m
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/execution-worker --timeout=5m
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/operator-ui --timeout=5m
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/reverse-proxy --timeout=5m

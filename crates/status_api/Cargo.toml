@@ -1,0 +1,24 @@
+[package]
+name = "status_api"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Status/query API for execution and callback delivery state."
+
+[dependencies]
+adapter_contract = { path = "../adapter_contract" }
+async-trait = "0.1"
+axum = { version = "0.7", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
+execution_core = { path = "../execution_core", features = ["postgresq"] }
+observability = { path = "../observability" }
+platform_auth = { path = "../auth" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+shared_types = { path = "../shared_types" }
+sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "chrono", "json"] }
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tracing = "0.1"
+url = "2"
+uuid = { version = "1", features = ["v4", "serde"] }

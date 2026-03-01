@@ -1,0 +1,10 @@
+$env:DATABASE_URL='postgres://app:app@127.0.0.1:5432/azums'
+$env:EXECUTION_ALLOWED_ADAPTERS='adapter_solana'
+$env:EXECUTION_DISPATCH_QUEUE='execution.dispatch'
+$env:EXECUTION_CALLBACK_QUEUE='execution.callback'
+$env:EXECUTION_WORKER_ID='execution-core-worker-local'
+$env:EXECUTION_CALLBACK_WORKER_ID='execution-callback-worker-local'
+$env:SOLANA_SYNC_MAX_POLLS='8'
+$env:SOLANA_SYNC_POLL_DELAY_MS='1200'
+$env:SOLANA_RPC_URL='https://api.devnet.solana.com'
+cargo run --manifest-path apps/admin_cli/Cargo.toml

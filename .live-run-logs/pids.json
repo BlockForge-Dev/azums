@@ -1,0 +1,26 @@
+[
+  {
+    "name": "ingress_api",
+    "pid": 51276,
+    "out": "C:\\Users\\HP\\azums\\.live-run-logs\\ingress_api.out.log",
+    "err": "C:\\Users\\HP\\azums\\.live-run-logs\\ingress_api.err.log"
+  },
+  {
+    "name": "status_api",
+    "pid": 49724,
+    "out": "C:\\Users\\HP\\azums\\.live-run-logs\\status_api.out.log",
+    "err": "C:\\Users\\HP\\azums\\.live-run-logs\\status_api.err.log"
+  },
+  {
+    "name": "execution_worker",
+    "pid": 17372,
+    "out": "C:\\Users\\HP\\azums\\.live-run-logs\\execution_worker.out.log",
+    "err": "C:\\Users\\HP\\azums\\.live-run-logs\\execution_worker.err.log"
+  },
+  {
+    "name": "reverse_proxy",
+    "pid": 48844,
+    "out": "C:\\Users\\HP\\azums\\.live-run-logs\\reverse_proxy.out.log",
+    "err": "C:\\Users\\HP\\azums\\.live-run-logs\\reverse_proxy.err.log"
+  }
+]

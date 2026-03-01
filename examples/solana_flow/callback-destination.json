@@ -1,0 +1,9 @@
+{
+  "delivery_url": "https://example.com/azums-callback",
+  "timeout_ms": 10000,
+  "allow_private_destinations": false,
+  "allowed_hosts": [
+    "example.com"
+  ],
+  "enabled": true
+}

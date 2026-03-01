@@ -1,0 +1,10 @@
+[package]
+name = "adapter_contract"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Adapter contract and router registry for execution_core."
+
+[dependencies]
+async-trait = "0.1"
+execution_core = { path = "../execution_core" }

@@ -1,0 +1,79 @@
+name: Docker Publish
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE || 'blockforge-dev/azums' }}
+
+jobs:
+  publish-images:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - manifest: apps/ingress_api/Cargo.toml
+            bin: ingress_api
+            image: ingress_api
+          - manifest: crates/status_api/Cargo.toml
+            bin: status_api
+            image: status_api
+          - manifest: apps/admin_cli/Cargo.toml
+            bin: admin_cli
+            image: execution_worker
+          - manifest: apps/operator_ui/Cargo.toml
+            bin: operator_ui
+            image: operator_ui
+          - manifest: crates/reverse-proxy/Cargo.toml
+            bin: reverse_proxy
+            image: reverse_proxy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=main,enable={{is_default_branch}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=long,prefix=sha-
+            type=ref,event=tag
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployments/docker/Dockerfile
+          build-args: |
+            APP_MANIFEST=${{ matrix.manifest }}
+            BIN_NAME=${{ matrix.bin }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
