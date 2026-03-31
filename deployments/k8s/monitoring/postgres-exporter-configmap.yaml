@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-exporter-queries
+  namespace: azums
+data:
+  queries.yaml: |
+    pgflow_dispatch_queue_ready_jobs:
+      query: |
+        SELECT COALESCE(COUNT(*), 0)::double precision AS value
+        FROM jobs
+        WHERE queue = 'execution.dispatch'
+          AND status = 'queued'
+          AND run_at <= NOW();
+      metrics:
+        - value:
+            usage: "GAUGE"
+            description: "Ready execution.dispatch jobs."
+    pgflow_dispatch_queue_lag_seconds:
+      query: |
+        SELECT COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(run_at))), 0)::double precision AS value
+        FROM jobs
+        WHERE queue = 'execution.dispatch'
+          AND status = 'queued'
+          AND run_at <= NOW();
+      metrics:
+        - value:
+            usage: "GAUGE"
+            description: "Oldest ready execution.dispatch job lag in seconds."
+    pgflow_callback_retry_scheduled_total:
+      query: |
+        SELECT COALESCE(COUNT(*), 0)::double precision AS value
+        FROM callback_core_deliveries
+        WHERE state = 'retry_scheduled';
+      metrics:
+        - value:
+            usage: "GAUGE"
+            description: "Callbacks currently in retry_scheduled state."
+    pgflow_callback_terminal_failures_total:
+      query: |
+        SELECT COALESCE(COUNT(*), 0)::double precision AS value
+        FROM callback_core_deliveries
+        WHERE state = 'failed_terminal';
+      metrics:
+        - value:
+            usage: "GAUGE"
+            description: "Callbacks in failed_terminal state."

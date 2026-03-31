@@ -1,0 +1,36 @@
+name: Policy Matrix Tests
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  operator-ui-policy-matrix:
+    name: operator_ui policy matrix
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/operator_ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/operator_ui/target
+          key: ${{ runner.os }}-operator-ui-policy-${{ hashFiles('apps/operator_ui/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-operator-ui-policy-
+
+      - name: Run operator_ui tests
+        run: cargo test --locked

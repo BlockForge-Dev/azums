@@ -6,7 +6,7 @@ metadata:
   labels:
     app: reverse-proxy
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: reverse-proxy
   ports:
@@ -41,6 +41,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: azums-platform-config
+            - secretRef:
+                name: azums-platform-secrets
           readinessProbe:
             httpGet:
               path: /readyz

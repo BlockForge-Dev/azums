@@ -43,6 +43,7 @@ Adapter runtime knobs:
 
 - `sync_max_polls` (default: `8`)
 - `sync_poll_delay_ms` (default: `1200`)
+- `SOLANA_PLATFORM_SIGNING_ENABLED` (default `true`; set `false` in production customer-signed mode)
 
 Default routing helper:
 

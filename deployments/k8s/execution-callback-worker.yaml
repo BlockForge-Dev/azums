@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: execution-callback-worker
+  namespace: azums
+  labels:
+    app: execution-callback-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: execution-callback-worker
+  template:
+    metadata:
+      labels:
+        app: execution-callback-worker
+    spec:
+      containers:
+        - name: execution-callback-worker
+          image: ghcr.io/blockforge-dev/azums/execution_worker:main
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: azums-platform-config
+            - secretRef:
+                name: azums-platform-secrets
+          env:
+            - name: EXECUTION_WORKER_MODE
+              value: callback
+            - name: EXECUTION_CALLBACK_WORKER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi

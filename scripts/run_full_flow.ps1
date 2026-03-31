@@ -1,182 +1,257 @@
+param(
+    [string]$BaseUrl = $(if ($env:BASE_URL) { $env:BASE_URL } else { "http://localhost:18000" }),
+    [string]$TenantId = $(if ($env:TENANT_ID) { $env:TENANT_ID } else { "tenant_demo" }),
+    [string]$IngressToken = $(if ($env:INGRESS_TOKEN) { $env:INGRESS_TOKEN } else { "dev-ingress-token" }),
+    [string]$StatusToken = $(if ($env:STATUS_TOKEN) { $env:STATUS_TOKEN } else { "dev-status-token" }),
+    [string]$IngressPrincipalId = $(if ($env:INGRESS_PRINCIPAL_ID) { $env:INGRESS_PRINCIPAL_ID } else { "ingress-service" }),
+    [string]$StatusPrincipalId = $(if ($env:STATUS_PRINCIPAL_ID) { $env:STATUS_PRINCIPAL_ID } else { "demo-operator" }),
+    [string]$StatusPrincipalRole = $(if ($env:STATUS_PRINCIPAL_ROLE) { $env:STATUS_PRINCIPAL_ROLE } else { "admin" }),
+    [string]$SuccessToAddr = $(if ($env:TO_WALLET) { $env:TO_WALLET } else { "GK8jAw6oibNGWT7WRwh2PCKSTb1XGQSiuPZdCaWRpqRC" }),
+    [string]$CallbackDeliveryUrl = $(if ($env:CALLBACK_DELIVERY_URL) { $env:CALLBACK_DELIVERY_URL } else { "http://reverse-proxy:8000/healthz" }),
+    [switch]$SkipCallbackDestinationSetup
+)
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-# End-to-end A/B/C/D flow verification for local compose stack.
-# Run from anywhere: pwsh ./scripts/run_full_flow.ps1
-
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$ComposeDir = if ($env:COMPOSE_DIR) {
-    Resolve-Path $env:COMPOSE_DIR
-}
-else {
-    Resolve-Path (Join-Path $RepoRoot "deployments/compose")
-}
-
-$Base = if ($env:BASE_URL) { $env:BASE_URL } else { "http://localhost:8000" }
-$ToWallet = if ($env:TO_WALLET) { $env:TO_WALLET } else { "GK8jAw6oibNGWT7WRwh2PCKSTb1XGQSiuPZdCaWRpqRC" }
-
 $ing = @{
-    authorization      = if ($env:INGRESS_TOKEN) { "Bearer $($env:INGRESS_TOKEN)" } else { "Bearer dev-ingress-token" }
-    "x-tenant-id"      = if ($env:TENANT_ID) { $env:TENANT_ID } else { "tenant_demo" }
-    "x-principal-id"   = if ($env:INGRESS_PRINCIPAL_ID) { $env:INGRESS_PRINCIPAL_ID } else { "ingress-service" }
+    authorization      = "Bearer $IngressToken"
+    "x-tenant-id"      = $TenantId
+    "x-principal-id"   = $IngressPrincipalId
     "x-submitter-kind" = "internal_service"
 }
 
 $st = @{
-    authorization      = if ($env:STATUS_TOKEN) { "Bearer $($env:STATUS_TOKEN)" } else { "Bearer dev-status-token" }
-    "x-tenant-id"      = if ($env:TENANT_ID) { $env:TENANT_ID } else { "tenant_demo" }
-    "x-principal-id"   = if ($env:STATUS_PRINCIPAL_ID) { $env:STATUS_PRINCIPAL_ID } else { "demo-operator" }
-    "x-principal-role" = if ($env:STATUS_PRINCIPAL_ROLE) { $env:STATUS_PRINCIPAL_ROLE } else { "admin" }
+    authorization      = "Bearer $StatusToken"
+    "x-tenant-id"      = $TenantId
+    "x-principal-id"   = $StatusPrincipalId
+    "x-principal-role" = $StatusPrincipalRole
 }
 
 function Submit-Intent([hashtable]$payload) {
     $body = @{
         intent_kind = "solana.transfer.v1"
         payload     = $payload
-    } | ConvertTo-Json -Depth 8
+    }
 
-    Invoke-RestMethod -Method Post -Uri "$Base/api/requests" -Headers $ing -ContentType "application/json" -Body $body
+    if ($payload.ContainsKey("__metadata")) {
+        $body.metadata = $payload["__metadata"]
+        $payload.Remove("__metadata") | Out-Null
+        $body.payload = $payload
+    }
+
+    $body = $body | ConvertTo-Json -Depth 8
+
+    Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/requests" -Headers $ing -ContentType "application/json" -Body $body
 }
 
-function Get-Status([string]$executionIntent) {
-    Invoke-RestMethod -Method Get -Uri "$Base/status/requests/$executionIntent" -Headers $st
+function Get-RequestStatus([string]$intentId) {
+    Invoke-RestMethod -Method Get -Uri "$BaseUrl/status/requests/$intentId" -Headers $st
 }
 
-function Wait-Terminal([string]$executionIntent, [int]$timeoutSec = 180) {
+function Get-RequestReceipt([string]$intentId) {
+    Invoke-RestMethod -Method Get -Uri "$BaseUrl/status/requests/$intentId/receipt" -Headers $st
+}
+
+function Get-RequestHistory([string]$intentId) {
+    Invoke-RestMethod -Method Get -Uri "$BaseUrl/status/requests/$intentId/history" -Headers $st
+}
+
+function Get-RequestCallbacks([string]$intentId, [int]$attemptLimit = 25) {
+    Invoke-RestMethod -Method Get -Uri "$BaseUrl/status/requests/$intentId/callbacks?include_attempts=true&attempt_limit=$attemptLimit" -Headers $st
+}
+
+function Wait-Terminal([string]$intentId, [int]$timeoutSec = 180) {
     $deadline = (Get-Date).AddSeconds($timeoutSec)
+    $last = $null
     do {
-        $s = Get-Status $executionIntent
-        if ($s.state -in @("succeeded", "failed_terminal", "dead_lettered", "finalized")) {
-            return $s
+        $last = Get-RequestStatus $intentId
+        if ($last.state -in @("succeeded", "failed_terminal", "dead_lettered", "finalized")) {
+            return $last
         }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
-    return $s
+    return $last
 }
 
-function Get-FlowHistory([string]$executionIntent) {
-    Invoke-RestMethod -Method Get -Uri "$Base/status/requests/$executionIntent/history" -Headers $st
+function Wait-CallbackCount([string]$intentId, [int]$minCount = 1, [int]$timeoutSec = 60) {
+    $deadline = (Get-Date).AddSeconds($timeoutSec)
+    $last = $null
+    do {
+        $last = Get-RequestCallbacks $intentId
+        if (@($last.callbacks).Count -ge $minCount) {
+            return $last
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    return $last
 }
 
-function Get-FlowReceipt([string]$executionIntent) {
-    Invoke-RestMethod -Method Get -Uri "$Base/status/requests/$executionIntent/receipt" -Headers $st
-}
-
-function Get-SolanaFinalErrText([string]$payloadIntentId) {
-    $query = "select coalesce(final_err_json::text,'') from solana.tx_intents where id='$payloadIntentId';"
-    $raw = docker compose exec -T postgres psql -U app -d azums -t -A -c $query
-    ($raw | Out-String).Trim()
-}
-
-Write-Host "Using compose dir: $ComposeDir"
-Write-Host "Using base url   : $Base"
-Write-Host "Using to wallet  : $ToWallet"
+Write-Host "Using base url          : $BaseUrl"
+Write-Host "Using tenant            : $TenantId"
+Write-Host "Using callback url      : $CallbackDeliveryUrl"
+Write-Host "Using status role       : $StatusPrincipalRole"
 Write-Host
+
+$health = Invoke-RestMethod -Method Get -Uri "$BaseUrl/healthz"
+$ready = Invoke-RestMethod -Method Get -Uri "$BaseUrl/readyz"
+
+if (-not $SkipCallbackDestinationSetup) {
+    $callbackBody = @{
+        delivery_url                = $CallbackDeliveryUrl
+        allow_private_destinations  = $true
+        timeout_ms                  = 3000
+        enabled                     = $true
+    } | ConvertTo-Json -Depth 6
+
+    Invoke-RestMethod -Method Post -Uri "$BaseUrl/status/tenant/callback-destination" -Headers $st -ContentType "application/json" -Body $callbackBody | Out-Null
+}
 
 $results = @()
 
-Push-Location $ComposeDir
-try {
-    # Flow A: Happy path
-    $payloadA = "intent_flowA_{0}" -f [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-    $rA = Submit-Intent @{ intent_id = $payloadA; type = "transfer"; to_addr = $ToWallet; amount = 1 }
-    $sA = Wait-Terminal $rA.intent_id 120
-    $hA = Get-FlowHistory $rA.intent_id
-
-    $okA = ($sA.state -eq "succeeded") -and
-    (@($hA.transitions | Where-Object reason_code -eq "request_received").Count -gt 0) -and
-    (@($hA.transitions | Where-Object reason_code -eq "adapter_routed").Count -gt 0) -and
-    (@($hA.transitions | Where-Object reason_code -eq "dispatch_started").Count -gt 0)
-
-    $results += [pscustomobject]@{
-        Flow            = "A"
-        Pass            = $okA
-        ExecutionIntent = $rA.intent_id
-        State           = $sA.state
-        Classification  = $sA.classification
-        Notes           = "Inbound -> adapter -> success path"
+# Flow A: inbound -> queued -> leased -> executing -> terminal success
+$intentA = "intent_flowA_{0}" -f [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$a = Submit-Intent @{
+    intent_id = $intentA
+    type = "transfer"
+    to_addr = $SuccessToAddr
+    amount = 1
+    __metadata = @{
+        "metering.scope" = "playground"
+        "ui.surface" = "playground"
+        "playground.demo_scenario" = "success"
     }
-
-    # Flow B: Retry path via forced transport failure.
-    $payloadB = "intent_flowB_{0}" -f [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-    $rB = Submit-Intent @{ intent_id = $payloadB; type = "transfer"; to_addr = $ToWallet; amount = 1; rpc_url = "https://127.0.0.1:1" }
-    $sB = Wait-Terminal $rB.intent_id 240
-    $recB = Get-FlowReceipt $rB.intent_id
-
-    $hasRetryScheduled = @($recB.entries | Where-Object state -eq "retry_scheduled").Count -gt 0
-    $hasRetryDue = @($recB.entries | Where-Object { $_.details.reason_code -eq "retry_due" }).Count -gt 0
-    $okB = ($sB.state -eq "dead_lettered" -or $sB.last_failure.code -eq "retry_exhausted") -and $hasRetryScheduled -and $hasRetryDue
-
-    $results += [pscustomobject]@{
-        Flow            = "B"
-        Pass            = $okB
-        ExecutionIntent = $rB.intent_id
-        State           = $sB.state
-        Classification  = $sB.classification
-        Notes           = "Retry scheduled + due observed"
-    }
-
-    # Flow C: Terminal failure path with invalid destination.
-    $payloadC = "intent_flowC_{0}" -f [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-    $rC = Submit-Intent @{ intent_id = $payloadC; type = "transfer"; to_addr = "11111111111111111111111111111111"; amount = 1 }
-    $sC = Wait-Terminal $rC.intent_id 120
-    $dbC = Get-SolanaFinalErrText $payloadC
-
-    $okC = ($sC.state -eq "failed_terminal") -and ($dbC -match "ReadonlyLamportChange|InstructionError|AccountNotFound")
-
-    $results += [pscustomobject]@{
-        Flow            = "C"
-        Pass            = $okC
-        ExecutionIntent = $rC.intent_id
-        State           = $sC.state
-        Classification  = $sC.classification
-        Notes           = "Terminal failure classification observed"
-    }
-
-    # Flow D: Replay path from Flow C.
-    $replay = Invoke-RestMethod -Method Post -Uri "$Base/status/requests/$($rC.intent_id)/replay" -Headers $st -ContentType "application/json" -Body '{"reason":"flow-D self-test"}'
-    $sD = Wait-Terminal $rC.intent_id 120
-    $hD = Get-FlowHistory $rC.intent_id
-    $hasReplayStarted = @($hD.transitions | Where-Object reason_code -eq "replay_started").Count -gt 0
-    $hasReplayQueued = @($hD.transitions | Where-Object reason_code -eq "replay_queued").Count -gt 0
-
-    $okD = ($null -ne $replay.replay_job_id) -and $hasReplayStarted -and $hasReplayQueued
-
-    $results += [pscustomobject]@{
-        Flow            = "D"
-        Pass            = $okD
-        ExecutionIntent = $rC.intent_id
-        State           = $sD.state
-        Classification  = $sD.classification
-        Notes           = "Replay lineage events observed"
-    }
-
-    Write-Host
-    Write-Host "=== Flow Verification ==="
-    $results | Format-Table -AutoSize
-
-    $failed = @($results | Where-Object { -not $_.Pass })
-    if ($failed.Count -gt 0) {
-        throw "One or more flow checks failed."
-    }
-
-    Write-Host
-    Write-Host "All flow checks passed."
 }
-finally {
-    Pop-Location
+$aStatus = Wait-Terminal $a.intent_id 180
+$aReceipt = Get-RequestReceipt $a.intent_id
+$aCallbacks = Wait-CallbackCount $a.intent_id 1 90
+
+$aHasReceived = @($aReceipt.entries | Where-Object { $_.state -eq "received" }).Count -gt 0
+$aHasValidated = @($aReceipt.entries | Where-Object { $_.state -eq "validated" }).Count -gt 0
+$aHasQueued = @($aReceipt.entries | Where-Object { $_.state -eq "queued" }).Count -gt 0
+$aHasLeased = @($aReceipt.entries | Where-Object { $_.state -eq "leased" }).Count -gt 0
+$aHasExecuting = @($aReceipt.entries | Where-Object { $_.state -eq "executing" }).Count -gt 0
+$aPass = ($aStatus.state -eq "succeeded") -and $aHasReceived -and $aHasValidated -and $aHasQueued -and $aHasLeased -and $aHasExecuting
+
+$results += [pscustomobject]@{
+    Flow = "A"
+    Pass = $aPass
+    IntentId = $a.intent_id
+    ReplayJobId = ""
+    FinalState = [string]$aStatus.state
+    Classification = [string]$aStatus.classification
+    FailureCode = ""
+    CallbackCount = @($aCallbacks.callbacks).Count
+    Notes = "Inbound and success path states observed"
 }
 
+# Flow B: retryable failure -> retry_scheduled -> retry_due -> dead_lettered
+$intentB = "intent_flowB_{0}" -f [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$b = Submit-Intent @{
+    intent_id = $intentB
+    type = "transfer"
+    to_addr = $SuccessToAddr
+    amount = 1
+    rpc_url = "https://127.0.0.1:1"
+    __metadata = @{
+        "metering.scope" = "playground"
+        "ui.surface" = "playground"
+    }
+}
+$bStatus = Wait-Terminal $b.intent_id 360
+$bReceipt = Get-RequestReceipt $b.intent_id
+$bCallbacks = Wait-CallbackCount $b.intent_id 1 120
 
+$bHasRetryScheduled = @($bReceipt.entries | Where-Object { $_.state -eq "retry_scheduled" }).Count -gt 0
+$bHasRetryDue = @($bReceipt.entries | Where-Object { $_.details.reason_code -eq "retry_due" }).Count -gt 0
+$bPass = ($bStatus.state -eq "dead_lettered") -and ([string]$bStatus.last_failure.code -eq "retry_exhausted") -and $bHasRetryScheduled -and $bHasRetryDue
 
-# K8s deployment is correct
+$results += [pscustomobject]@{
+    Flow = "B"
+    Pass = $bPass
+    IntentId = $b.intent_id
+    ReplayJobId = ""
+    FinalState = [string]$bStatus.state
+    Classification = [string]$bStatus.classification
+    FailureCode = if ($bStatus.last_failure) { [string]$bStatus.last_failure.code } else { "" }
+    CallbackCount = @($bCallbacks.callbacks).Count
+    Notes = "Retry path and exhaustion observed"
+}
 
-# secrets wiring is correct
+# Flow C: terminal failure classification and receipt details
+$intentC = "intent_flowC_{0}" -f [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$c = Submit-Intent @{
+    intent_id = $intentC
+    type = "transfer"
+    to_addr = $SuccessToAddr
+    amount = 1
+    __metadata = @{
+        "metering.scope" = "playground"
+        "ui.surface" = "playground"
+        "playground.demo_scenario" = "terminal_failure"
+    }
+}
+$cStatus = Wait-Terminal $c.intent_id 180
+$cReceipt = Get-RequestReceipt $c.intent_id
+$cHasFailedTerminal = @($cReceipt.entries | Where-Object { $_.state -eq "failed_terminal" }).Count -gt 0
+$cPass = ($cStatus.state -eq "failed_terminal") -and $cHasFailedTerminal -and ($null -ne $cStatus.last_failure)
 
-# runtime dependencies are correct
+$results += [pscustomobject]@{
+    Flow = "C"
+    Pass = $cPass
+    IntentId = $c.intent_id
+    ReplayJobId = ""
+    FinalState = [string]$cStatus.state
+    Classification = [string]$cStatus.classification
+    FailureCode = if ($cStatus.last_failure) { [string]$cStatus.last_failure.code } else { "" }
+    CallerCanFix = if ($cStatus.last_failure) { [string]$cStatus.last_failure.caller_can_fix } else { "" }
+    OperatorCanFix = if ($cStatus.last_failure) { [string]$cStatus.last_failure.operator_can_fix } else { "" }
+    Notes = "Terminal failure and failure metadata observed"
+}
 
-# health probes are correct
+# Flow D: replay request -> replay lineage -> replay execution transitions
+$replayBody = @{ reason = "flow-D replay validation" } | ConvertTo-Json -Depth 4
+$dReplay = Invoke-RestMethod -Method Post -Uri "$BaseUrl/status/requests/$($c.intent_id)/replay" -Headers $st -ContentType "application/json" -Body $replayBody
+$dStatus = Wait-Terminal $c.intent_id 180
+$dHistory = Get-RequestHistory $c.intent_id
+$dCallbacks = Wait-CallbackCount $c.intent_id 2 90
 
-# scaling behavior is correct
+$dHasReplayStarted = @($dHistory.transitions | Where-Object { $_.reason_code -eq "replay_started" }).Count -gt 0
+$dHasReplayQueued = @($dHistory.transitions | Where-Object { $_.reason_code -eq "replay_queued" }).Count -gt 0
+$dReplayJobTransitions = @($dHistory.transitions | Where-Object { $_.job_id -eq $dReplay.replay_job_id })
+$dReplayLeased = @($dReplayJobTransitions | Where-Object { $_.to_state -eq "leased" }).Count -gt 0
+$dReplayExecuting = @($dReplayJobTransitions | Where-Object { $_.to_state -eq "executing" }).Count -gt 0
+$dPass = ($null -ne $dReplay.replay_job_id) -and $dHasReplayStarted -and $dHasReplayQueued -and $dReplayLeased -and $dReplayExecuting
 
-# networking/ingress behavior is correct under load
+$results += [pscustomobject]@{
+    Flow = "D"
+    Pass = $dPass
+    IntentId = $c.intent_id
+    ReplayJobId = $dReplay.replay_job_id
+    FinalState = [string]$dStatus.state
+    Classification = [string]$dStatus.classification
+    FailureCode = if ($dStatus.last_failure) { [string]$dStatus.last_failure.code } else { "" }
+    CallbackCount = @($dCallbacks.callbacks).Count
+    Notes = "Replay lineage and replay execution observed (replay_count=$($dReplay.replay_count))"
+}
+
+Write-Host
+Write-Host "=== Environment ==="
+[pscustomobject]@{
+    Health = $health
+    Ready = $ready
+    BaseUrl = $BaseUrl
+    TenantId = $TenantId
+} | Format-Table -AutoSize
+
+Write-Host
+Write-Host "=== Flow Verification (A/B/C/D) ==="
+$results | Format-Table Flow, Pass, IntentId, ReplayJobId, FinalState, Classification, FailureCode, CallbackCount, Notes -AutoSize -Wrap
+
+$failed = @($results | Where-Object { -not $_.Pass })
+if ($failed.Count -gt 0) {
+    throw "One or more flow checks failed."
+}
+
+Write-Host
+Write-Host "All flow checks passed."

@@ -2,6 +2,8 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use tokio::sync::OnceCell;
 
+use crate::provider::dedupe_provider_urls;
+
 #[derive(Debug, Clone)]
 pub struct RpcErrorObj {
     pub code: i64,
@@ -25,6 +27,12 @@ pub enum RpcCallError {
 pub struct SimulationResult {
     pub outcome: String,
     pub err: Option<Value>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RpcRouteSelection<T> {
+    pub value: T,
+    pub provider_used: String,
 }
 
 #[derive(Debug, Clone)]
@@ -226,6 +234,151 @@ impl SolanaRpcClient {
             confirmation_status,
         }))
     }
+
+    pub async fn get_latest_blockhash_with_failover(
+        &self,
+        rpc_urls: &[String],
+    ) -> Result<RpcRouteSelection<String>, RpcCallError> {
+        let targets = normalize_rpc_targets(rpc_urls);
+        let mut last_error = None;
+
+        for (index, rpc_url) in targets.iter().enumerate() {
+            match self.get_latest_blockhash(rpc_url).await {
+                Ok(value) => {
+                    return Ok(RpcRouteSelection {
+                        value,
+                        provider_used: rpc_url.clone(),
+                    })
+                }
+                Err(error) => {
+                    let error = annotate_rpc_error(rpc_url, error);
+                    let can_failover =
+                        index + 1 < targets.len() && should_failover_on_error(&error);
+                    if !can_failover {
+                        return Err(error);
+                    }
+                    last_error = Some(error);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            RpcCallError::Transport("no Solana RPC endpoints configured".to_owned())
+        }))
+    }
+
+    pub async fn simulate_transaction_with_failover(
+        &self,
+        rpc_urls: &[String],
+        signed_tx_base64: &str,
+    ) -> Result<RpcRouteSelection<SimulationResult>, RpcCallError> {
+        let targets = normalize_rpc_targets(rpc_urls);
+        let mut last_error = None;
+
+        for (index, rpc_url) in targets.iter().enumerate() {
+            match self.simulate_transaction(rpc_url, signed_tx_base64).await {
+                Ok(value) => {
+                    return Ok(RpcRouteSelection {
+                        value,
+                        provider_used: rpc_url.clone(),
+                    })
+                }
+                Err(error) => {
+                    let error = annotate_rpc_error(rpc_url, error);
+                    let can_failover =
+                        index + 1 < targets.len() && should_failover_on_error(&error);
+                    if !can_failover {
+                        return Err(error);
+                    }
+                    last_error = Some(error);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            RpcCallError::Transport("no Solana RPC endpoints configured".to_owned())
+        }))
+    }
+
+    pub async fn send_transaction_with_failover(
+        &self,
+        rpc_urls: &[String],
+        signed_tx_base64: &str,
+        skip_preflight: bool,
+    ) -> Result<RpcRouteSelection<String>, RpcCallError> {
+        let targets = normalize_rpc_targets(rpc_urls);
+        let mut last_error = None;
+
+        for (index, rpc_url) in targets.iter().enumerate() {
+            match self
+                .send_transaction(rpc_url, signed_tx_base64, skip_preflight)
+                .await
+            {
+                Ok(value) => {
+                    return Ok(RpcRouteSelection {
+                        value,
+                        provider_used: rpc_url.clone(),
+                    })
+                }
+                Err(error) => {
+                    let error = annotate_rpc_error(rpc_url, error);
+                    let can_failover =
+                        index + 1 < targets.len() && should_failover_on_error(&error);
+                    if !can_failover {
+                        return Err(error);
+                    }
+                    last_error = Some(error);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            RpcCallError::Transport("no Solana RPC endpoints configured".to_owned())
+        }))
+    }
+
+    pub async fn get_signature_status_with_failover(
+        &self,
+        rpc_urls: &[String],
+        signature: &str,
+    ) -> Result<RpcRouteSelection<Option<RpcSigStatus>>, RpcCallError> {
+        let targets = normalize_rpc_targets(rpc_urls);
+        let mut last_error = None;
+        let mut last_provider_without_status = None;
+
+        for rpc_url in &targets {
+            match self.get_signature_status(rpc_url, signature).await {
+                Ok(Some(value)) => {
+                    return Ok(RpcRouteSelection {
+                        value: Some(value),
+                        provider_used: rpc_url.clone(),
+                    })
+                }
+                Ok(None) => {
+                    last_provider_without_status = Some(rpc_url.clone());
+                }
+                Err(error) => {
+                    let error = annotate_rpc_error(rpc_url, error);
+                    if !should_failover_on_error(&error) {
+                        return Err(error);
+                    }
+                    last_error = Some(error);
+                }
+            }
+        }
+
+        if let Some(provider_used) = last_provider_without_status.or_else(|| targets.first().cloned())
+        {
+            return Ok(RpcRouteSelection {
+                value: None,
+                provider_used,
+            });
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            RpcCallError::Transport("no Solana RPC endpoints configured".to_owned())
+        }))
+    }
 }
 
 static SOLANA_RPC_CLIENT: OnceCell<SolanaRpcClient> = OnceCell::const_new();
@@ -249,6 +402,15 @@ pub async fn rpc_get_latest_blockhash(rpc_url: &str) -> Result<String, RpcCallEr
         .await
 }
 
+pub async fn rpc_get_latest_blockhash_with_failover(
+    rpc_urls: &[String],
+) -> Result<RpcRouteSelection<String>, RpcCallError> {
+    shared_solana_rpc_client()
+        .await?
+        .get_latest_blockhash_with_failover(rpc_urls)
+        .await
+}
+
 pub async fn rpc_simulate_transaction(
     rpc_url: &str,
     signed_tx_base64: &str,
@@ -256,6 +418,16 @@ pub async fn rpc_simulate_transaction(
     shared_solana_rpc_client()
         .await?
         .simulate_transaction(rpc_url, signed_tx_base64)
+        .await
+}
+
+pub async fn rpc_simulate_transaction_with_failover(
+    rpc_urls: &[String],
+    signed_tx_base64: &str,
+) -> Result<RpcRouteSelection<SimulationResult>, RpcCallError> {
+    shared_solana_rpc_client()
+        .await?
+        .simulate_transaction_with_failover(rpc_urls, signed_tx_base64)
         .await
 }
 
@@ -270,6 +442,17 @@ pub async fn rpc_send_transaction(
         .await
 }
 
+pub async fn rpc_send_transaction_with_failover(
+    rpc_urls: &[String],
+    signed_tx_base64: &str,
+    skip_preflight: bool,
+) -> Result<RpcRouteSelection<String>, RpcCallError> {
+    shared_solana_rpc_client()
+        .await?
+        .send_transaction_with_failover(rpc_urls, signed_tx_base64, skip_preflight)
+        .await
+}
+
 pub async fn rpc_get_signature_status(
     rpc_url: &str,
     signature: &str,
@@ -278,6 +461,49 @@ pub async fn rpc_get_signature_status(
         .await?
         .get_signature_status(rpc_url, signature)
         .await
+}
+
+pub async fn rpc_get_signature_status_with_failover(
+    rpc_urls: &[String],
+    signature: &str,
+) -> Result<RpcRouteSelection<Option<RpcSigStatus>>, RpcCallError> {
+    shared_solana_rpc_client()
+        .await?
+        .get_signature_status_with_failover(rpc_urls, signature)
+        .await
+}
+
+fn normalize_rpc_targets(rpc_urls: &[String]) -> Vec<String> {
+    dedupe_provider_urls(rpc_urls.to_vec())
+}
+
+fn should_failover_on_error(error: &RpcCallError) -> bool {
+    match error {
+        RpcCallError::Transport(_) => true,
+        RpcCallError::Provider(provider) => {
+            let message = provider.message.to_ascii_lowercase();
+            provider.code == -32005
+                || message.contains("rate limit")
+                || message.contains("too many requests")
+                || message.contains("temporarily unavailable")
+                || message.contains("unhealthy")
+                || message.contains("timeout")
+                || message.contains("overloaded")
+        }
+    }
+}
+
+fn annotate_rpc_error(rpc_url: &str, error: RpcCallError) -> RpcCallError {
+    match error {
+        RpcCallError::Transport(message) => {
+            RpcCallError::Transport(format!("{message} [rpc_url={rpc_url}]"))
+        }
+        RpcCallError::Provider(provider) => RpcCallError::Provider(RpcErrorObj {
+            code: provider.code,
+            message: format!("{} [rpc_url={}]", provider.message, rpc_url),
+            raw: provider.raw,
+        }),
+    }
 }
 
 fn truncate_detail(mut value: String, max_len: usize) -> String {

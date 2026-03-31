@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:20-bookworm-slim AS builder
+WORKDIR /workspace/apps/operator_ui_next
+
+COPY apps/operator_ui_next/package*.json ./
+RUN npm config set fetch-retries 5 \
+    && npm config set fetch-retry-factor 2 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm config set fetch-timeout 300000 \
+    && npm ci --no-audit --fund=false
+
+COPY apps/operator_ui_next/ ./
+RUN npm run build
+
+FROM node:20-bookworm-slim AS runtime
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
+ENV PORT=8083
+
+RUN useradd --create-home --home-dir /home/appuser --shell /usr/sbin/nologin --uid 10001 appuser
+
+COPY --from=builder /workspace/apps/operator_ui_next/.next/standalone ./
+COPY --from=builder /workspace/apps/operator_ui_next/.next/static ./apps/operator_ui_next/.next/static
+COPY --from=builder /workspace/apps/operator_ui_next/public ./apps/operator_ui_next/public
+
+USER appuser
+EXPOSE 8083
+CMD ["node", "apps/operator_ui_next/server.js"]

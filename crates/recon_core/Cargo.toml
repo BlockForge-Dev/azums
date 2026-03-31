@@ -1,0 +1,20 @@
+[package]
+name = "recon_core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Downstream reconciliation framework for Azums execution truth."
+
+[dependencies]
+async-trait = "0.1"
+exception_intelligence = { path = "../exception_intelligence" }
+execution_core = { path = "../execution_core", features = ["postgresq"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "json"] }
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+serde_json = "1"

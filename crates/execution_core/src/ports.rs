@@ -1,7 +1,7 @@
 use crate::model::{
     AdapterExecutionRequest, AdapterId, AdapterOutcome, AdapterRoute, CallbackJob, ExecutionJob,
-    IntentId, IntentKind, JobId, NormalizedIntent, OperatorPrincipal, ReplayDecisionRecord,
-    TenantId, TimestampMs,
+    IdempotencyBinding, IntentId, IntentKind, JobId, NormalizedIntent, OperatorPrincipal,
+    ReceiptEntry, ReconIntakeSignal, ReplayDecisionRecord, StateTransition, TenantId, TimestampMs,
 };
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -62,13 +62,14 @@ pub trait DurableStore: Send + Sync {
         &self,
         tenant_id: &TenantId,
         idempotency_key: &str,
-    ) -> Result<Option<IntentId>, StoreError>;
+    ) -> Result<Option<IdempotencyBinding>, StoreError>;
     async fn bind_intent_idempotency(
         &self,
         tenant_id: &TenantId,
         idempotency_key: &str,
         intent_id: &IntentId,
-    ) -> Result<IntentId, StoreError>;
+        request_fingerprint: &str,
+    ) -> Result<IdempotencyBinding, StoreError>;
 
     async fn persist_job(&self, job: &ExecutionJob) -> Result<(), StoreError>;
     async fn update_job(&self, job: &ExecutionJob) -> Result<(), StoreError>;
@@ -84,6 +85,21 @@ pub trait DurableStore: Send + Sync {
         transition: &crate::model::StateTransition,
     ) -> Result<(), StoreError>;
     async fn append_receipt(&self, receipt: &crate::model::ReceiptEntry) -> Result<(), StoreError>;
+    async fn record_recon_intake_signal(
+        &self,
+        signal: &ReconIntakeSignal,
+    ) -> Result<(), StoreError>;
+    async fn append_receipt_bundle(
+        &self,
+        receipt: &crate::model::ReceiptEntry,
+        signals: &[ReconIntakeSignal],
+    ) -> Result<(), StoreError> {
+        self.append_receipt(receipt).await?;
+        for signal in signals {
+            self.record_recon_intake_signal(signal).await?;
+        }
+        Ok(())
+    }
     async fn record_replay_decision(&self, record: &ReplayDecisionRecord)
         -> Result<(), StoreError>;
 
@@ -93,6 +109,25 @@ pub trait DurableStore: Send + Sync {
         not_before_ms: Option<TimestampMs>,
     ) -> Result<(), StoreError>;
     async fn enqueue_callback_job(&self, callback: &CallbackJob) -> Result<(), StoreError>;
+
+    async fn persist_submission(
+        &self,
+        intent: &NormalizedIntent,
+        job: &ExecutionJob,
+        transitions: &[StateTransition],
+        receipts: &[ReceiptEntry],
+        not_before_ms: Option<TimestampMs>,
+    ) -> Result<(), StoreError> {
+        self.persist_intent(intent).await?;
+        self.persist_job(job).await?;
+        for transition in transitions {
+            self.record_transition(transition).await?;
+        }
+        for receipt in receipts {
+            self.append_receipt(receipt).await?;
+        }
+        self.enqueue_dispatch(&job.job_id, not_before_ms).await
+    }
 }
 
 pub trait AdapterRouter: Send + Sync {

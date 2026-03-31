@@ -23,3 +23,5 @@ designed to be copied and adapted for each deployment environment.
 - Keep secrets out of git.
 - Keep tenant and principal bindings explicit.
 - Keep replay and callback permissions restricted by default in non-dev environments.
+- For non-dev environments, set `OPERATOR_UI_REQUIRE_DURABLE_METERING=true` so usage/quota
+  checks fail closed when durable metering is unavailable.

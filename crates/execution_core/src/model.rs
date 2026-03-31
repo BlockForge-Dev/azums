@@ -51,6 +51,7 @@ id_wrapper!(TransitionId, "transition");
 id_wrapper!(ReceiptId, "receipt");
 id_wrapper!(CallbackId, "callback");
 id_wrapper!(ReplayDecisionId, "replay");
+id_wrapper!(ReconIntakeSignalId, "reconsig");
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct IntentKind(pub String);
@@ -124,6 +125,18 @@ pub struct AuthContext {
     pub auth_scheme: Option<String>,
     #[serde(default)]
     pub channel: Option<String>,
+    #[serde(default)]
+    pub agent_id: Option<String>,
+    #[serde(default)]
+    pub environment_id: Option<String>,
+    #[serde(default)]
+    pub runtime_type: Option<String>,
+    #[serde(default)]
+    pub runtime_identity: Option<String>,
+    #[serde(default)]
+    pub trust_tier: Option<String>,
+    #[serde(default)]
+    pub risk_tier: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,6 +155,13 @@ pub struct NormalizedIntent {
     pub auth_context: Option<AuthContext>,
     pub metadata: BTreeMap<String, String>,
     pub received_at_ms: TimestampMs,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IdempotencyBinding {
+    pub intent_id: IntentId,
+    #[serde(default)]
+    pub request_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -291,17 +311,248 @@ pub struct StateTransition {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiptAgentAction {
+    #[serde(default)]
+    pub action_request_id: Option<String>,
+    #[serde(default)]
+    pub intent_type: Option<String>,
+    #[serde(default)]
+    pub adapter_type: Option<String>,
+    #[serde(default)]
+    pub requested_scope: Vec<String>,
+    #[serde(default)]
+    pub effective_scope: Vec<String>,
+    #[serde(default)]
+    pub reason: Option<String>,
+    #[serde(default)]
+    pub submitted_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiptAgentIdentity {
+    #[serde(default)]
+    pub agent_id: Option<String>,
+    #[serde(default)]
+    pub environment_id: Option<String>,
+    #[serde(default)]
+    pub environment_kind: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub trust_tier: Option<String>,
+    #[serde(default)]
+    pub risk_tier: Option<String>,
+    #[serde(default)]
+    pub owner_team: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiptRuntimeIdentity {
+    #[serde(default)]
+    pub runtime_type: Option<String>,
+    #[serde(default)]
+    pub runtime_identity: Option<String>,
+    #[serde(default)]
+    pub submitter_kind: Option<String>,
+    #[serde(default)]
+    pub channel: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiptPolicyDecision {
+    #[serde(default)]
+    pub decision: Option<String>,
+    #[serde(default)]
+    pub explanation: Option<String>,
+    #[serde(default)]
+    pub bundle_id: Option<String>,
+    #[serde(default)]
+    pub bundle_version: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiptApprovalResult {
+    pub result: String,
+    #[serde(default)]
+    pub approval_request_id: Option<String>,
+    #[serde(default)]
+    pub state: Option<String>,
+    #[serde(default)]
+    pub required_approvals: Option<u32>,
+    #[serde(default)]
+    pub approvals_received: Option<u32>,
+    #[serde(default)]
+    pub approved_by: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiptGrantReference {
+    pub grant_id: String,
+    #[serde(default)]
+    pub source_action_request_id: Option<String>,
+    #[serde(default)]
+    pub source_approval_request_id: Option<String>,
+    #[serde(default)]
+    pub source_policy_bundle_id: Option<String>,
+    #[serde(default)]
+    pub source_policy_bundle_version: Option<u64>,
+    #[serde(default)]
+    pub expires_at_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiptExecutionMode {
+    #[serde(default)]
+    pub mode: Option<String>,
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub effective_policy: Option<String>,
+    #[serde(default)]
+    pub base_policy: Option<String>,
+    #[serde(default)]
+    pub signing_mode: Option<String>,
+    #[serde(default)]
+    pub payer_source: Option<String>,
+    #[serde(default)]
+    pub fee_payer: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiptConnectorOutcome {
+    pub status: String,
+    #[serde(default)]
+    pub connector_type: Option<String>,
+    #[serde(default)]
+    pub binding_id: Option<String>,
+    #[serde(default)]
+    pub reference: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiptReconLinkage {
+    #[serde(default)]
+    pub recon_subject_id: Option<String>,
+    pub reconciliation_eligible: bool,
+    #[serde(default)]
+    pub execution_correlation_id: Option<String>,
+    #[serde(default)]
+    pub adapter_execution_reference: Option<String>,
+    #[serde(default)]
+    pub external_observation_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReceiptEntry {
     pub receipt_id: ReceiptId,
     pub tenant_id: TenantId,
     pub intent_id: IntentId,
     pub job_id: JobId,
+    #[serde(default = "default_receipt_version")]
+    pub receipt_version: u32,
+    #[serde(default)]
+    pub recon_subject_id: Option<String>,
+    #[serde(default)]
+    pub reconciliation_eligible: bool,
+    #[serde(default)]
+    pub execution_correlation_id: Option<String>,
+    #[serde(default)]
+    pub adapter_execution_reference: Option<String>,
+    #[serde(default)]
+    pub external_observation_key: Option<String>,
+    #[serde(default)]
+    pub expected_fact_snapshot: Option<Value>,
+    #[serde(default)]
+    pub agent_action: Option<ReceiptAgentAction>,
+    #[serde(default)]
+    pub agent_identity: Option<ReceiptAgentIdentity>,
+    #[serde(default)]
+    pub runtime_identity: Option<ReceiptRuntimeIdentity>,
+    #[serde(default)]
+    pub policy_decision: Option<ReceiptPolicyDecision>,
+    #[serde(default)]
+    pub approval_result: Option<ReceiptApprovalResult>,
+    #[serde(default)]
+    pub grant_reference: Option<ReceiptGrantReference>,
+    #[serde(default)]
+    pub execution_mode: Option<ReceiptExecutionMode>,
+    #[serde(default)]
+    pub connector_outcome: Option<ReceiptConnectorOutcome>,
+    #[serde(default)]
+    pub recon_linkage: Option<ReceiptReconLinkage>,
     #[serde(default)]
     pub attempt_no: u32,
     pub state: CanonicalState,
     pub classification: PlatformClassification,
     pub summary: String,
     pub details: BTreeMap<String, String>,
+    pub occurred_at_ms: TimestampMs,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReconIntakeSignalKind {
+    SubmittedWithReference,
+    AdapterCompleted,
+    TerminalFailure,
+    Finalized,
+    CallbackCommitted,
+}
+
+impl ReconIntakeSignalKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::SubmittedWithReference => "submitted_with_reference",
+            Self::AdapterCompleted => "adapter_completed",
+            Self::TerminalFailure => "terminal_failure",
+            Self::Finalized => "finalized",
+            Self::CallbackCommitted => "callback_committed",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "submitted_with_reference" => Some(Self::SubmittedWithReference),
+            "adapter_completed" => Some(Self::AdapterCompleted),
+            "terminal_failure" => Some(Self::TerminalFailure),
+            "finalized" => Some(Self::Finalized),
+            "callback_committed" => Some(Self::CallbackCommitted),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReconIntakeSignal {
+    pub signal_id: ReconIntakeSignalId,
+    pub source_system: String,
+    pub signal_kind: ReconIntakeSignalKind,
+    pub tenant_id: TenantId,
+    pub intent_id: IntentId,
+    pub job_id: JobId,
+    #[serde(default)]
+    pub adapter_id: Option<AdapterId>,
+    #[serde(default)]
+    pub receipt_id: Option<ReceiptId>,
+    #[serde(default)]
+    pub transition_id: Option<TransitionId>,
+    #[serde(default)]
+    pub callback_id: Option<CallbackId>,
+    pub recon_subject_id: String,
+    #[serde(default)]
+    pub canonical_state: Option<CanonicalState>,
+    #[serde(default)]
+    pub classification: Option<PlatformClassification>,
+    #[serde(default)]
+    pub execution_correlation_id: Option<String>,
+    #[serde(default)]
+    pub adapter_execution_reference: Option<String>,
+    #[serde(default)]
+    pub external_observation_key: Option<String>,
+    #[serde(default)]
+    pub expected_fact_snapshot: Option<Value>,
+    #[serde(default)]
+    pub payload: Value,
     pub occurred_at_ms: TimestampMs,
 }
 
@@ -364,4 +615,20 @@ pub fn is_terminal_state(state: CanonicalState) -> bool {
             | CanonicalState::FailedTerminal
             | CanonicalState::DeadLettered
     )
+}
+
+pub fn default_receipt_version() -> u32 {
+    1
+}
+
+pub fn latest_receipt_version() -> u32 {
+    3
+}
+
+pub fn recon_subject_id_for_job(job_id: &JobId) -> String {
+    recon_subject_id_for_job_str(job_id.as_str())
+}
+
+pub fn recon_subject_id_for_job_str(job_id: &str) -> String {
+    format!("reconsub_{job_id}")
 }

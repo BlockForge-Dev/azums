@@ -69,8 +69,5 @@ Feature module:
 
 - `integration::postgresq::PostgresQStore`
 - `integration::postgresq::PostgresQWorker`
-- `integration::postgresq::PostgresQCallbackWorker`
-- `integration::postgresq::HttpCallbackDispatcher`
-- `integration::postgresq::StdoutCallbackDispatcher`
 
-`PostgresQStore` persists core records in `execution_core_*` tables and enqueues dispatch/callback work into the existing `jobs` queue table.
+`PostgresQStore` persists core records in `execution_core_*` tables and enqueues dispatch work into the existing `jobs` queue table. Callback delivery now lives in `callback_core`, so execution core no longer ships a separate callback worker or dispatcher implementation.

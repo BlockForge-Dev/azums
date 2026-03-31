@@ -11,7 +11,11 @@ permissions:
   contents: read
 
 jobs:
+  policy-tests:
+    uses: ./.github/workflows/policy-tests.yml
+
   build-images:
+    needs: policy-tests
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -52,3 +56,23 @@ jobs:
           push: false
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,scope=${{ matrix.image }},mode=max
+
+  build-operator-ui-next:
+    needs: policy-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Next.js operator UI image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployments/docker/Dockerfile.next
+          tags: azums/operator_ui_next:ci
+          push: false
+          cache-from: type=gha,scope=operator_ui_next
+          cache-to: type=gha,scope=operator_ui_next,mode=max

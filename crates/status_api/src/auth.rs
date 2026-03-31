@@ -7,6 +7,7 @@ use execution_core::{OperatorPrincipal, OperatorRole, TenantId};
 use platform_auth::{
     constant_time_eq, env_bool, env_var_opt, extract_bearer_token, header_opt, operator_role_name,
     parse_kv_map, parse_operator_role_label, parse_principal_role_map, parse_principal_tenant_map,
+    principal_tenant_allowed, resolve_principal_binding,
 };
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -48,6 +49,21 @@ where
 pub trait StatusAuthorizer: Send + Sync {
     fn can_view_tenant(&self, principal: &OperatorPrincipal, tenant_id: &TenantId) -> bool;
     fn can_replay(&self, principal: &OperatorPrincipal, tenant_id: &TenantId) -> bool;
+    fn can_manage_reconciliation(
+        &self,
+        principal: &OperatorPrincipal,
+        tenant_id: &TenantId,
+    ) -> bool;
+    fn can_manage_exception_case(
+        &self,
+        principal: &OperatorPrincipal,
+        tenant_id: &TenantId,
+    ) -> bool;
+    fn can_resolve_exception_case(
+        &self,
+        principal: &OperatorPrincipal,
+        tenant_id: &TenantId,
+    ) -> bool;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -59,6 +75,30 @@ impl StatusAuthorizer for RoleBasedStatusAuthorizer {
     }
 
     fn can_replay(&self, principal: &OperatorPrincipal, _tenant_id: &TenantId) -> bool {
+        matches!(principal.role, OperatorRole::Admin)
+    }
+
+    fn can_manage_reconciliation(
+        &self,
+        principal: &OperatorPrincipal,
+        _tenant_id: &TenantId,
+    ) -> bool {
+        matches!(principal.role, OperatorRole::Operator | OperatorRole::Admin)
+    }
+
+    fn can_manage_exception_case(
+        &self,
+        principal: &OperatorPrincipal,
+        _tenant_id: &TenantId,
+    ) -> bool {
+        matches!(principal.role, OperatorRole::Operator | OperatorRole::Admin)
+    }
+
+    fn can_resolve_exception_case(
+        &self,
+        principal: &OperatorPrincipal,
+        _tenant_id: &TenantId,
+    ) -> bool {
         matches!(principal.role, OperatorRole::Admin)
     }
 }
@@ -160,18 +200,62 @@ impl StatusAuthConfig {
             if constant_time_eq(token.as_bytes(), expected.as_bytes()) {
                 return Ok(());
             }
-            return Err(StatusApiError::Unauthorized(
-                "invalid bearer token".to_owned(),
-            ));
+            if env_bool("STATUS_API_DEBUG_AUTH_HEADER_ENABLED", false) {
+                tracing::warn!(
+                    tenant_id = tenant_id,
+                    authorization = headers
+                        .get("authorization")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("<missing>"),
+                    host = headers
+                        .get("host")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("<missing>"),
+                    x_forwarded_for = headers
+                        .get("x-forwarded-for")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("<missing>"),
+                    x_forwarded_proto = headers
+                        .get("x-forwarded-proto")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("<missing>"),
+                    "status bearer auth mismatch against tenant token"
+                );
+            }
+            return Err(StatusApiError::Unauthorized(debug_invalid_bearer_message(
+                headers,
+            )));
         }
 
         if let Some(expected) = self.global_bearer_token.as_ref() {
             if constant_time_eq(token.as_bytes(), expected.as_bytes()) {
                 return Ok(());
             }
-            return Err(StatusApiError::Unauthorized(
-                "invalid bearer token".to_owned(),
-            ));
+            if env_bool("STATUS_API_DEBUG_AUTH_HEADER_ENABLED", false) {
+                tracing::warn!(
+                    tenant_id = tenant_id,
+                    authorization = headers
+                        .get("authorization")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("<missing>"),
+                    host = headers
+                        .get("host")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("<missing>"),
+                    x_forwarded_for = headers
+                        .get("x-forwarded-for")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("<missing>"),
+                    x_forwarded_proto = headers
+                        .get("x-forwarded-proto")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("<missing>"),
+                    "status bearer auth mismatch against global token"
+                );
+            }
+            return Err(StatusApiError::Unauthorized(debug_invalid_bearer_message(
+                headers,
+            )));
         }
 
         Err(StatusApiError::Unauthorized(
@@ -183,7 +267,7 @@ impl StatusAuthConfig {
         let principal_id = identity.principal.principal_id.as_str();
         let actual_role = identity.principal.role;
 
-        match self.principal_roles.get(principal_id) {
+        match resolve_principal_binding(&self.principal_roles, principal_id) {
             Some(expected_role) if *expected_role == actual_role => Ok(()),
             Some(expected_role) => Err(StatusApiError::Forbidden(format!(
                 "principal `{}` role mismatch: expected `{}` got `{}`",
@@ -203,8 +287,8 @@ impl StatusAuthConfig {
         let principal_id = identity.principal.principal_id.as_str();
         let tenant_id = identity.tenant_id.as_str();
 
-        match self.principal_tenants.get(principal_id) {
-            Some(tenants) if tenants.contains(tenant_id) => Ok(()),
+        match resolve_principal_binding(&self.principal_tenants, principal_id) {
+            Some(tenants) if principal_tenant_allowed(tenants, tenant_id) => Ok(()),
             Some(_) => Err(StatusApiError::Forbidden(format!(
                 "principal `{}` is not allowed for tenant `{}`",
                 principal_id, tenant_id
@@ -215,6 +299,32 @@ impl StatusAuthConfig {
             None => Ok(()),
         }
     }
+}
+
+fn debug_invalid_bearer_message(headers: &HeaderMap) -> String {
+    if !env_bool("STATUS_API_DEBUG_AUTH_HEADER_ENABLED", false) {
+        return "invalid bearer token".to_owned();
+    }
+
+    format!(
+        "invalid bearer token; authorization={}; host={}; x-forwarded-for={}; x-forwarded-proto={}",
+        headers
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("<missing>"),
+        headers
+            .get("host")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("<missing>"),
+        headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("<missing>"),
+        headers
+            .get("x-forwarded-proto")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("<missing>")
+    )
 }
 
 fn header_required(parts: &Parts, name: &str) -> Result<String, StatusApiError> {

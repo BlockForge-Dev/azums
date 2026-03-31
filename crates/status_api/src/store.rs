@@ -1,7 +1,10 @@
 use crate::error::StatusApiError;
 use crate::model::{
     CallbackDeliveryAttemptRecord, CallbackDeliveryRecord, IntakeAuditRecord, JobListItem,
-    RequestStatusResponse,
+    ReconciliationRolloutExceptionMetrics, ReconciliationRolloutIntakeMetrics,
+    ReconciliationRolloutLatencyMetrics, ReconciliationRolloutOutcomeMetrics,
+    ReconciliationRolloutQueryMetrics, ReconciliationRolloutSummaryResponse,
+    ReconciliationRolloutWindow, RequestStatusResponse,
 };
 use execution_core::{
     CanonicalState, ExecutionJob, IntentId, NormalizedIntent, PlatformClassification, ReceiptEntry,
@@ -9,6 +12,7 @@ use execution_core::{
 };
 use serde_json::Value;
 use sqlx::{Error as SqlxError, PgPool, Row};
+use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -220,6 +224,36 @@ impl PostgresStatusStore {
         Ok(entries)
     }
 
+    pub async fn load_receipt_by_id(
+        &self,
+        tenant_id: &TenantId,
+        receipt_id: &str,
+    ) -> Result<Option<ReceiptEntry>, StatusApiError> {
+        let row = sqlx::query_scalar::<_, Value>(
+            r#"
+            SELECT receipt_json
+            FROM execution_core_receipts
+            WHERE tenant_id = $1
+              AND receipt_id = $2
+            LIMIT 1
+            "#,
+        )
+        .bind(tenant_id.as_str())
+        .bind(receipt_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(sqlx_to_internal)?;
+
+        let Some(row) = row else {
+            return Ok(None);
+        };
+
+        let entry: ReceiptEntry = serde_json::from_value(row).map_err(|err| {
+            StatusApiError::Internal(format!("failed to parse receipt row: {err}"))
+        })?;
+        Ok(Some(entry))
+    }
+
     pub async fn load_history(
         &self,
         tenant_id: &TenantId,
@@ -316,6 +350,76 @@ impl PostgresStatusStore {
         }
 
         Ok(deliveries)
+    }
+
+    pub async fn load_callback_delivery(
+        &self,
+        tenant_id: &TenantId,
+        callback_id: &str,
+        include_attempts: bool,
+        attempt_limit: u32,
+    ) -> Result<Option<(IntentId, CallbackDeliveryRecord)>, StatusApiError> {
+        let row = match sqlx::query(
+            r#"
+            SELECT
+                intent_id,
+                callback_id,
+                state,
+                attempts,
+                last_http_status,
+                last_error_class,
+                last_error_message,
+                next_attempt_at_ms,
+                delivered_at_ms,
+                updated_at_ms
+            FROM callback_core_deliveries
+            WHERE tenant_id = $1
+              AND callback_id = $2
+            LIMIT 1
+            "#,
+        )
+        .bind(tenant_id.as_str())
+        .bind(callback_id)
+        .fetch_optional(&self.pool)
+        .await
+        {
+            Ok(row) => row,
+            Err(err) if is_undefined_table(&err) => return Ok(None),
+            Err(err) => return Err(sqlx_to_internal(err)),
+        };
+
+        let Some(row) = row else {
+            return Ok(None);
+        };
+
+        let attempt_history = if include_attempts {
+            self.load_delivery_attempts(callback_id, attempt_limit)
+                .await?
+        } else {
+            Vec::new()
+        };
+
+        let intent_id: String = row.get("intent_id");
+        let callback = CallbackDeliveryRecord {
+            callback_id: row.get("callback_id"),
+            state: row.get("state"),
+            attempts: row.get::<i32, _>("attempts").max(0) as u32,
+            last_http_status: row
+                .get::<Option<i32>, _>("last_http_status")
+                .map(|value| value.max(0) as u16),
+            last_error_class: row.get("last_error_class"),
+            last_error_message: row.get("last_error_message"),
+            next_attempt_at_ms: row
+                .get::<Option<i64>, _>("next_attempt_at_ms")
+                .map(|value| value.max(0) as u64),
+            delivered_at_ms: row
+                .get::<Option<i64>, _>("delivered_at_ms")
+                .map(|value| value.max(0) as u64),
+            updated_at_ms: row.get::<i64, _>("updated_at_ms").max(0) as u64,
+            attempt_history,
+        };
+
+        Ok(Some((IntentId::from(intent_id), callback)))
     }
 
     pub async fn load_callback_destination(
@@ -580,6 +684,260 @@ impl PostgresStatusStore {
         }
 
         Ok(audits)
+    }
+
+    pub async fn load_reconciliation_rollout_summary(
+        &self,
+        tenant_id: &TenantId,
+        lookback_hours: u32,
+    ) -> Result<ReconciliationRolloutSummaryResponse, StatusApiError> {
+        let generated_at_ms = current_unix_ms();
+        let window_ms = u64::from(lookback_hours) * 60 * 60 * 1000;
+        let started_at_ms = generated_at_ms.saturating_sub(window_ms);
+        let started_at_ms_i64 = started_at_ms.min(i64::MAX as u64) as i64;
+        let generated_at_ms_i64 = generated_at_ms.min(i64::MAX as u64) as i64;
+
+        let intake_row = sqlx::query(
+            r#"
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE COALESCE((receipt_json->>'reconciliation_eligible')::boolean, FALSE)
+                ) AS eligible_execution_receipts,
+                (
+                    SELECT COUNT(*)
+                    FROM platform_recon_intake_signals
+                    WHERE tenant_id = $1
+                      AND occurred_at_ms >= $2
+                ) AS intake_signals,
+                (
+                    SELECT COUNT(*)
+                    FROM recon_core_subjects
+                    WHERE tenant_id = $1
+                      AND updated_at_ms >= $2
+                ) AS subjects_total,
+                (
+                    SELECT COUNT(*)
+                    FROM recon_core_subjects
+                    WHERE tenant_id = $1
+                      AND updated_at_ms >= $2
+                      AND dirty = TRUE
+                ) AS dirty_subjects,
+                (
+                    SELECT COUNT(*)
+                    FROM recon_core_subjects
+                    WHERE tenant_id = $1
+                      AND updated_at_ms >= $2
+                      AND (
+                          COALESCE(last_run_state, '') = 'retry_scheduled'
+                          OR COALESCE(next_reconcile_after_ms, 0) > $3
+                      )
+                ) AS retry_scheduled_subjects
+            FROM execution_core_receipts
+            WHERE tenant_id = $1
+              AND occurred_at_ms >= $2
+            "#,
+        )
+        .bind(tenant_id.as_str())
+        .bind(started_at_ms_i64)
+        .bind(generated_at_ms_i64)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(sqlx_to_internal)?;
+
+        let outcomes_row = sqlx::query(
+            r#"
+            WITH latest_outcomes AS (
+                SELECT DISTINCT ON (subject_id)
+                    subject_id,
+                    COALESCE(NULLIF(normalized_result, ''), outcome) AS result
+                FROM recon_core_outcomes
+                WHERE tenant_id = $1
+                  AND created_at_ms >= $2
+                ORDER BY subject_id, created_at_ms DESC, outcome_id DESC
+            ),
+            pending_subjects AS (
+                SELECT COUNT(*) AS pending_count
+                FROM recon_core_subjects
+                WHERE tenant_id = $1
+                  AND updated_at_ms >= $2
+                  AND (
+                      dirty = TRUE
+                      OR COALESCE(last_run_state, '') IN (
+                          'queued',
+                          'collecting_observations',
+                          'matching',
+                          'writing_receipt',
+                          'retry_scheduled'
+                      )
+                  )
+            )
+            SELECT
+                COUNT(*) FILTER (WHERE result = 'matched') AS matched,
+                COUNT(*) FILTER (WHERE result = 'partially_matched') AS partially_matched,
+                COUNT(*) FILTER (WHERE result = 'unmatched') AS unmatched,
+                COUNT(*) FILTER (WHERE result = 'stale') AS stale,
+                COUNT(*) FILTER (WHERE result = 'manual_review_required') AS manual_review_required,
+                (SELECT pending_count FROM pending_subjects) AS pending_observation
+            FROM latest_outcomes
+            "#,
+        )
+        .bind(tenant_id.as_str())
+        .bind(started_at_ms_i64)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(sqlx_to_internal)?;
+
+        let exceptions_row = sqlx::query(
+            r#"
+            SELECT
+                COUNT(*) AS total_cases,
+                COUNT(*) FILTER (
+                    WHERE state NOT IN ('resolved', 'dismissed', 'false_positive')
+                ) AS unresolved_cases,
+                COUNT(*) FILTER (
+                    WHERE state NOT IN ('resolved', 'dismissed', 'false_positive')
+                      AND severity IN ('high', 'critical')
+                ) AS high_or_critical_cases,
+                COUNT(*) FILTER (WHERE state = 'false_positive') AS false_positive_cases
+            FROM exception_cases
+            WHERE tenant_id = $1
+              AND updated_at_ms >= $2
+            "#,
+        )
+        .bind(tenant_id.as_str())
+        .bind(started_at_ms_i64)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(sqlx_to_internal)?;
+
+        let latency_row = sqlx::query(
+            r#"
+            WITH eligible_execution AS (
+                SELECT
+                    tenant_id,
+                    intent_id,
+                    job_id,
+                    MIN(occurred_at_ms) AS first_execution_at_ms
+                FROM execution_core_receipts
+                WHERE tenant_id = $1
+                  AND occurred_at_ms >= $2
+                  AND COALESCE((receipt_json->>'reconciliation_eligible')::boolean, FALSE)
+                GROUP BY tenant_id, intent_id, job_id
+            ),
+            first_reconciliation AS (
+                SELECT
+                    s.tenant_id,
+                    s.intent_id,
+                    s.job_id,
+                    MIN(r.created_at_ms) AS first_recon_at_ms
+                FROM recon_core_receipts r
+                INNER JOIN recon_core_subjects s
+                    ON s.subject_id = r.subject_id
+                WHERE s.tenant_id = $1
+                  AND r.created_at_ms >= $2
+                GROUP BY s.tenant_id, s.intent_id, s.job_id
+            ),
+            recon_latency AS (
+                SELECT
+                    GREATEST(0, first_reconciliation.first_recon_at_ms - eligible_execution.first_execution_at_ms) AS latency_ms
+                FROM eligible_execution
+                INNER JOIN first_reconciliation
+                    ON first_reconciliation.tenant_id = eligible_execution.tenant_id
+                   AND first_reconciliation.intent_id = eligible_execution.intent_id
+                   AND first_reconciliation.job_id = eligible_execution.job_id
+            ),
+            first_resolution AS (
+                SELECT
+                    case_id,
+                    MIN(created_at_ms) FILTER (
+                        WHERE resolution_state IN ('resolved', 'dismissed', 'false_positive')
+                    ) AS resolved_at_ms
+                FROM exception_resolution_history
+                GROUP BY case_id
+            ),
+            operator_latency AS (
+                SELECT
+                    GREATEST(0, first_resolution.resolved_at_ms - exception_cases.created_at_ms) AS handling_ms
+                FROM exception_cases
+                INNER JOIN first_resolution
+                    ON first_resolution.case_id = exception_cases.case_id
+                WHERE exception_cases.tenant_id = $1
+                  AND exception_cases.updated_at_ms >= $2
+                  AND first_resolution.resolved_at_ms IS NOT NULL
+            )
+            SELECT
+                (SELECT AVG(latency_ms)::double precision FROM recon_latency) AS avg_recon_latency_ms,
+                (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms)::double precision FROM recon_latency) AS p95_recon_latency_ms,
+                (SELECT MAX(latency_ms)::double precision FROM recon_latency) AS max_recon_latency_ms,
+                (SELECT AVG(handling_ms)::double precision FROM operator_latency) AS avg_operator_handling_ms,
+                (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY handling_ms)::double precision FROM operator_latency) AS p95_operator_handling_ms
+            "#,
+        )
+        .bind(tenant_id.as_str())
+        .bind(started_at_ms_i64)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(sqlx_to_internal)?;
+
+        let intake = ReconciliationRolloutIntakeMetrics {
+            eligible_execution_receipts: row_u64(&intake_row, "eligible_execution_receipts"),
+            intake_signals: row_u64(&intake_row, "intake_signals"),
+            subjects_total: row_u64(&intake_row, "subjects_total"),
+            dirty_subjects: row_u64(&intake_row, "dirty_subjects"),
+            retry_scheduled_subjects: row_u64(&intake_row, "retry_scheduled_subjects"),
+        };
+
+        let outcomes = ReconciliationRolloutOutcomeMetrics {
+            matched: row_u64(&outcomes_row, "matched"),
+            partially_matched: row_u64(&outcomes_row, "partially_matched"),
+            unmatched: row_u64(&outcomes_row, "unmatched"),
+            pending_observation: row_u64(&outcomes_row, "pending_observation"),
+            stale: row_u64(&outcomes_row, "stale"),
+            manual_review_required: row_u64(&outcomes_row, "manual_review_required"),
+        };
+
+        let total_cases = row_u64(&exceptions_row, "total_cases");
+        let false_positive_cases = row_u64(&exceptions_row, "false_positive_cases");
+        let latest_outcome_total = outcomes.matched
+            + outcomes.partially_matched
+            + outcomes.unmatched
+            + outcomes.stale
+            + outcomes.manual_review_required;
+        let exceptions = ReconciliationRolloutExceptionMetrics {
+            total_cases,
+            unresolved_cases: row_u64(&exceptions_row, "unresolved_cases"),
+            high_or_critical_cases: row_u64(&exceptions_row, "high_or_critical_cases"),
+            false_positive_cases,
+            exception_rate: ratio(total_cases, latest_outcome_total.max(intake.subjects_total)),
+            false_positive_rate: ratio(false_positive_cases, total_cases),
+            stale_rate: ratio(outcomes.stale, latest_outcome_total),
+        };
+
+        let latency = ReconciliationRolloutLatencyMetrics {
+            avg_recon_latency_ms: row_opt_u64(&latency_row, "avg_recon_latency_ms"),
+            p95_recon_latency_ms: row_opt_u64(&latency_row, "p95_recon_latency_ms"),
+            max_recon_latency_ms: row_opt_u64(&latency_row, "max_recon_latency_ms"),
+            avg_operator_handling_ms: row_opt_u64(&latency_row, "avg_operator_handling_ms"),
+            p95_operator_handling_ms: row_opt_u64(&latency_row, "p95_operator_handling_ms"),
+        };
+
+        Ok(ReconciliationRolloutSummaryResponse {
+            tenant_id: tenant_id.to_string(),
+            window: ReconciliationRolloutWindow {
+                lookback_hours,
+                started_at_ms,
+                generated_at_ms,
+            },
+            intake,
+            outcomes,
+            exceptions,
+            latency,
+            queries: ReconciliationRolloutQueryMetrics {
+                sampled_intent_id: None,
+                exception_index_query_ms: None,
+                unified_request_query_ms: None,
+            },
+        })
     }
 
     pub async fn record_query_audit(&self, entry: &QueryAuditEntry) -> Result<(), StatusApiError> {
@@ -848,4 +1206,215 @@ fn is_undefined_table(err: &SqlxError) -> bool {
 
 fn sqlx_to_internal(err: SqlxError) -> StatusApiError {
     StatusApiError::Internal(err.to_string())
+}
+
+fn row_u64(row: &sqlx::postgres::PgRow, column: &str) -> u64 {
+    row.try_get::<i64, _>(column).unwrap_or_default().max(0) as u64
+}
+
+fn row_opt_u64(row: &sqlx::postgres::PgRow, column: &str) -> Option<u64> {
+    row.try_get::<Option<f64>, _>(column)
+        .ok()
+        .flatten()
+        .filter(|value| value.is_finite() && *value >= 0.0)
+        .map(|value| value.round() as u64)
+}
+
+fn ratio(numerator: u64, denominator: u64) -> f64 {
+    if denominator == 0 {
+        return 0.0;
+    }
+    numerator as f64 / denominator as f64
+}
+
+fn current_unix_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
+        .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_store_deserializes_legacy_receipt_rows() {
+        let entry: ReceiptEntry = serde_json::from_value(serde_json::json!({
+            "receipt_id": "receipt_legacy",
+            "tenant_id": "tenant_a",
+            "intent_id": "intent_legacy",
+            "job_id": "job_legacy",
+            "attempt_no": 0,
+            "state": "received",
+            "classification": "Success",
+            "summary": "legacy receipt",
+            "details": { "reason_code": "request_received" },
+            "occurred_at_ms": 1
+        }))
+        .unwrap();
+
+        assert_eq!(entry.receipt_version, 1);
+        assert!(entry.recon_subject_id.is_none());
+        assert!(!entry.reconciliation_eligible);
+        assert!(entry.agent_action.is_none());
+        assert!(entry.agent_identity.is_none());
+        assert!(entry.runtime_identity.is_none());
+        assert!(entry.policy_decision.is_none());
+        assert!(entry.approval_result.is_none());
+        assert!(entry.grant_reference.is_none());
+        assert!(entry.execution_mode.is_none());
+        assert!(entry.connector_outcome.is_none());
+        assert!(entry.recon_linkage.is_none());
+    }
+
+    #[test]
+    fn status_store_deserializes_recon_upgraded_receipt_rows() {
+        let entry: ReceiptEntry = serde_json::from_value(serde_json::json!({
+            "receipt_id": "receipt_v2",
+            "tenant_id": "tenant_a",
+            "intent_id": "intent_v2",
+            "job_id": "job_v2",
+            "receipt_version": 2,
+            "recon_subject_id": "reconsub_job_v2",
+            "reconciliation_eligible": true,
+            "execution_correlation_id": "corr-1",
+            "adapter_execution_reference": "sig-final",
+            "external_observation_key": "sig-final",
+            "expected_fact_snapshot": {
+                "version": 1,
+                "canonical_state": "succeeded"
+            },
+            "attempt_no": 1,
+            "state": "succeeded",
+            "classification": "Success",
+            "summary": "adapter execution succeeded",
+            "details": {
+                "reason_code": "adapter_succeeded"
+            },
+            "occurred_at_ms": 2
+        }))
+        .unwrap();
+
+        assert_eq!(entry.receipt_version, 2);
+        assert_eq!(entry.recon_subject_id.as_deref(), Some("reconsub_job_v2"));
+        assert!(entry.reconciliation_eligible);
+        assert_eq!(
+            entry.adapter_execution_reference.as_deref(),
+            Some("sig-final")
+        );
+        assert!(entry.agent_action.is_none());
+        assert!(entry.approval_result.is_none());
+    }
+
+    #[test]
+    fn status_store_deserializes_agent_receipt_rows() {
+        let entry: ReceiptEntry = serde_json::from_value(serde_json::json!({
+            "receipt_id": "receipt_v3",
+            "tenant_id": "tenant_a",
+            "intent_id": "intent_v3",
+            "job_id": "job_v3",
+            "receipt_version": 3,
+            "recon_subject_id": "reconsub_job_v3",
+            "reconciliation_eligible": true,
+            "execution_correlation_id": "corr-3",
+            "adapter_execution_reference": "sig-final",
+            "external_observation_key": "sig-final",
+            "attempt_no": 1,
+            "state": "succeeded",
+            "classification": "Success",
+            "summary": "agent execution succeeded",
+            "details": {
+                "reason_code": "adapter_succeeded"
+            },
+            "agent_action": {
+                "action_request_id": "act_123",
+                "intent_type": "transfer",
+                "adapter_type": "solana_adapter",
+                "requested_scope": ["payments", "treasury"],
+                "effective_scope": ["payments"],
+                "reason": "vendor payout",
+                "submitted_by": "ops-bot"
+            },
+            "agent_identity": {
+                "agent_id": "agent_123",
+                "environment_id": "env_prod",
+                "environment_kind": "production",
+                "status": "active",
+                "trust_tier": "reviewed",
+                "risk_tier": "high",
+                "owner_team": "ops"
+            },
+            "runtime_identity": {
+                "runtime_type": "slack",
+                "runtime_identity": "runtime://slack/bot",
+                "submitter_kind": "agent_runtime",
+                "channel": "agent_gateway"
+            },
+            "policy_decision": {
+                "decision": "require_approval",
+                "explanation": "prod transfers require approval",
+                "bundle_id": "bundle_prod",
+                "bundle_version": 7
+            },
+            "approval_result": {
+                "result": "approved",
+                "approval_request_id": "apr_123",
+                "state": "approved",
+                "required_approvals": 1,
+                "approvals_received": 1,
+                "approved_by": ["alice"]
+            },
+            "grant_reference": {
+                "grant_id": "grant_123",
+                "source_action_request_id": "act_123",
+                "source_approval_request_id": "apr_123",
+                "source_policy_bundle_id": "bundle_prod",
+                "source_policy_bundle_version": 7,
+                "expires_at_ms": 45000
+            },
+            "execution_mode": {
+                "effective_policy": "sponsored",
+                "base_policy": "customer_signed",
+                "signing_mode": "sponsored",
+                "payer_source": "azums",
+                "fee_payer": "wallet_1"
+            },
+            "connector_outcome": {
+                "status": "not_used"
+            },
+            "recon_linkage": {
+                "recon_subject_id": "reconsub_job_v3",
+                "reconciliation_eligible": true,
+                "execution_correlation_id": "corr-3",
+                "adapter_execution_reference": "sig-final",
+                "external_observation_key": "sig-final"
+            },
+            "occurred_at_ms": 3
+        }))
+        .unwrap();
+
+        assert_eq!(entry.receipt_version, 3);
+        assert_eq!(
+            entry
+                .agent_action
+                .as_ref()
+                .and_then(|value| value.intent_type.as_deref()),
+            Some("transfer")
+        );
+        assert_eq!(
+            entry
+                .approval_result
+                .as_ref()
+                .map(|value| value.result.as_str()),
+            Some("approved")
+        );
+        assert_eq!(
+            entry
+                .connector_outcome
+                .as_ref()
+                .map(|value| value.status.as_str()),
+            Some("not_used")
+        );
+    }
 }

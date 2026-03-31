@@ -32,25 +32,37 @@ spec:
     spec:
       containers:
         - name: operator-ui
-          image: ghcr.io/blockforge-dev/azums/operator_ui:main
+          image: ghcr.io/blockforge-dev/azums/operator_ui_next:main
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8083
               name: http
-          envFrom:
-            - configMapRef:
-                name: azums-platform-config
-            - secretRef:
-                name: azums-platform-secrets
+          env:
+            - name: OPERATOR_UI_BACKEND_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: azums-platform-config
+                  key: OPERATOR_UI_BACKEND_ORIGIN
+            - name: NEXT_PUBLIC_PASSWORD_RESET_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: azums-platform-config
+                  key: OPERATOR_UI_PASSWORD_RESET_ENABLED
+            - name: NODE_ENV
+              value: production
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: PORT
+              value: "8083"
           readinessProbe:
             httpGet:
-              path: /health
+              path: /
               port: 8083
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /health
+              path: /
               port: 8083
             initialDelaySeconds: 20
             periodSeconds: 15

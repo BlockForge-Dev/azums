@@ -393,6 +393,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
+name = "exception_intelligence"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
 name = "execution_core"
 version = "0.1.0"
 dependencies = [
@@ -401,6 +412,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
  "thiserror 2.0.18",
  "tokio",
@@ -1640,6 +1652,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "recon_core"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "exception_intelligence",
+ "execution_core",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2261,9 +2288,11 @@ dependencies = [
  "async-trait",
  "axum",
  "chrono",
+ "exception_intelligence",
  "execution_core",
  "observability",
  "platform_auth",
+ "recon_core",
  "serde",
  "serde_json",
  "shared_types",

@@ -85,6 +85,8 @@ jobs:
           INGRESS_TENANT_API_KEYS: ${{ secrets.INGRESS_TENANT_API_KEYS }}
           INGRESS_WEBHOOK_SIGNATURE_SECRETS: ${{ secrets.INGRESS_WEBHOOK_SIGNATURE_SECRETS }}
           STATUS_API_TENANT_TOKENS: ${{ secrets.STATUS_API_TENANT_TOKENS }}
+          OPERATOR_UI_FLUTTERWAVE_SECRET_KEY: ${{ secrets.OPERATOR_UI_FLUTTERWAVE_SECRET_KEY }}
+          OPERATOR_UI_FLUTTERWAVE_WEBHOOK_HASH: ${{ secrets.OPERATOR_UI_FLUTTERWAVE_WEBHOOK_HASH }}
         shell: bash
         run: |
           kubectl get namespace "$K8S_NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$K8S_NAMESPACE"
@@ -110,6 +112,8 @@ jobs:
             --from-literal=INGRESS_TENANT_API_KEYS="${INGRESS_TENANT_API_KEYS}" \
             --from-literal=INGRESS_WEBHOOK_SIGNATURE_SECRETS="${INGRESS_WEBHOOK_SIGNATURE_SECRETS}" \
             --from-literal=STATUS_API_TENANT_TOKENS="${STATUS_API_TENANT_TOKENS}" \
+            --from-literal=OPERATOR_UI_FLUTTERWAVE_SECRET_KEY="${OPERATOR_UI_FLUTTERWAVE_SECRET_KEY}" \
+            --from-literal=OPERATOR_UI_FLUTTERWAVE_WEBHOOK_HASH="${OPERATOR_UI_FLUTTERWAVE_WEBHOOK_HASH}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Render kustomize overlay pinned to sha image tag
@@ -135,6 +139,9 @@ jobs:
             - name: ghcr.io/blockforge-dev/azums/operator_ui
               newName: ghcr.io/${IMAGE_NAMESPACE}/operator_ui
               newTag: ${{ steps.vars.outputs.image_tag }}
+            - name: ghcr.io/blockforge-dev/azums/operator_ui_next
+              newName: ghcr.io/${IMAGE_NAMESPACE}/operator_ui_next
+              newTag: ${{ steps.vars.outputs.image_tag }}
             - name: ghcr.io/blockforge-dev/azums/reverse_proxy
               newName: ghcr.io/${IMAGE_NAMESPACE}/reverse_proxy
               newTag: ${{ steps.vars.outputs.image_tag }}
@@ -151,5 +158,6 @@ jobs:
           kubectl -n "$K8S_NAMESPACE" rollout status deployment/ingress-api --timeout=5m
           kubectl -n "$K8S_NAMESPACE" rollout status deployment/status-api --timeout=5m
           kubectl -n "$K8S_NAMESPACE" rollout status deployment/execution-worker --timeout=5m
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/operator-ui-backend --timeout=5m
           kubectl -n "$K8S_NAMESPACE" rollout status deployment/operator-ui --timeout=5m
           kubectl -n "$K8S_NAMESPACE" rollout status deployment/reverse-proxy --timeout=5m

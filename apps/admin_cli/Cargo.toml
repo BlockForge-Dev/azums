@@ -9,5 +9,7 @@ adapter_solana = { path = "../../crates/adapter_solana" }
 anyhow = "1"
 callback_core = { path = "../../crates/callback_core" }
 execution_core = { path = "../../crates/execution_core", features = ["postgresq"] }
+exception_intelligence = { path = "../../crates/exception_intelligence" }
+recon_core = { path = "../../crates/recon_core" }
 sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio", "postgres"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

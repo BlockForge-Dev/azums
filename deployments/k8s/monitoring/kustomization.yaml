@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: azums
+resources:
+  - postgres-exporter-configmap.yaml
+  - postgres-exporter.yaml
+  - servicemonitors.yaml
+  - prometheus-rule.platform.yaml

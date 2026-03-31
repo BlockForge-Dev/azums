@@ -14,6 +14,8 @@ use observability::{
     apply_request_context, derive_request_context, init_metrics, init_tracing, record_http_request,
     render_metrics, ObservabilityConfig,
 };
+use exception_intelligence::PostgresExceptionStore;
+use recon_core::PostgresReconStore;
 use serde_json::json;
 use sqlx::postgres::PgPoolOptions;
 use status_api::{
@@ -43,13 +45,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect(&database_url)
         .await?;
 
-    let store = Arc::new(PostgresStatusStore::new(pool));
+    let store = Arc::new(PostgresStatusStore::new(pool.clone()));
     store.ensure_schema().await?;
+    let recon_store = Arc::new(PostgresReconStore::new(pool.clone()));
+    recon_store.ensure_schema().await?;
+    let exception_store = Arc::new(PostgresExceptionStore::new(pool));
+    exception_store.ensure_schema().await?;
 
     let authorizer: Arc<dyn StatusAuthorizer> = Arc::new(RoleBasedStatusAuthorizer);
     let replay_gateway = build_replay_gateway().await?;
     let auth = Arc::new(StatusAuthConfig::from_env());
-    let state = StatusApiState::new(store, authorizer, replay_gateway, auth);
+    let state = StatusApiState::new(
+        store,
+        recon_store,
+        exception_store,
+        authorizer,
+        replay_gateway,
+        auth,
+    );
     let app = router(state)
         .route("/metrics", get(metrics_endpoint))
         .route("/status/metrics", get(metrics_endpoint))
@@ -196,7 +209,7 @@ async fn build_replay_gateway() -> Result<Option<Arc<dyn ReplayGateway>>, Box<dy
         store,
         Arc::new(registry),
         Arc::new(ReplayCoreAuthorizer { allowed_adapters }),
-        RetryPolicy::default(),
+        RetryPolicy::from_env(),
         ReplayPolicy::default(),
         Arc::new(SystemClock),
     ));

@@ -8,6 +8,8 @@ resources:
   - ingress-api.yaml
   - status-api.yaml
   - execution-worker.yaml
+  - execution-callback-worker.yaml
+  - operator-ui-backend.yaml
   - operator-ui.yaml
   - reverse-proxy.yaml
   - ingress-public.yaml

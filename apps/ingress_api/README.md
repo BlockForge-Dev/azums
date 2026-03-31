@@ -21,6 +21,11 @@ Body:
 }
 ```
 
+Metering note:
+
+- Requests tagged with `metadata["metering.scope"]="playground"` are accepted/executed normally
+  but excluded from free-play quota and billable usage counting.
+
 Required headers:
 
 - `x-tenant-id: <tenant>`
@@ -58,9 +63,9 @@ Optional:
 - `INGRESS_API_KEY` (global API key)
 - `INGRESS_TENANT_API_KEYS` (`tenant_a:key_a,tenant_b:key_b`)
 - `INGRESS_WEBHOOK_SIGNATURE_SECRETS` (`tenant_a:secret_a,...`)
-- `INGRESS_PRINCIPAL_SUBMITTER_BINDINGS` (`svc_a=internal_service;tenant_client=api_key_holder`)
+- `INGRESS_PRINCIPAL_SUBMITTER_BINDINGS` (`svc_a=internal_service;tenant_client=api_key_holder`; supports wildcard principal keys, e.g. `workspace-*=internal_service`)
 - `INGRESS_REQUIRE_PRINCIPAL_SUBMITTER_BINDING` (default `true`)
-- `INGRESS_PRINCIPAL_TENANT_BINDINGS` (`svc_a=tenant_a|tenant_b;tenant_client=tenant_a`)
+- `INGRESS_PRINCIPAL_TENANT_BINDINGS` (`svc_a=tenant_a|tenant_b;tenant_client=tenant_a`; supports wildcard principal keys and tenant wildcards, e.g. `workspace-*=tenant_ws_*`)
 - `INGRESS_REQUIRE_PRINCIPAL_TENANT_BINDING` (default `true`)
 - `INGRESS_REQUIRE_PRINCIPAL_ID` (default `true`)
 - `INGRESS_REQUIRE_SUBMITTER_KIND` (default `true`)
@@ -70,6 +75,13 @@ Optional:
 - `INGRESS_INTENT_ROUTES` (`kind=adapter;kind2=adapter2`)
 - `INGRESS_INTENT_SCHEMAS` (`kind=schema_id;kind2=schema_id2`)
 - `INGRESS_REQUIRE_SCHEMA_FOR_ALL_ROUTES` (default `true`)
+- `INGRESS_DEFAULT_QUOTA_PLAN` (default `developer`)
+- `INGRESS_DEFAULT_QUOTA_ACCESS_MODE` (default `free_play`)
+- `INGRESS_DEFAULT_FREE_PLAY_LIMIT` (default `500`)
+- `INGRESS_DEFAULT_EXECUTION_POLICY` (default `customer_signed`)
+- `INGRESS_DEFAULT_SPONSORED_MONTHLY_CAP_REQUESTS` (default `10000`)
+- `INGRESS_EXECUTION_POLICY_ENFORCEMENT_ENABLED` (default `false`)
+- `INGRESS_EXECUTION_POLICY_CANARY_TENANTS` (optional CSV tenant canary allow-list)
 - `EXECUTION_DISPATCH_QUEUE` (default `execution.dispatch`)
 - `EXECUTION_CALLBACK_QUEUE` (default `execution.callback`)
 - `OBS_ENV` (default `dev`)
@@ -100,6 +112,18 @@ Default mapping:
 ```text
 solana.transfer.v1=solana.transfer.v1;solana.broadcast.v1=solana.broadcast.v1
 ```
+
+## Execution Policy Enforcement
+
+Ingress tenant profile now supports:
+
+- `customer_signed`
+- `customer_managed_signer`
+- `sponsored` (capped by `sponsored_monthly_cap_requests`)
+
+When execution policy enforcement is enabled for a tenant and policy is
+`customer_signed` or `customer_managed_signer`, Solana submits must include
+`signed_tx_base64` (or alias `signed_tx_b64` / `signed_tx`).
 
 ## Durable Intake Audits
 

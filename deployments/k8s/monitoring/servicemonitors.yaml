@@ -1,0 +1,75 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: azums-reverse-proxy
+  namespace: azums
+  labels:
+    app.kubernetes.io/name: azums
+spec:
+  namespaceSelector:
+    matchNames:
+      - azums
+  selector:
+    matchLabels:
+      app: reverse-proxy
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: azums-ingress-api
+  namespace: azums
+  labels:
+    app.kubernetes.io/name: azums
+spec:
+  namespaceSelector:
+    matchNames:
+      - azums
+  selector:
+    matchLabels:
+      app: ingress-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: azums-status-api
+  namespace: azums
+  labels:
+    app.kubernetes.io/name: azums
+spec:
+  namespaceSelector:
+    matchNames:
+      - azums
+  selector:
+    matchLabels:
+      app: status-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: azums-postgres-exporter
+  namespace: azums
+  labels:
+    app.kubernetes.io/name: azums
+spec:
+  namespaceSelector:
+    matchNames:
+      - azums
+  selector:
+    matchLabels:
+      app: postgres-exporter
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

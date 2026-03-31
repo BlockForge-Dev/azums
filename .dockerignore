@@ -1,0 +1,33 @@
+# VCS and editor files
+.git
+.github
+.idea
+.vscode
+*.swp
+*.tmp
+
+# Rust build artifacts
+target
+**/target
+
+# Node artifacts
+node_modules
+**/node_modules
+
+# Python artifacts
+**/__pycache__
+**/*.pyc
+
+# Local runtime data and logs
+deployments/compose/.env
+deployments/compose/**/*.log
+deployments/compose/**/data
+deployments/compose/**/.cache
+
+# Common large/generated output dirs
+dist
+build
+coverage
+tmp
+temp
+out

@@ -1,0 +1,59 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: azums-platform-alerts
+  namespace: azums
+  labels:
+    app.kubernetes.io/name: azums
+spec:
+  groups:
+    - name: azums-runtime
+      rules:
+        - alert: AzumsIngressApiCrashLoop
+          expr: max_over_time(kube_pod_container_status_waiting_reason{namespace="azums",reason="CrashLoopBackOff",pod=~"ingress-api-.*"}[5m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: ingress-api is crash looping
+            description: One or more ingress-api pods are in CrashLoopBackOff.
+        - alert: AzumsStatusApiCrashLoop
+          expr: max_over_time(kube_pod_container_status_waiting_reason{namespace="azums",reason="CrashLoopBackOff",pod=~"status-api-.*"}[5m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: status-api is crash looping
+            description: One or more status-api pods are in CrashLoopBackOff.
+        - alert: AzumsExecutionWorkerCrashLoop
+          expr: max_over_time(kube_pod_container_status_waiting_reason{namespace="azums",reason="CrashLoopBackOff",pod=~"execution-worker-.*"}[5m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: execution-worker is crash looping
+            description: One or more execution-worker pods are in CrashLoopBackOff.
+        - alert: AzumsExecutionDispatchQueueLagHigh
+          expr: pgflow_dispatch_queue_lag_seconds > 120
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: execution.dispatch queue lag is elevated
+            description: execution.dispatch oldest ready job lag has exceeded 120 seconds for 10 minutes.
+        - alert: AzumsCallbackRetryBacklogHigh
+          expr: pgflow_callback_retry_scheduled_total > 500
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: callback retry backlog is high
+            description: callback_core_deliveries retry_scheduled backlog exceeded 500.
+        - alert: AzumsCallbackTerminalFailuresDetected
+          expr: pgflow_callback_terminal_failures_total > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: terminal callback failures detected
+            description: callback_core_deliveries has failed_terminal rows; inspect callback destination health.

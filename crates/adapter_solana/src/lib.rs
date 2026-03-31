@@ -7,8 +7,11 @@ use execution_core::{
     AdapterExecutionError, AdapterExecutionRequest, AdapterExecutor, AdapterId, AdapterOutcome,
 };
 use rpc_layer::solana::{
-    rpc_get_latest_blockhash, rpc_get_signature_status, rpc_send_transaction,
-    rpc_simulate_transaction, RpcCallError,
+    rpc_get_latest_blockhash_with_failover, rpc_get_signature_status_with_failover,
+    rpc_send_transaction_with_failover, rpc_simulate_transaction_with_failover, RpcCallError,
+};
+use rpc_layer::{
+    preferred_provider_urls, primary_provider_url, resolve_provider_urls,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -67,8 +70,12 @@ pub struct NormalizedSolanaError {
 struct SolanaExecutionInput {
     intent_id: String,
     intent_type: String,
+    from_addr: Option<String>,
     to_addr: String,
     amount: i64,
+    asset: String,
+    program_id: String,
+    action: String,
     signed_tx_base64: Option<String>,
     skip_preflight: bool,
     cu_limit: Option<i32>,
@@ -77,6 +84,25 @@ struct SolanaExecutionInput {
     simulation_outcome: Option<String>,
     provider_used: Option<String>,
     rpc_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlaygroundDemoScenario {
+    Real,
+    SyntheticSuccess,
+    RetryThenSuccess,
+    TerminalFailure,
+}
+
+impl PlaygroundDemoScenario {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Real => "real",
+            Self::SyntheticSuccess => "success",
+            Self::RetryThenSuccess => "retry_then_success",
+            Self::TerminalFailure => "terminal_failure",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -311,13 +337,16 @@ impl SolanaQueueAdapter {
             }
         }
 
-        self.upsert_intent_row(&input).await?;
+        self.upsert_intent_row(request, &input).await?;
 
-        let rpc_url = input.rpc_url.clone().unwrap_or_else(default_solana_rpc_url);
+        let rpc_urls = resolve_solana_rpc_urls(input.rpc_url.as_deref());
+        let rpc_url = primary_solana_rpc_url(&rpc_urls);
+        let effective_platform_signing_enabled =
+            platform_signing_enabled_for_request(request, &rpc_urls);
         let mut provider_used = input
             .provider_used
             .clone()
-            .or_else(|| input.rpc_url.clone())
+            .or_else(|| rpc_urls.first().cloned())
             .unwrap_or_else(|| rpc_url.clone());
         let cu_limit = normalize_cu_limit(input.cu_limit);
         let cu_price_micro_lamports = normalize_cu_price(input.cu_price_micro_lamports);
@@ -332,7 +361,9 @@ impl SolanaQueueAdapter {
             let created = self
                 .create_attempt_row(
                     candidate_attempt_id,
+                    request.tenant_id.as_str(),
                     &input.intent_id,
+                    request.job_id.as_str(),
                     cu_limit,
                     cu_price_micro_lamports,
                     blockhash_used.as_deref(),
@@ -377,7 +408,9 @@ impl SolanaQueueAdapter {
             let created = self
                 .create_attempt_row(
                     fallback_attempt_id,
+                    request.tenant_id.as_str(),
                     &input.intent_id,
+                    request.job_id.as_str(),
                     cu_limit,
                     cu_price_micro_lamports,
                     blockhash_used.as_deref(),
@@ -406,11 +439,18 @@ impl SolanaQueueAdapter {
         details.insert("job_id".to_owned(), request.job_id.to_string());
         details.insert("intent_id".to_owned(), input.intent_id.clone());
         details.insert("intent_type".to_owned(), input.intent_type.clone());
+        if let Some(from_addr) = input.from_addr.as_deref() {
+            details.insert("from_addr".to_owned(), from_addr.to_owned());
+        }
         details.insert("to_addr".to_owned(), input.to_addr.clone());
         details.insert("amount".to_owned(), input.amount.to_string());
+        details.insert("asset".to_owned(), input.asset.clone());
+        details.insert("program_id".to_owned(), input.program_id.clone());
+        details.insert("action".to_owned(), input.action.clone());
         details.insert("attempt_id".to_owned(), attempt_id.to_string());
         details.insert("provider_used".to_owned(), provider_used.clone());
         details.insert("rpc_url".to_owned(), rpc_url.clone());
+        details.insert("rpc_urls".to_owned(), rpc_urls.join(","));
         details.insert(
             "skip_preflight".to_owned(),
             input.skip_preflight.to_string(),
@@ -420,6 +460,73 @@ impl SolanaQueueAdapter {
             "cu_price_micro_lamports".to_owned(),
             cu_price_micro_lamports.to_string(),
         );
+        let signed_tx_present = input.signed_tx_base64.is_some();
+        let signing_mode = request
+            .metadata
+            .get("execution.signing_mode")
+            .cloned()
+            .unwrap_or_else(|| {
+                if signed_tx_present {
+                    "customer_signed".to_owned()
+                } else {
+                    "platform_sponsored".to_owned()
+                }
+            });
+        let payer_source = request
+            .metadata
+            .get("execution.payer_source")
+            .cloned()
+            .unwrap_or_else(|| {
+                if signed_tx_present {
+                    "customer_wallet".to_owned()
+                } else {
+                    "platform_sponsored".to_owned()
+                }
+            });
+        let fee_payer = request
+            .metadata
+            .get("execution.fee_payer")
+            .cloned()
+            .or_else(|| {
+                extract_detail_string(
+                    &request.payload,
+                    &[
+                        "fee_payer",
+                        "payer",
+                        "from_addr",
+                        "from",
+                        "payer_address",
+                        "fee_payer_address",
+                    ],
+                )
+            })
+            .unwrap_or_else(|| "unknown".to_owned());
+        details.insert("signing_mode".to_owned(), signing_mode);
+        details.insert("payer_source".to_owned(), payer_source);
+        details.insert("fee_payer".to_owned(), fee_payer);
+        details.insert(
+            "platform_signing_enabled".to_owned(),
+            effective_platform_signing_enabled.to_string(),
+        );
+        details.insert(
+            "platform_signing_global_enabled".to_owned(),
+            platform_signing_enabled().to_string(),
+        );
+
+        if let Some(demo_envelope) = self
+            .maybe_execute_playground_demo(
+                request,
+                &input,
+                attempt_id,
+                blockhash_used.as_deref(),
+                simulation_outcome.as_deref(),
+                Some(provider_used.as_str()),
+                &details,
+            )
+            .await?
+        {
+            return Ok(demo_envelope);
+        }
 
         if let Some(existing) = active_attempt.as_ref() {
             details.insert("attempt_reused".to_owned(), "true".to_owned());
@@ -439,6 +546,7 @@ impl SolanaQueueAdapter {
             if existing.status == "sent" {
                 if let Some(signature) = existing.signature.as_deref() {
                     details.insert("signature".to_owned(), signature.to_owned());
+                    details.insert("tx_hash".to_owned(), signature.to_owned());
                     if let Some(blockhash_used) = blockhash_used.as_deref() {
                         details.insert("blockhash_used".to_owned(), blockhash_used.to_owned());
                     }
@@ -453,7 +561,7 @@ impl SolanaQueueAdapter {
                             &input.intent_id,
                             existing.attempt_id,
                             signature,
-                            &rpc_url,
+                            &rpc_urls,
                             &provider_used,
                             blockhash_used.as_deref(),
                             simulation_outcome.as_deref(),
@@ -477,8 +585,52 @@ impl SolanaQueueAdapter {
 
         let mut signed_tx_base64 = input.signed_tx_base64.clone();
         if signed_tx_base64.is_none() {
-            let latest_blockhash = match rpc_get_latest_blockhash(&rpc_url).await {
-                Ok(blockhash) => blockhash,
+            if !effective_platform_signing_enabled {
+                let raw_error = json!({
+                    "code": "SOLANA_PLATFORM_SIGNING_DISABLED",
+                    "message": "platform signing is disabled"
+                });
+                self.mark_attempt_terminal(
+                    attempt_id,
+                    &input.intent_id,
+                    None,
+                    raw_error.clone(),
+                    blockhash_used.as_deref(),
+                    simulation_outcome.as_deref(),
+                    Some(provider_used.as_str()),
+                )
+                .await?;
+
+                let mut err_details = details.clone();
+                err_details.insert("phase".to_owned(), "sign_policy".to_owned());
+                return Ok(AdapterExecutionEnvelope {
+                    status: AdapterStatusSnapshot {
+                        state: AdapterProgressState::Blocked,
+                        code: "solana.platform_signing_disabled".to_owned(),
+                        message:
+                            "platform signing is disabled; provide `signed_tx_base64` from customer signer."
+                                .to_owned(),
+                        provider_reference: Some(attempt_id.to_string()),
+                        details: err_details,
+                    },
+                    outcome: AdapterOutcome::Blocked {
+                        code: "solana.platform_signing_disabled".to_owned(),
+                        message:
+                            "platform signing is disabled; signed transaction payload is required."
+                                .to_owned(),
+                    },
+                });
+            }
+            let latest_blockhash = match rpc_get_latest_blockhash_with_failover(
+                &preferred_solana_rpc_urls(Some(provider_used.as_str()), &rpc_urls),
+            )
+            .await
+            {
+                Ok(result) => {
+                    provider_used = result.provider_used;
+                    details.insert("provider_used".to_owned(), provider_used.clone());
+                    result.value
+                }
                 Err(err) => {
                     let normalized = normalized_from_rpc_call_error(self, err.clone());
                     let mut err_details = details.clone();
@@ -553,8 +705,16 @@ impl SolanaQueueAdapter {
         })?;
 
         if !input.skip_preflight && simulation_outcome.is_none() {
-            match rpc_simulate_transaction(&rpc_url, &signed_tx_base64).await {
-                Ok(simulation_result) => {
+            match rpc_simulate_transaction_with_failover(
+                &preferred_solana_rpc_urls(Some(provider_used.as_str()), &rpc_urls),
+                &signed_tx_base64,
+            )
+            .await
+            {
+                Ok(result) => {
+                    provider_used = result.provider_used;
+                    details.insert("provider_used".to_owned(), provider_used.clone());
+                    let simulation_result = result.value;
                     simulation_outcome = Some(simulation_result.outcome.clone());
                     self.update_attempt_metadata(
                         attempt_id,
@@ -627,9 +787,18 @@ impl SolanaQueueAdapter {
             .await?;
         }
 
-        let signature =
-            match rpc_send_transaction(&rpc_url, &signed_tx_base64, input.skip_preflight).await {
-                Ok(signature) => signature,
+        let signature = match rpc_send_transaction_with_failover(
+            &preferred_solana_rpc_urls(Some(provider_used.as_str()), &rpc_urls),
+            &signed_tx_base64,
+            input.skip_preflight,
+        )
+        .await
+        {
+                Ok(result) => {
+                    provider_used = result.provider_used;
+                    details.insert("provider_used".to_owned(), provider_used.clone());
+                    result.value
+                }
                 Err(err) => {
                     let normalized = normalized_from_rpc_call_error(self, err.clone());
                     match normalized.class {
@@ -673,6 +842,7 @@ impl SolanaQueueAdapter {
         .await?;
 
         details.insert("signature".to_owned(), signature.clone());
+        details.insert("tx_hash".to_owned(), signature.clone());
         if let Some(blockhash_used) = blockhash_used.as_deref() {
             details.insert("blockhash_used".to_owned(), blockhash_used.to_owned());
         }
@@ -687,7 +857,7 @@ impl SolanaQueueAdapter {
             &input.intent_id,
             attempt_id,
             &signature,
-            &rpc_url,
+            &rpc_urls,
             &provider_used,
             blockhash_used.as_deref(),
             simulation_outcome.as_deref(),
@@ -733,16 +903,25 @@ impl SolanaQueueAdapter {
 
     async fn upsert_intent_row(
         &self,
+        request: &AdapterExecutionRequest,
         input: &SolanaExecutionInput,
     ) -> Result<(), AdapterExecutionError> {
         sqlx::query(
             r#"
-            INSERT INTO solana.tx_intents (id, intent_type, to_addr, amount, status)
-            VALUES ($1, $2, $3, $4, 'received')
+            INSERT INTO solana.tx_intents (
+                id, tenant_id, job_id, intent_type, from_addr, to_addr, amount, asset, program_id, action, status
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'received')
             ON CONFLICT (id) DO UPDATE
-               SET intent_type = EXCLUDED.intent_type,
+               SET tenant_id = EXCLUDED.tenant_id,
+                   job_id = EXCLUDED.job_id,
+                   intent_type = EXCLUDED.intent_type,
+                   from_addr = EXCLUDED.from_addr,
                    to_addr = EXCLUDED.to_addr,
                    amount = EXCLUDED.amount,
+                   asset = EXCLUDED.asset,
+                   program_id = EXCLUDED.program_id,
+                   action = EXCLUDED.action,
                    status = CASE
                      WHEN solana.tx_intents.status = 'finalized' THEN 'finalized'
                      ELSE 'received'
@@ -751,9 +930,15 @@ impl SolanaQueueAdapter {
             "#,
         )
         .bind(&input.intent_id)
+        .bind(request.tenant_id.as_str())
+        .bind(request.job_id.as_str())
         .bind(&input.intent_type)
+        .bind(input.from_addr.as_deref())
         .bind(&input.to_addr)
         .bind(input.amount)
+        .bind(&input.asset)
+        .bind(&input.program_id)
+        .bind(&input.action)
         .execute(&self.pool)
         .await
         .map_err(|err| map_db_error("upsert solana intent", err))?;
@@ -764,7 +949,9 @@ impl SolanaQueueAdapter {
     async fn create_attempt_row(
         &self,
         attempt_id: Uuid,
+        tenant_id: &str,
         intent_id: &str,
+        job_id: &str,
         cu_limit: i32,
         cu_price_micro_lamports: i64,
         blockhash_used: Option<&str>,
@@ -775,7 +962,9 @@ impl SolanaQueueAdapter {
             r#"
             INSERT INTO solana.tx_attempts (
                 id,
+                tenant_id,
                 intent_id,
+                job_id,
                 status,
                 cu_limit,
                 cu_price_micro_lamports,
@@ -783,11 +972,13 @@ impl SolanaQueueAdapter {
                 simulation_outcome,
                 provider_used
             )
-            VALUES ($1, $2, 'created', $3, $4, $5, $6, $7)
+            VALUES ($1, $2, $3, $4, 'created', $5, $6, $7, $8, $9)
             "#,
         )
         .bind(attempt_id)
+        .bind(tenant_id)
         .bind(intent_id)
+        .bind(job_id)
         .bind(cu_limit)
         .bind(cu_price_micro_lamports)
         .bind(blockhash_used)
@@ -799,6 +990,172 @@ impl SolanaQueueAdapter {
             Ok(_) => Ok(true),
             Err(err) if is_sqlstate(&err, "23505") => Ok(false),
             Err(err) => Err(map_db_error("create solana attempt", err)),
+        }
+    }
+
+    async fn count_attempt_rows_for_intent(
+        &self,
+        intent_id: &str,
+    ) -> Result<i64, AdapterExecutionError> {
+        let count = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*)::BIGINT
+            FROM solana.tx_attempts
+            WHERE intent_id = $1
+            "#,
+        )
+        .bind(intent_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|err| map_db_error("count solana attempt rows", err))?;
+        Ok(count.max(0))
+    }
+
+    async fn maybe_execute_playground_demo(
+        &self,
+        request: &AdapterExecutionRequest,
+        input: &SolanaExecutionInput,
+        attempt_id: Uuid,
+        blockhash_used: Option<&str>,
+        simulation_outcome: Option<&str>,
+        provider_used: Option<&str>,
+        details: &BTreeMap<String, String>,
+    ) -> Result<Option<AdapterExecutionEnvelope>, AdapterExecutionError> {
+        if !playground_demo_scenarios_enabled() {
+            return Ok(None);
+        }
+
+        if !is_playground_internal_request(request) {
+            return Ok(None);
+        }
+
+        let scenario = playground_demo_scenario(request);
+        if matches!(scenario, PlaygroundDemoScenario::Real) {
+            return Ok(None);
+        }
+
+        let mut demo_details = details.clone();
+        demo_details.insert("playground_demo_scenario".to_owned(), scenario.as_str().to_owned());
+        let attempt_count = self.count_attempt_rows_for_intent(&input.intent_id).await?;
+        demo_details.insert(
+            "playground_demo_attempt_count".to_owned(),
+            attempt_count.to_string(),
+        );
+
+        match scenario {
+            PlaygroundDemoScenario::SyntheticSuccess => {
+                let signature = synthetic_demo_signature(attempt_id);
+                self.mark_attempt_finalized_success(
+                    attempt_id,
+                    &input.intent_id,
+                    &signature,
+                    blockhash_used,
+                    simulation_outcome,
+                    provider_used,
+                )
+                .await?;
+                demo_details.insert("signature".to_owned(), signature.clone());
+                demo_details.insert("tx_hash".to_owned(), signature.clone());
+
+                Ok(Some(build_success_envelope(
+                    AdapterProgressState::Finalized,
+                    "solana.playground_demo_success",
+                    "playground synthetic success committed",
+                    Some(attempt_id.to_string()),
+                    demo_details,
+                )))
+            }
+            PlaygroundDemoScenario::RetryThenSuccess => {
+                if attempt_count <= 1 {
+                    let raw_error = json!({
+                        "code": "SOLANA_PLAYGROUND_RETRY_DEMO",
+                        "message": "synthetic retry requested for playground demo"
+                    });
+                    self.mark_attempt_expired(
+                        attempt_id,
+                        raw_error.clone(),
+                        blockhash_used,
+                        simulation_outcome,
+                        provider_used,
+                    )
+                    .await?;
+                    demo_details.insert("playground_demo_phase".to_owned(), "retry".to_owned());
+                    Ok(Some(AdapterExecutionEnvelope {
+                        status: AdapterStatusSnapshot {
+                            state: AdapterProgressState::FailedRetryable,
+                            code: "solana.playground_retry_demo".to_owned(),
+                            message: "playground demo generated a retryable failure".to_owned(),
+                            provider_reference: Some(attempt_id.to_string()),
+                            details: demo_details,
+                        },
+                        outcome: AdapterOutcome::RetryableFailure {
+                            code: "solana.playground_retry_demo".to_owned(),
+                            message: "playground demo generated a retryable failure".to_owned(),
+                            retry_after_ms: Some(1200),
+                            provider_details: Some(raw_error),
+                        },
+                    }))
+                } else {
+                    let signature = synthetic_demo_signature(attempt_id);
+                    self.mark_attempt_finalized_success(
+                        attempt_id,
+                        &input.intent_id,
+                        &signature,
+                        blockhash_used,
+                        simulation_outcome,
+                        provider_used,
+                    )
+                    .await?;
+                    demo_details.insert("playground_demo_phase".to_owned(), "recovered".to_owned());
+                    demo_details.insert("signature".to_owned(), signature.clone());
+                    demo_details.insert("tx_hash".to_owned(), signature.clone());
+
+                    Ok(Some(build_success_envelope(
+                        AdapterProgressState::Finalized,
+                        "solana.playground_retry_demo_recovered",
+                        "playground demo completed after one retry",
+                        Some(attempt_id.to_string()),
+                        demo_details,
+                    )))
+                }
+            }
+            PlaygroundDemoScenario::TerminalFailure => {
+                let raw_error = json!({
+                    "code": "SOLANA_PLAYGROUND_TERMINAL_DEMO",
+                    "message": "synthetic terminal failure requested for playground demo"
+                });
+                self.mark_attempt_terminal(
+                    attempt_id,
+                    &input.intent_id,
+                    None,
+                    raw_error,
+                    blockhash_used,
+                    simulation_outcome,
+                    provider_used,
+                )
+                .await?;
+                demo_details.insert(
+                    "playground_demo_phase".to_owned(),
+                    "terminal_failure".to_owned(),
+                );
+                Ok(Some(AdapterExecutionEnvelope {
+                    status: AdapterStatusSnapshot {
+                        state: AdapterProgressState::FailedTerminal,
+                        code: "solana.playground_terminal_demo".to_owned(),
+                        message: "playground demo generated a terminal failure".to_owned(),
+                        provider_reference: Some(attempt_id.to_string()),
+                        details: demo_details,
+                    },
+                    outcome: AdapterOutcome::TerminalFailure {
+                        code: "solana.playground_terminal_demo".to_owned(),
+                        message: "playground demo generated a terminal failure".to_owned(),
+                        provider_details: Some(json!({
+                            "code": "SOLANA_PLAYGROUND_TERMINAL_DEMO"
+                        })),
+                    },
+                }))
+            }
+            PlaygroundDemoScenario::Real => Ok(None),
         }
     }
 
@@ -1131,7 +1488,7 @@ impl SolanaQueueAdapter {
         intent_id: &str,
         attempt_id: Uuid,
         signature: &str,
-        rpc_url: &str,
+        rpc_urls: &[String],
         provider_used: &str,
         blockhash_used: Option<&str>,
         simulation_outcome: Option<&str>,
@@ -1140,20 +1497,35 @@ impl SolanaQueueAdapter {
         let max_polls = self.sync_max_polls();
         let poll_delay = self.sync_poll_delay();
         let mut landed_seen = false;
+        let mut current_provider_used = provider_used.to_owned();
 
         for poll in 0..max_polls {
-            let response = rpc_get_signature_status(rpc_url, signature).await;
+            let response = rpc_get_signature_status_with_failover(
+                &preferred_solana_rpc_urls(Some(current_provider_used.as_str()), rpc_urls),
+                signature,
+            )
+            .await;
             match response {
-                Ok(None) => {
-                    self.record_attempt_check(attempt_id, None, None, Some(provider_used))
+                Ok(result) if result.value.is_none() => {
+                    current_provider_used = result.provider_used;
+                    details.insert("provider_used".to_owned(), current_provider_used.clone());
+                    self.record_attempt_check(
+                        attempt_id,
+                        None,
+                        None,
+                        Some(current_provider_used.as_str()),
+                    )
                         .await?;
                 }
-                Ok(Some(status)) => {
+                Ok(result) => {
+                    current_provider_used = result.provider_used;
+                    details.insert("provider_used".to_owned(), current_provider_used.clone());
+                    let status = result.value.expect("status present");
                     self.record_attempt_check(
                         attempt_id,
                         status.confirmation_status.as_deref(),
                         status.err.clone(),
-                        Some(provider_used),
+                        Some(current_provider_used.as_str()),
                     )
                     .await?;
 
@@ -1166,7 +1538,7 @@ impl SolanaQueueAdapter {
                                     err_json,
                                     blockhash_used,
                                     simulation_outcome,
-                                    Some(provider_used),
+                                    Some(current_provider_used.as_str()),
                                 )
                                 .await?;
                             }
@@ -1178,7 +1550,7 @@ impl SolanaQueueAdapter {
                                     err_json,
                                     blockhash_used,
                                     simulation_outcome,
-                                    Some(provider_used),
+                                    Some(current_provider_used.as_str()),
                                 )
                                 .await?;
                             }
@@ -1207,7 +1579,7 @@ impl SolanaQueueAdapter {
                             signature,
                             blockhash_used,
                             simulation_outcome,
-                            Some(provider_used),
+                            Some(current_provider_used.as_str()),
                         )
                         .await?;
                         details.insert("confirmation_status".to_owned(), "finalized".to_owned());
@@ -1226,7 +1598,7 @@ impl SolanaQueueAdapter {
                         attempt_id,
                         None,
                         Some(normalized.raw_provider_error.clone()),
-                        Some(provider_used),
+                        Some(current_provider_used.as_str()),
                     )
                     .await?;
                     details.insert("phase".to_owned(), "track_status".to_owned());
@@ -1538,6 +1910,10 @@ impl SolanaQueueAdapter {
             .clone()
             .or_else(|| row.attempt_signature.clone())
             .or(fallback_provider_reference);
+        if let Some(signature) = provider_reference.as_deref() {
+            details.insert("signature".to_owned(), signature.to_owned());
+            details.insert("tx_hash".to_owned(), signature.to_owned());
+        }
 
         if let Some(raw_error) = row.final_err_json.clone().or(row.last_err_json.clone()) {
             let normalized = self.normalize_solana_error(&raw_error);
@@ -1760,6 +2136,12 @@ fn normalize_payload(request: &AdapterExecutionRequest) -> Result<Value, Adapter
     copy_optional(payload, &mut out, "provider_used");
     copy_optional(payload, &mut out, "provider");
     copy_optional(payload, &mut out, "rpc_url");
+    copy_optional(payload, &mut out, "from_addr");
+    copy_optional(payload, &mut out, "from");
+    copy_optional(payload, &mut out, "asset");
+    copy_optional(payload, &mut out, "program");
+    copy_optional(payload, &mut out, "program_id");
+    copy_optional(payload, &mut out, "action");
 
     Ok(out)
 }
@@ -1797,6 +2179,18 @@ fn parse_execution_input(payload: &Value) -> Result<SolanaExecutionInput, Adapte
             )
         })?
         .to_owned();
+
+    let from_addr = extract_detail_string(
+        payload,
+        &[
+            "from_addr",
+            "from",
+            "fee_payer",
+            "payer",
+            "payer_address",
+            "fee_payer_address",
+        ],
+    );
 
     let amount = payload
         .get("amount")
@@ -1848,12 +2242,21 @@ fn parse_execution_input(payload: &Value) -> Result<SolanaExecutionInput, Adapte
     let simulation_outcome = extract_detail_string(payload, &["simulation_outcome"]);
     let provider_used = extract_detail_string(payload, &["provider_used", "provider"]);
     let rpc_url = extract_detail_string(payload, &["rpc_url"]);
+    let asset = extract_detail_string(payload, &["asset", "mint"]).unwrap_or_else(|| "SOL".to_owned());
+    let program_id = extract_detail_string(payload, &["program_id", "program"])
+        .unwrap_or_else(|| "system_program".to_owned());
+    let action = extract_detail_string(payload, &["action", "type"])
+        .unwrap_or_else(|| intent_type.clone());
 
     Ok(SolanaExecutionInput {
         intent_id,
         intent_type,
+        from_addr,
         to_addr,
         amount,
+        asset,
+        program_id,
+        action,
         signed_tx_base64,
         skip_preflight,
         cu_limit,
@@ -1899,9 +2302,15 @@ async fn ensure_solana_schema_with_pool(pool: &PgPool) -> Result<(), AdapterExec
 
             CREATE TABLE IF NOT EXISTS solana.tx_intents (
               id              TEXT PRIMARY KEY,
+              tenant_id       TEXT NULL,
+              job_id          TEXT NULL,
               intent_type     TEXT NOT NULL,
+              from_addr       TEXT NULL,
               to_addr         TEXT NOT NULL,
               amount          BIGINT NOT NULL,
+              asset           TEXT NULL,
+              program_id      TEXT NULL,
+              action          TEXT NULL,
               status          TEXT NOT NULL CHECK (status IN ('received','finalized')),
               final_signature TEXT NULL,
               final_err_json  JSONB NULL,
@@ -1911,7 +2320,9 @@ async fn ensure_solana_schema_with_pool(pool: &PgPool) -> Result<(), AdapterExec
 
             CREATE TABLE IF NOT EXISTS solana.tx_attempts (
               id                        UUID PRIMARY KEY,
+              tenant_id                 TEXT NULL,
               intent_id                 TEXT NOT NULL REFERENCES solana.tx_intents(id) ON DELETE CASCADE,
+              job_id                    TEXT NULL,
               status                    TEXT NOT NULL CHECK (status IN ('created','sent','finalized','expired')),
               signature                 TEXT NULL,
               cu_limit                  INT NULL,
@@ -1946,6 +2357,14 @@ async fn ensure_solana_schema_with_pool(pool: &PgPool) -> Result<(), AdapterExec
 
             let alters = [
                 "ALTER TABLE solana.tx_intents ADD COLUMN IF NOT EXISTS final_err_json JSONB",
+                "ALTER TABLE solana.tx_intents ADD COLUMN IF NOT EXISTS tenant_id TEXT",
+                "ALTER TABLE solana.tx_intents ADD COLUMN IF NOT EXISTS job_id TEXT",
+                "ALTER TABLE solana.tx_intents ADD COLUMN IF NOT EXISTS from_addr TEXT",
+                "ALTER TABLE solana.tx_intents ADD COLUMN IF NOT EXISTS asset TEXT",
+                "ALTER TABLE solana.tx_intents ADD COLUMN IF NOT EXISTS program_id TEXT",
+                "ALTER TABLE solana.tx_intents ADD COLUMN IF NOT EXISTS action TEXT",
+                "ALTER TABLE solana.tx_attempts ADD COLUMN IF NOT EXISTS tenant_id TEXT",
+                "ALTER TABLE solana.tx_attempts ADD COLUMN IF NOT EXISTS job_id TEXT",
                 "ALTER TABLE solana.tx_attempts ADD COLUMN IF NOT EXISTS cu_limit INT",
                 "ALTER TABLE solana.tx_attempts ADD COLUMN IF NOT EXISTS cu_price_micro_lamports BIGINT",
                 "ALTER TABLE solana.tx_attempts ADD COLUMN IF NOT EXISTS poll_no INT NOT NULL DEFAULT 0",
@@ -1960,6 +2379,16 @@ async fn ensure_solana_schema_with_pool(pool: &PgPool) -> Result<(), AdapterExec
             for stmt in alters {
                 sqlx::query(stmt).execute(pool).await.map_err(|err| {
                     AdapterExecutionError::Transport(format!("solana schema alter failed: {err}"))
+                })?;
+            }
+
+            let indexes = [
+                "CREATE INDEX IF NOT EXISTS solana_tx_intents_tenant_job_idx ON solana.tx_intents(tenant_id, job_id, updated_at DESC)",
+                "CREATE INDEX IF NOT EXISTS solana_tx_attempts_tenant_intent_job_idx ON solana.tx_attempts(tenant_id, intent_id, job_id, updated_at DESC)",
+            ];
+            for stmt in indexes {
+                sqlx::query(stmt).execute(pool).await.map_err(|err| {
+                    AdapterExecutionError::Transport(format!("solana schema index failed: {err}"))
                 })?;
             }
 
@@ -2120,8 +2549,117 @@ fn env_non_empty(name: &str) -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
-fn default_solana_rpc_url() -> String {
-    env_non_empty("SOLANA_RPC_URL").unwrap_or_else(|| "https://api.devnet.solana.com".to_owned())
+fn env_bool(name: &str, default: bool) -> bool {
+    match std::env::var(name) {
+        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => true,
+            "0" | "false" | "no" | "off" => false,
+            _ => default,
+        },
+        Err(_) => default,
+    }
+}
+
+fn platform_signing_enabled() -> bool {
+    env_bool("SOLANA_PLATFORM_SIGNING_ENABLED", true)
+}
+
+fn playground_signing_enabled() -> bool {
+    env_bool("SOLANA_PLAYGROUND_PLATFORM_SIGNING_ENABLED", true)
+}
+
+fn playground_demo_scenarios_enabled() -> bool {
+    env_bool("SOLANA_PLAYGROUND_DEMO_SCENARIOS_ENABLED", true)
+}
+
+fn is_playground_internal_request(request: &AdapterExecutionRequest) -> bool {
+    let metering_scope_is_playground = request
+        .metadata
+        .get("metering.scope")
+        .map(|value| value.trim().eq_ignore_ascii_case("playground"))
+        .unwrap_or(false);
+    let ui_surface_is_playground = request
+        .metadata
+        .get("ui.surface")
+        .map(|value| value.trim().eq_ignore_ascii_case("playground"))
+        .unwrap_or(false);
+    let internal_submitter = request
+        .metadata
+        .get("submitter.kind")
+        .map(|value| value.trim().eq_ignore_ascii_case("internal_service"))
+        .unwrap_or(false);
+    metering_scope_is_playground && ui_surface_is_playground && internal_submitter
+}
+
+fn playground_demo_scenario(request: &AdapterExecutionRequest) -> PlaygroundDemoScenario {
+    let Some(value) = request.metadata.get("playground.demo_scenario") else {
+        return PlaygroundDemoScenario::Real;
+    };
+    match value.trim().to_ascii_lowercase().as_str() {
+        "success" | "synthetic_success" | "synthetic-success" => {
+            PlaygroundDemoScenario::SyntheticSuccess
+        }
+        "retry_then_success" | "retry-then-success" | "retry" => {
+            PlaygroundDemoScenario::RetryThenSuccess
+        }
+        "terminal_failure" | "terminal-failure" | "terminal" => {
+            PlaygroundDemoScenario::TerminalFailure
+        }
+        _ => PlaygroundDemoScenario::Real,
+    }
+}
+
+fn rpc_url_is_mainnet(rpc_url: &str) -> bool {
+    let normalized = rpc_url.trim().to_ascii_lowercase();
+    normalized.contains("mainnet")
+}
+
+fn platform_signing_enabled_for_request(
+    request: &AdapterExecutionRequest,
+    rpc_urls: &[String],
+) -> bool {
+    if platform_signing_enabled() {
+        return true;
+    }
+    if !playground_signing_enabled() {
+        return false;
+    }
+    if !is_playground_internal_request(request) {
+        return false;
+    }
+    !rpc_urls.iter().any(|rpc_url| rpc_url_is_mainnet(rpc_url))
+}
+
+fn synthetic_demo_signature(attempt_id: Uuid) -> String {
+    format!(
+        "demo_sig_{}",
+        attempt_id.to_string().replace('-', "").to_ascii_lowercase()
+    )
+}
+
+fn resolve_solana_rpc_urls(explicit: Option<&str>) -> Vec<String> {
+    default_solana_rpc_endpoints(explicit).urls
+}
+
+fn preferred_solana_rpc_urls(preferred: Option<&str>, candidates: &[String]) -> Vec<String> {
+    preferred_provider_urls(preferred, candidates)
+}
+
+fn primary_solana_rpc_url(candidates: &[String]) -> String {
+    primary_provider_url(candidates, "https://api.devnet.solana.com")
+}
+
+fn default_solana_rpc_endpoints(
+    explicit: Option<&str>,
+) -> rpc_layer::OrderedProviderEndpoints {
+    resolve_provider_urls(
+        explicit,
+        "SOLANA_RPC_PRIMARY_URL",
+        "SOLANA_RPC_URLS",
+        "SOLANA_RPC_FALLBACK_URLS",
+        "SOLANA_RPC_URL",
+        "https://api.devnet.solana.com",
+    )
 }
 
 fn default_cu_limit() -> i32 {

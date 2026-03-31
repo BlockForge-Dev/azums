@@ -7,7 +7,10 @@ use crate::model::{
 };
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
-use execution_core::CallbackJob;
+use execution_core::{
+    recon_subject_id_for_job, CallbackJob, ReconIntakeSignal, ReconIntakeSignalId,
+    ReconIntakeSignalKind,
+};
 use serde_json::Value;
 use sqlx::{PgPool, Row};
 use std::collections::HashSet;
@@ -35,7 +38,7 @@ impl Default for PostgresQCallbackWorkerConfig {
             worker_id: "execution-callback-worker".to_owned(),
             lease_seconds: 30,
             batch_size: 32,
-            idle_sleep_ms: 250,
+            idle_sleep_ms: 50,
             reap_interval_ms: 5_000,
             duplicate_retry_delay_secs: 2,
         }
@@ -155,6 +158,38 @@ impl PostgresQDeliveryStore {
             CREATE INDEX IF NOT EXISTS callback_core_tenant_destinations_enabled_idx
             ON callback_core_tenant_destinations(enabled, updated_at_ms DESC)
             "#,
+            r#"
+            CREATE TABLE IF NOT EXISTS platform_recon_intake_signals (
+                signal_id TEXT PRIMARY KEY,
+                source_system TEXT NOT NULL,
+                signal_kind TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
+                intent_id TEXT NOT NULL,
+                job_id TEXT NOT NULL,
+                adapter_id TEXT NULL,
+                receipt_id TEXT NULL,
+                transition_id TEXT NULL,
+                callback_id TEXT NULL,
+                recon_subject_id TEXT NOT NULL,
+                canonical_state TEXT NULL,
+                classification TEXT NULL,
+                execution_correlation_id TEXT NULL,
+                adapter_execution_reference TEXT NULL,
+                external_observation_key TEXT NULL,
+                expected_fact_snapshot_json JSONB NULL,
+                payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                occurred_at_ms BIGINT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            "#,
+            r#"
+            CREATE INDEX IF NOT EXISTS platform_recon_intake_signals_subject_idx
+            ON platform_recon_intake_signals(recon_subject_id, occurred_at_ms DESC)
+            "#,
+            r#"
+            CREATE INDEX IF NOT EXISTS platform_recon_intake_signals_occurred_idx
+            ON platform_recon_intake_signals(occurred_at_ms ASC, signal_id ASC)
+            "#,
         ];
 
         for stmt in ddl {
@@ -169,6 +204,31 @@ impl PostgresQDeliveryStore {
 
     pub async fn publish_callback(&self, callback: &CallbackJob) -> Result<(), CallbackCoreError> {
         let now_ms = now_ms();
+        let signal = ReconIntakeSignal {
+            signal_id: ReconIntakeSignalId::new(),
+            source_system: "callback_core".to_owned(),
+            signal_kind: ReconIntakeSignalKind::CallbackCommitted,
+            tenant_id: callback.summary.tenant_id.clone(),
+            intent_id: callback.summary.intent_id.clone(),
+            job_id: callback.summary.job_id.clone(),
+            adapter_id: Some(callback.summary.adapter_id.clone()),
+            receipt_id: None,
+            transition_id: None,
+            callback_id: Some(callback.callback_id.clone()),
+            recon_subject_id: recon_subject_id_for_job(&callback.summary.job_id),
+            canonical_state: Some(callback.summary.state),
+            classification: Some(callback.summary.classification),
+            execution_correlation_id: None,
+            adapter_execution_reference: None,
+            external_observation_key: None,
+            expected_fact_snapshot: None,
+            payload: serde_json::json!({
+                "callback_id": callback.callback_id,
+                "summary": callback.summary,
+                "enqueued_at_ms": callback.enqueued_at_ms,
+            }),
+            occurred_at_ms: now_ms,
+        };
         sqlx::query(
             r#"
             INSERT INTO callback_core_deliveries (
@@ -199,6 +259,7 @@ impl PostgresQDeliveryStore {
         .execute(&self.pool)
         .await
         .map_err(sqlx_err_to_store)?;
+        insert_recon_signal(&self.pool, &signal).await?;
 
         Ok(())
     }
@@ -1261,6 +1322,63 @@ fn next_retry_delay_secs(attempt_no: i32) -> i64 {
 
 fn datetime_to_ms(value: DateTime<Utc>) -> u64 {
     value.timestamp_millis().max(0) as u64
+}
+
+async fn insert_recon_signal(
+    pool: &PgPool,
+    signal: &ReconIntakeSignal,
+) -> Result<(), CallbackCoreError> {
+    sqlx::query(
+        r#"
+        INSERT INTO platform_recon_intake_signals (
+            signal_id,
+            source_system,
+            signal_kind,
+            tenant_id,
+            intent_id,
+            job_id,
+            adapter_id,
+            receipt_id,
+            transition_id,
+            callback_id,
+            recon_subject_id,
+            canonical_state,
+            classification,
+            execution_correlation_id,
+            adapter_execution_reference,
+            external_observation_key,
+            expected_fact_snapshot_json,
+            payload_json,
+            occurred_at_ms
+        )
+        VALUES (
+            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+        )
+        "#,
+    )
+    .bind(signal.signal_id.as_str())
+    .bind(&signal.source_system)
+    .bind(signal.signal_kind.as_str())
+    .bind(signal.tenant_id.as_str())
+    .bind(signal.intent_id.as_str())
+    .bind(signal.job_id.as_str())
+    .bind(signal.adapter_id.as_ref().map(|value| value.as_str()))
+    .bind(signal.receipt_id.as_ref().map(|value| value.as_str()))
+    .bind(signal.transition_id.as_ref().map(|value| value.as_str()))
+    .bind(signal.callback_id.as_ref().map(|value| value.as_str()))
+    .bind(&signal.recon_subject_id)
+    .bind(signal.canonical_state.map(|value| format!("{value:?}")))
+    .bind(signal.classification.map(|value| format!("{value:?}")))
+    .bind(&signal.execution_correlation_id)
+    .bind(&signal.adapter_execution_reference)
+    .bind(&signal.external_observation_key)
+    .bind(&signal.expected_fact_snapshot)
+    .bind(&signal.payload)
+    .bind(signal.occurred_at_ms as i64)
+    .execute(pool)
+    .await
+    .map_err(sqlx_err_to_store)?;
+    Ok(())
 }
 
 fn now_ms() -> u64 {

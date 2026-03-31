@@ -6,7 +6,7 @@ metadata:
   labels:
     app: execution-worker
 spec:
-  replicas: 1
+  replicas: 4
   selector:
     matchLabels:
       app: execution-worker
@@ -24,6 +24,13 @@ spec:
                 name: azums-platform-config
             - secretRef:
                 name: azums-platform-secrets
+          env:
+            - name: EXECUTION_WORKER_MODE
+              value: dispatch
+            - name: EXECUTION_WORKER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           resources:
             requests:
               cpu: 100m

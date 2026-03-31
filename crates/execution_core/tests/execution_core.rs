@@ -2,9 +2,10 @@ use async_trait::async_trait;
 use execution_core::engine::ExecutionCore;
 use execution_core::error::CoreError;
 use execution_core::model::{
-    AdapterExecutionRequest, AdapterId, AdapterOutcome, CallbackJob, CanonicalState, ExecutionJob,
-    IntentId, IntentKind, LeaseId, LeasedJob, NormalizedIntent, OperatorPrincipal, OperatorRole,
-    ReceiptEntry, ReplayCommand, ReplayDecisionRecord, StateTransition, TenantId,
+    AdapterExecutionRequest, AdapterId, AdapterOutcome, AuthContext, CallbackJob, CanonicalState,
+    ExecutionJob, IdempotencyBinding, IntentId, IntentKind, LeaseId, LeasedJob, NormalizedIntent,
+    OperatorPrincipal, OperatorRole, ReceiptEntry, ReconIntakeSignal, ReconIntakeSignalKind,
+    ReplayCommand, ReplayDecisionRecord, StateTransition, TenantId,
 };
 use execution_core::policy::{ReplayPolicy, RetryPolicy};
 use execution_core::ports::{
@@ -18,11 +19,12 @@ use std::sync::{Arc, Mutex};
 #[derive(Default)]
 struct InMemoryStore {
     intents: Mutex<HashMap<(String, String), NormalizedIntent>>,
-    idempotency: Mutex<HashMap<(String, String), String>>,
+    idempotency: Mutex<HashMap<(String, String), IdempotencyBinding>>,
     jobs: Mutex<HashMap<String, ExecutionJob>>,
     latest: Mutex<HashMap<(String, String), String>>,
     transitions: Mutex<Vec<StateTransition>>,
     receipts: Mutex<Vec<ReceiptEntry>>,
+    recon_signals: Mutex<Vec<ReconIntakeSignal>>,
     replay_decisions: Mutex<Vec<ReplayDecisionRecord>>,
     dispatches: Mutex<Vec<(String, Option<u64>)>>,
     callbacks: Mutex<Vec<CallbackJob>>,
@@ -35,6 +37,24 @@ impl InMemoryStore {
             .await
             .ok()
             .flatten()
+    }
+
+    fn latest_receipt(&self) -> ReceiptEntry {
+        self.receipts
+            .lock()
+            .unwrap()
+            .last()
+            .cloned()
+            .expect("expected at least one receipt")
+    }
+
+    fn signal_kinds(&self) -> Vec<ReconIntakeSignalKind> {
+        self.recon_signals
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|signal| signal.signal_kind)
+            .collect()
     }
 }
 
@@ -69,14 +89,13 @@ impl DurableStore for InMemoryStore {
         &self,
         tenant_id: &TenantId,
         idempotency_key: &str,
-    ) -> Result<Option<IntentId>, StoreError> {
+    ) -> Result<Option<IdempotencyBinding>, StoreError> {
         Ok(self
             .idempotency
             .lock()
             .unwrap()
             .get(&(tenant_id.to_string(), idempotency_key.to_owned()))
-            .cloned()
-            .map(IntentId::from))
+            .cloned())
     }
 
     async fn bind_intent_idempotency(
@@ -84,14 +103,18 @@ impl DurableStore for InMemoryStore {
         tenant_id: &TenantId,
         idempotency_key: &str,
         intent_id: &IntentId,
-    ) -> Result<IntentId, StoreError> {
+        request_fingerprint: &str,
+    ) -> Result<IdempotencyBinding, StoreError> {
         let mut guard = self.idempotency.lock().unwrap();
         let key = (tenant_id.to_string(), idempotency_key.to_owned());
         let entry = guard
             .entry(key)
-            .or_insert_with(|| intent_id.to_string())
+            .or_insert_with(|| IdempotencyBinding {
+                intent_id: intent_id.clone(),
+                request_fingerprint: Some(request_fingerprint.to_owned()),
+            })
             .clone();
-        Ok(IntentId::from(entry))
+        Ok(entry)
     }
 
     async fn persist_job(&self, job: &ExecutionJob) -> Result<(), StoreError> {
@@ -155,6 +178,18 @@ impl DurableStore for InMemoryStore {
             .unwrap()
             .push(format!("receipt:{:?}", receipt.state));
         self.receipts.lock().unwrap().push(receipt.clone());
+        Ok(())
+    }
+
+    async fn record_recon_intake_signal(
+        &self,
+        signal: &ReconIntakeSignal,
+    ) -> Result<(), StoreError> {
+        self.op_log
+            .lock()
+            .unwrap()
+            .push(format!("recon_signal:{}", signal.signal_kind.as_str()));
+        self.recon_signals.lock().unwrap().push(signal.clone());
         Ok(())
     }
 
@@ -306,6 +341,13 @@ fn intent(now_ms: u64) -> NormalizedIntent {
     }
 }
 
+fn intent_with_idempotency(now_ms: u64, idempotency_key: &str, amount: &str) -> NormalizedIntent {
+    let mut value = intent(now_ms);
+    value.idempotency_key = Some(idempotency_key.to_owned());
+    value.payload = serde_json::json!({ "amount": amount });
+    value
+}
+
 #[tokio::test]
 async fn terminal_transition_happens_before_callback_enqueue() {
     let store = Arc::new(InMemoryStore::default());
@@ -346,6 +388,77 @@ async fn terminal_transition_happens_before_callback_enqueue() {
         .unwrap();
     let c_idx = log.iter().position(|v| v == "enqueue_callback").unwrap();
     assert!(t_idx < c_idx);
+}
+
+#[tokio::test]
+async fn idempotent_submit_reuses_existing_job_for_same_request() {
+    let store = Arc::new(InMemoryStore::default());
+    let router = Arc::new(TestRouter {
+        adapter_id: AdapterId::from("adapter_exec"),
+        adapter: Arc::new(SequencedAdapter::new(vec![])),
+    });
+    let core = ExecutionCore::new(
+        store.clone(),
+        router,
+        Arc::new(TestAuthorizer {
+            allow_route: true,
+            allow_replay: true,
+            allow_manual: true,
+        }),
+        RetryPolicy::default(),
+        ReplayPolicy::default(),
+        Arc::new(TestClock::new(10_000)),
+    );
+
+    let first = core
+        .submit_intent(intent_with_idempotency(10_000, "idem-1", "10"))
+        .await
+        .unwrap();
+    let second = core
+        .submit_intent(intent_with_idempotency(10_001, "idem-1", "10"))
+        .await
+        .unwrap();
+
+    assert_eq!(first.job.intent_id, second.job.intent_id);
+    assert_eq!(first.job.job_id, second.job.job_id);
+}
+
+#[tokio::test]
+async fn idempotency_conflict_rejects_changed_request_shape() {
+    let store = Arc::new(InMemoryStore::default());
+    let router = Arc::new(TestRouter {
+        adapter_id: AdapterId::from("adapter_exec"),
+        adapter: Arc::new(SequencedAdapter::new(vec![])),
+    });
+    let core = ExecutionCore::new(
+        store,
+        router,
+        Arc::new(TestAuthorizer {
+            allow_route: true,
+            allow_replay: true,
+            allow_manual: true,
+        }),
+        RetryPolicy::default(),
+        ReplayPolicy::default(),
+        Arc::new(TestClock::new(20_000)),
+    );
+
+    core.submit_intent(intent_with_idempotency(20_000, "idem-2", "10"))
+        .await
+        .unwrap();
+
+    let err = core
+        .submit_intent(intent_with_idempotency(20_001, "idem-2", "99"))
+        .await
+        .unwrap_err();
+
+    match err {
+        CoreError::IdempotencyConflict { key, reason } => {
+            assert_eq!(key, "idem-2");
+            assert!(reason.contains("different normalized request"));
+        }
+        other => panic!("expected idempotency conflict, got {other:?}"),
+    }
 }
 
 #[tokio::test]
@@ -559,6 +672,391 @@ async fn in_progress_is_non_terminal_until_finalized() {
     assert_eq!(second.job.state, CanonicalState::Succeeded);
     assert_eq!(second.job.attempt, 1);
     assert_eq!(store.callbacks.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn recon_receipts_capture_references_and_emit_signals() {
+    let store = Arc::new(InMemoryStore::default());
+    let router = Arc::new(TestRouter {
+        adapter_id: AdapterId::from("adapter_exec"),
+        adapter: Arc::new(SequencedAdapter::new(vec![
+            AdapterOutcome::InProgress {
+                provider_reference: Some("sig-pending".to_owned()),
+                details: BTreeMap::from([
+                    ("signature".to_owned(), "sig-pending".to_owned()),
+                    ("attempt_id".to_owned(), "attempt-1".to_owned()),
+                ]),
+                poll_after_ms: Some(250),
+            },
+            AdapterOutcome::Succeeded {
+                provider_reference: Some("sig-final".to_owned()),
+                details: BTreeMap::from([("tx_hash".to_owned(), "sig-final".to_owned())]),
+            },
+        ])),
+    });
+    let core = ExecutionCore::new(
+        store.clone(),
+        router,
+        Arc::new(TestAuthorizer {
+            allow_route: true,
+            allow_replay: true,
+            allow_manual: true,
+        }),
+        RetryPolicy::default(),
+        ReplayPolicy::default(),
+        Arc::new(TestClock::new(20_000)),
+    );
+
+    let submitted = core.submit_intent(intent(20_000)).await.unwrap();
+    let first = core
+        .dispatch_job(LeasedJob {
+            lease_id: LeaseId::new(),
+            job: submitted.job,
+            leased_at_ms: 20_001,
+            lease_expires_at_ms: 21_000,
+        })
+        .await
+        .unwrap();
+
+    let first_receipt = store.latest_receipt();
+    let expected_subject_id = format!("reconsub_{}", first_receipt.job_id);
+    assert_eq!(first_receipt.receipt_version, 3);
+    assert_eq!(
+        first_receipt.recon_subject_id.as_deref(),
+        Some(expected_subject_id.as_str())
+    );
+    assert!(first_receipt.reconciliation_eligible);
+    assert_eq!(
+        first_receipt.adapter_execution_reference.as_deref(),
+        Some("sig-pending")
+    );
+    assert_eq!(
+        first_receipt.external_observation_key.as_deref(),
+        Some("sig-pending")
+    );
+    assert!(first_receipt.expected_fact_snapshot.is_some());
+    assert_eq!(
+        store.signal_kinds(),
+        vec![ReconIntakeSignalKind::SubmittedWithReference]
+    );
+
+    let retry_job = store
+        .latest_job(&first.job.tenant_id, &first.job.intent_id)
+        .await
+        .unwrap();
+    core.dispatch_job(LeasedJob {
+        lease_id: LeaseId::new(),
+        job: retry_job,
+        leased_at_ms: 20_010,
+        lease_expires_at_ms: 21_010,
+    })
+    .await
+    .unwrap();
+
+    let final_receipt = store.latest_receipt();
+    assert_eq!(final_receipt.receipt_version, 3);
+    assert!(final_receipt.reconciliation_eligible);
+    assert_eq!(
+        final_receipt.adapter_execution_reference.as_deref(),
+        Some("sig-final")
+    );
+    assert_eq!(
+        final_receipt.external_observation_key.as_deref(),
+        Some("sig-final")
+    );
+    let signal_kinds = store.signal_kinds();
+    assert_eq!(signal_kinds.len(), 4);
+    assert_eq!(signal_kinds[1], ReconIntakeSignalKind::AdapterCompleted);
+    assert_eq!(signal_kinds[2], ReconIntakeSignalKind::Finalized);
+    assert_eq!(
+        signal_kinds[3],
+        ReconIntakeSignalKind::SubmittedWithReference
+    );
+}
+
+#[tokio::test]
+async fn terminal_failure_receipts_emit_terminal_recon_signal() {
+    let store = Arc::new(InMemoryStore::default());
+    let router = Arc::new(TestRouter {
+        adapter_id: AdapterId::from("adapter_exec"),
+        adapter: Arc::new(SequencedAdapter::new(vec![
+            AdapterOutcome::TerminalFailure {
+                code: "boom".to_owned(),
+                message: "adapter failed terminally".to_owned(),
+                provider_details: None,
+            },
+        ])),
+    });
+    let core = ExecutionCore::new(
+        store.clone(),
+        router,
+        Arc::new(TestAuthorizer {
+            allow_route: true,
+            allow_replay: true,
+            allow_manual: true,
+        }),
+        RetryPolicy::default(),
+        ReplayPolicy::default(),
+        Arc::new(TestClock::new(30_000)),
+    );
+
+    let submitted = core.submit_intent(intent(30_000)).await.unwrap();
+    let dispatched = core
+        .dispatch_job(LeasedJob {
+            lease_id: LeaseId::new(),
+            job: submitted.job,
+            leased_at_ms: 30_001,
+            lease_expires_at_ms: 31_000,
+        })
+        .await
+        .unwrap();
+    assert_eq!(dispatched.job.state, CanonicalState::FailedTerminal);
+
+    let receipt = store.latest_receipt();
+    assert_eq!(receipt.receipt_version, 3);
+    assert!(receipt.reconciliation_eligible);
+    assert!(receipt.adapter_execution_reference.is_none());
+    assert!(receipt.expected_fact_snapshot.is_some());
+    assert_eq!(
+        store.signal_kinds(),
+        vec![
+            ReconIntakeSignalKind::AdapterCompleted,
+            ReconIntakeSignalKind::TerminalFailure,
+        ]
+    );
+}
+
+#[test]
+fn legacy_receipt_json_deserializes_with_recon_defaults() {
+    let receipt: ReceiptEntry = serde_json::from_value(serde_json::json!({
+        "receipt_id": "receipt_legacy",
+        "tenant_id": "tenant_a",
+        "intent_id": "intent_legacy",
+        "job_id": "job_legacy",
+        "attempt_no": 0,
+        "state": "received",
+        "classification": "Success",
+        "summary": "legacy receipt",
+        "details": { "reason_code": "legacy" },
+        "occurred_at_ms": 1
+    }))
+    .unwrap();
+
+    assert_eq!(receipt.receipt_version, 1);
+    assert_eq!(receipt.recon_subject_id, None);
+    assert!(!receipt.reconciliation_eligible);
+    assert_eq!(receipt.execution_correlation_id, None);
+    assert_eq!(receipt.adapter_execution_reference, None);
+    assert_eq!(receipt.external_observation_key, None);
+    assert_eq!(receipt.expected_fact_snapshot, None);
+    assert!(receipt.agent_action.is_none());
+    assert!(receipt.agent_identity.is_none());
+    assert!(receipt.runtime_identity.is_none());
+    assert!(receipt.policy_decision.is_none());
+    assert!(receipt.approval_result.is_none());
+    assert!(receipt.grant_reference.is_none());
+    assert!(receipt.execution_mode.is_none());
+    assert!(receipt.connector_outcome.is_none());
+    assert!(receipt.recon_linkage.is_none());
+}
+
+#[tokio::test]
+async fn agent_receipts_capture_requested_approved_executed_and_verified_context() {
+    let store = Arc::new(InMemoryStore::default());
+    let router = Arc::new(TestRouter {
+        adapter_id: AdapterId::from("adapter_exec"),
+        adapter: Arc::new(SequencedAdapter::new(vec![AdapterOutcome::Succeeded {
+            provider_reference: Some("sig-final".to_owned()),
+            details: BTreeMap::from([("signature".to_owned(), "sig-final".to_owned())]),
+        }])),
+    });
+    let core = ExecutionCore::new(
+        store.clone(),
+        router,
+        Arc::new(TestAuthorizer {
+            allow_route: true,
+            allow_replay: true,
+            allow_manual: true,
+        }),
+        RetryPolicy::default(),
+        ReplayPolicy::default(),
+        Arc::new(TestClock::new(40_000)),
+    );
+
+    let mut value = intent(40_000);
+    value.request_id = Some("req_agent_1".into());
+    value.correlation_id = Some("corr-agent-1".to_owned());
+    value.idempotency_key = Some("idem-agent-1".to_owned());
+    value.auth_context = Some(AuthContext {
+        principal_id: Some("runtime_demo".to_owned()),
+        submitter_kind: Some("agent_runtime".to_owned()),
+        auth_scheme: Some("runtime_client_credentials".to_owned()),
+        channel: Some("agent_gateway".to_owned()),
+        agent_id: Some("agent_123".to_owned()),
+        environment_id: Some("env_prod".to_owned()),
+        runtime_type: Some("slack".to_owned()),
+        runtime_identity: Some("runtime://slack/bot".to_owned()),
+        trust_tier: Some("reviewed".to_owned()),
+        risk_tier: Some("high".to_owned()),
+    });
+    value.metadata = BTreeMap::from([
+        ("agent.id".to_owned(), "agent_123".to_owned()),
+        ("agent.environment_id".to_owned(), "env_prod".to_owned()),
+        ("agent.environment_kind".to_owned(), "production".to_owned()),
+        ("agent.status".to_owned(), "active".to_owned()),
+        ("agent.trust_tier".to_owned(), "reviewed".to_owned()),
+        ("agent.risk_tier".to_owned(), "high".to_owned()),
+        ("agent.owner_team".to_owned(), "ops".to_owned()),
+        ("agent.action_request_id".to_owned(), "act_123".to_owned()),
+        ("agent.intent_type".to_owned(), "transfer".to_owned()),
+        ("agent.adapter_type".to_owned(), "solana_adapter".to_owned()),
+        (
+            "agent.requested_scope".to_owned(),
+            "payments,treasury".to_owned(),
+        ),
+        ("agent.effective_scope".to_owned(), "payments".to_owned()),
+        ("agent.reason".to_owned(), "vendor payout".to_owned()),
+        ("agent.submitted_by".to_owned(), "ops-bot".to_owned()),
+        ("policy.decision".to_owned(), "require_approval".to_owned()),
+        (
+            "policy.explanation".to_owned(),
+            "prod transfers require approval".to_owned(),
+        ),
+        ("policy.bundle_id".to_owned(), "bundle_prod".to_owned()),
+        ("policy.bundle_version".to_owned(), "7".to_owned()),
+        ("approval.request_id".to_owned(), "apr_123".to_owned()),
+        ("approval.state".to_owned(), "approved".to_owned()),
+        ("approval.required_approvals".to_owned(), "1".to_owned()),
+        ("approval.approvals_received".to_owned(), "1".to_owned()),
+        ("approval.approved_by".to_owned(), "alice".to_owned()),
+        ("grant.id".to_owned(), "grant_123".to_owned()),
+        (
+            "grant.source_action_request_id".to_owned(),
+            "act_123".to_owned(),
+        ),
+        (
+            "grant.source_approval_request_id".to_owned(),
+            "apr_123".to_owned(),
+        ),
+        (
+            "grant.source_policy_bundle_id".to_owned(),
+            "bundle_prod".to_owned(),
+        ),
+        (
+            "grant.source_policy_bundle_version".to_owned(),
+            "7".to_owned(),
+        ),
+        ("grant.expires_at_ms".to_owned(), "45000".to_owned()),
+        (
+            "execution.mode".to_owned(),
+            "mode_c_protected_execution".to_owned(),
+        ),
+        (
+            "execution.owner".to_owned(),
+            "azums_protected_execution".to_owned(),
+        ),
+        ("execution.policy".to_owned(), "sponsored".to_owned()),
+        (
+            "execution.policy.base".to_owned(),
+            "customer_signed".to_owned(),
+        ),
+        ("execution.signing_mode".to_owned(), "sponsored".to_owned()),
+        ("execution.payer_source".to_owned(), "azums".to_owned()),
+        ("execution.fee_payer".to_owned(), "wallet_1".to_owned()),
+        ("connector.outcome".to_owned(), "not_used".to_owned()),
+    ]);
+
+    let submitted = core.submit_intent(value).await.unwrap();
+    let dispatched = core
+        .dispatch_job(LeasedJob {
+            lease_id: LeaseId::new(),
+            job: submitted.job,
+            leased_at_ms: 40_001,
+            lease_expires_at_ms: 41_000,
+        })
+        .await
+        .unwrap();
+    assert_eq!(dispatched.job.state, CanonicalState::Succeeded);
+
+    let receipt = store.latest_receipt();
+    assert_eq!(receipt.receipt_version, 3);
+    assert_eq!(
+        receipt
+            .agent_action
+            .as_ref()
+            .and_then(|value| value.action_request_id.as_deref()),
+        Some("act_123")
+    );
+    assert_eq!(
+        receipt
+            .agent_identity
+            .as_ref()
+            .and_then(|value| value.agent_id.as_deref()),
+        Some("agent_123")
+    );
+    assert_eq!(
+        receipt
+            .runtime_identity
+            .as_ref()
+            .and_then(|value| value.runtime_identity.as_deref()),
+        Some("runtime://slack/bot")
+    );
+    assert_eq!(
+        receipt
+            .policy_decision
+            .as_ref()
+            .and_then(|value| value.decision.as_deref()),
+        Some("require_approval")
+    );
+    assert_eq!(
+        receipt
+            .approval_result
+            .as_ref()
+            .map(|value| value.result.as_str()),
+        Some("approved")
+    );
+    assert_eq!(
+        receipt
+            .grant_reference
+            .as_ref()
+            .map(|value| value.grant_id.as_str()),
+        Some("grant_123")
+    );
+    assert_eq!(
+        receipt
+            .execution_mode
+            .as_ref()
+            .and_then(|value| value.mode.as_deref()),
+        Some("mode_c_protected_execution")
+    );
+    assert_eq!(
+        receipt
+            .execution_mode
+            .as_ref()
+            .and_then(|value| value.owner.as_deref()),
+        Some("azums_protected_execution")
+    );
+    assert_eq!(
+        receipt
+            .execution_mode
+            .as_ref()
+            .and_then(|value| value.effective_policy.as_deref()),
+        Some("sponsored")
+    );
+    assert_eq!(
+        receipt
+            .connector_outcome
+            .as_ref()
+            .map(|value| value.status.as_str()),
+        Some("not_used")
+    );
+    assert_eq!(
+        receipt
+            .recon_linkage
+            .as_ref()
+            .and_then(|value| value.recon_subject_id.as_deref()),
+        receipt.recon_subject_id.as_deref()
+    );
 }
 
 #[tokio::test]

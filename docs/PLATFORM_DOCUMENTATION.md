@@ -70,6 +70,128 @@ Azums is not:
 | Reverse Proxy | `crates/reverse-proxy` |
 | Shared Auth Utilities | `crates/auth` |
 
+### 4.3 Cross-Chain Provider Strategy
+Azums treats provider routing as an adapter-local transport concern, not a core lifecycle concern.
+
+That contract is now explicit:
+
+- Core lifecycle and receipt schema stay chain-agnostic.
+- Adapters may use ordered provider failover underneath without changing state semantics.
+- Production provider order should be:
+  1. managed/external RPC
+  2. self-hosted fallback RPC
+- Every chain adapter should preserve these receipt/attempt fields:
+  - `provider_used`
+  - `rpc_url`
+  - `rpc_urls`
+  - `signing_mode`
+  - `payer_source`
+  - `fee_payer`
+  - chain tx reference (`signature`, `tx_hash`, or `tx_digest`)
+
+Shared env convention for all chain adapters:
+
+- `<CHAIN>_RPC_PRIMARY_URL`
+- `<CHAIN>_RPC_FALLBACK_URLS`
+- `<CHAIN>_RPC_URLS`
+- `<CHAIN>_RPC_URL`
+
+Current implementation:
+
+- Solana: implemented
+- EVM: env/template and architectural pattern defined; adapter not yet implemented
+- Sui: env/template and architectural pattern defined; adapter not yet implemented
+
+### 4.4 Downstream Reconciliation and Exception Intelligence
+Azums will add reconciliation and exception intelligence as downstream bounded subsystems.
+
+The governing rules are:
+
+1. execution truth remains owned by Azums core
+2. reconciliation consumes truth and does not replace it
+3. exception intelligence classifies divergence and does not silently mutate history
+4. framework-level contracts remain adapter-neutral, with Solana-first rule packs
+
+Reference documents:
+
+- `docs/roadmaps/reconciliation-and-exception-roadmap.md`
+- `docs/architecture/reconciliation-integration-spec.md`
+- `docs/architecture/exception-intelligence-index-v1.md`
+- `docs/contracts/reconciliation-contract-v1.md`
+- `docs/contracts/adapter-integration-playbook.md`
+- `docs/contracts/recon-rule-pack-template.md`
+- `docs/contracts/exception-taxonomy-v1.md`
+- `docs/contracts/exception-subcode-guidance.md`
+- `docs/contracts/solana-reconciliation-rule-pack-v1.md`
+- `docs/contracts/future-adapters/README.md`
+- `docs/receipts/reconciliation-upgrade.md`
+- `docs/adrs/ADR-0001-reconciliation-and-exception-intelligence-downstream-bounded-subsystems.md`
+- `docs/adrs/ADR-0002-generic-reconciliation-framework-with-adapter-specific-rule-packs.md`
+- `docs/adrs/ADR-0003-adapter-conformance-across-execution-and-reconciliation.md`
+
+Milestone 2 implementation status:
+
+- execution receipts now carry stable reconciliation-facing references without embedding recon matching semantics
+- downstream intake signals are emitted into `platform_recon_intake_signals`
+- `recon_core` consumes those signals while execution truth remains owned by `execution_core`
+
+Milestone 3 implementation status:
+
+- recon intake is materialized through a dedicated `ReconIntakeService`
+- `recon_core_intake_events` provides signal-id dedupe and replay-safe intake lineage
+- `recon_core_subjects` stores scheduling metadata and intake-facing expected fact snapshots
+- `recon_core_outcomes` persists durable run-level outcome summaries
+- recon scheduling remains adjacent to queue machinery via durable subject scheduling state, not execution-core queue semantics
+
+Milestone 4 implementation status:
+
+- `ReconEngine` is now the adapter-neutral reconciliation processor boundary
+- recon processor lifecycle is stored separately from execution lifecycle in `recon_core_run_state_transitions`
+- recon retries are isolated from execution retries through subject-side retry metadata and backoff scheduling
+- each recon run now emits a durable evidence snapshot into `recon_core_evidence_snapshots`
+- rule-pack resolution remains adapter-neutral at the framework layer while Solana stays the first concrete rule pack
+
+Milestone 5 implementation status:
+
+- the first real adapter-aware rule pack is now `SolanaReconRulePack`
+- expected facts now include Solana source, destination, asset, amount, program, action, execution reference, and finality expectations
+- observed facts now resolve from durable Solana adapter evidence plus callback delivery state
+- explicit Solana mismatch subcodes are emitted for operator-facing reconciliation truth
+- fixture-backed Solana recon scenarios now verify match, stale, duplicate-signal, amount mismatch, and observed-error divergence behavior
+- a self-contained Solana recon benchmark example is available for launch-path performance checks
+
+Milestone 6 implementation status:
+
+- exception intelligence now persists durable operator-facing cases in `exception_cases`
+- evidence is linked back to execution receipts, recon outcomes, recon receipts, and observed fact snapshots
+- case events and resolution history are stored separately for append-friendly operator workflow tracking
+- a searchable exception index is now exposed through `status_api`
+- operator state transitions are explicit and validated without mutating execution truth
+
+Milestone 10 implementation status:
+
+- a future adapter conformance kit now exists across execution and reconciliation
+- the playbook points future adapter owners at the existing `DomainAdapter` and `ReconRulePack` interfaces
+- a reusable recon rule-pack template and exception-subcode guidance are now documented
+- mapping documents now exist for EVM, Sui, HTTP, Slack, Email, Stripe, Paystack, and Flutterwave
+- adding future adapters is now a product decision, not an architectural rewrite
+
+### 4.5 Agent and AI Entry Surfaces
+Azums may expose AI, agent, Slack, approval, and UI-assisted product surfaces.
+
+Those surfaces are entry points, not alternate execution cores.
+
+The governing rules are:
+
+1. AI and agent paths converge into the same normalized intent model used by API and webhook traffic
+2. only Azums execution workers may trigger protected adapter execution
+3. approvals, Slack actions, UI actions, and agent messages do not directly mutate final execution truth
+4. API and agent-originated work share the same receipt, replay, reconciliation, and exception surfaces
+
+Reference document:
+
+- `docs/adrs/ADR-0004-agent-and-api-entry-surfaces-converge-into-one-execution-path.md`
+
 ## 5. Canonical Lifecycle
 | State | Meaning |
 |---|---|

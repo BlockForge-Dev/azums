@@ -21,6 +21,17 @@ impl Default for RetryPolicy {
     }
 }
 
+impl RetryPolicy {
+    pub fn from_env() -> Self {
+        Self {
+            max_attempts: env_u32("EXECUTION_RETRY_MAX_ATTEMPTS", 5).max(1),
+            base_delay_ms: env_u64("EXECUTION_RETRY_BASE_DELAY_MS", 1_000).max(1),
+            max_delay_ms: env_u64("EXECUTION_RETRY_MAX_DELAY_MS", 60_000).max(1),
+            jitter_percent: env_u8("EXECUTION_RETRY_JITTER_PERCENT", 0).min(100),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RetryDecision {
     RetryAt {
@@ -190,6 +201,27 @@ pub fn classify_adapter_outcome(
     }
 }
 
+fn env_u32(key: &str, default: u32) -> u32 {
+    std::env::var(key)
+        .ok()
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        .unwrap_or(default)
+}
+
+fn env_u64(key: &str, default: u64) -> u64 {
+    std::env::var(key)
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .unwrap_or(default)
+}
+
+fn env_u8(key: &str, default: u8) -> u8 {
+    std::env::var(key)
+        .ok()
+        .and_then(|value| value.trim().parse::<u8>().ok())
+        .unwrap_or(default)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -210,5 +242,25 @@ mod tests {
         };
         let decision = policy.decide(1_000, 2, None);
         assert_eq!(decision, RetryDecision::Exhausted);
+    }
+
+    #[test]
+    fn retry_policy_from_env_reads_overrides() {
+        std::env::set_var("EXECUTION_RETRY_MAX_ATTEMPTS", "3");
+        std::env::set_var("EXECUTION_RETRY_BASE_DELAY_MS", "250");
+        std::env::set_var("EXECUTION_RETRY_MAX_DELAY_MS", "500");
+        std::env::set_var("EXECUTION_RETRY_JITTER_PERCENT", "12");
+
+        let policy = RetryPolicy::from_env();
+
+        assert_eq!(policy.max_attempts, 3);
+        assert_eq!(policy.base_delay_ms, 250);
+        assert_eq!(policy.max_delay_ms, 500);
+        assert_eq!(policy.jitter_percent, 12);
+
+        std::env::remove_var("EXECUTION_RETRY_MAX_ATTEMPTS");
+        std::env::remove_var("EXECUTION_RETRY_BASE_DELAY_MS");
+        std::env::remove_var("EXECUTION_RETRY_MAX_DELAY_MS");
+        std::env::remove_var("EXECUTION_RETRY_JITTER_PERCENT");
     }
 }

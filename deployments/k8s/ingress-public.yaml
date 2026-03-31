@@ -3,15 +3,122 @@ kind: Ingress
 metadata:
   name: azums-public
   namespace: azums
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
 spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - azums.local
+      secretName: azums-public-tls
   rules:
     - host: azums.local
       http:
         paths:
-          - path: /
+          - path: /api/ui
+            pathType: Prefix
+            backend:
+              service:
+                name: operator-ui
+                port:
+                  number: 8083
+          - path: /app
+            pathType: Prefix
+            backend:
+              service:
+                name: operator-ui
+                port:
+                  number: 8083
+          - path: /ops
+            pathType: Prefix
+            backend:
+              service:
+                name: operator-ui
+                port:
+                  number: 8083
+          - path: /login
+            pathType: Prefix
+            backend:
+              service:
+                name: operator-ui
+                port:
+                  number: 8083
+          - path: /signup
+            pathType: Prefix
+            backend:
+              service:
+                name: operator-ui
+                port:
+                  number: 8083
+          - path: /forgot-password
+            pathType: Prefix
+            backend:
+              service:
+                name: operator-ui
+                port:
+                  number: 8083
+          - path: /verify-email
+            pathType: Prefix
+            backend:
+              service:
+                name: operator-ui
+                port:
+                  number: 8083
+          - path: /reset-password
+            pathType: Prefix
+            backend:
+              service:
+                name: operator-ui
+                port:
+                  number: 8083
+          - path: /accept-invite
+            pathType: Prefix
+            backend:
+              service:
+                name: operator-ui
+                port:
+                  number: 8083
+          - path: /api
             pathType: Prefix
             backend:
               service:
                 name: reverse-proxy
                 port:
                   number: 8000
+          - path: /webhooks
+            pathType: Prefix
+            backend:
+              service:
+                name: reverse-proxy
+                port:
+                  number: 8000
+          - path: /status
+            pathType: Prefix
+            backend:
+              service:
+                name: reverse-proxy
+                port:
+                  number: 8000
+          - path: /healthz
+            pathType: Prefix
+            backend:
+              service:
+                name: reverse-proxy
+                port:
+                  number: 8000
+          - path: /readyz
+            pathType: Prefix
+            backend:
+              service:
+                name: reverse-proxy
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: operator-ui
+                port:
+                  number: 8083

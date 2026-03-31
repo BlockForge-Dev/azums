@@ -7,6 +7,7 @@
 - `GET /health`
 - `GET /metrics`
 - `GET /requests/:id`
+- `GET /receipts/:receipt_id`
 - `GET /requests/:id/receipt`
 - `GET /requests/:id/history`
 - `GET /requests/:id/callbacks`
@@ -22,6 +23,7 @@ Reverse-proxy compatibility paths (same handlers):
 - `GET /status/health`
 - `GET /status/metrics`
 - `GET /status/requests/:id`
+- `GET /status/receipts/:receipt_id`
 - `GET /status/requests/:id/receipt`
 - `GET /status/requests/:id/history`
 - `GET /status/requests/:id/callbacks`
@@ -92,9 +94,9 @@ Optional:
 - `STATUS_API_BEARER_TOKEN` (global bearer token)
 - `STATUS_API_TENANT_TOKENS` (per-tenant tokens, e.g. `tenant_a:token_a;tenant_b:token_b`)
 - `STATUS_API_REQUIRE_BEARER_AUTH` (default `true`)
-- `STATUS_API_PRINCIPAL_ROLE_BINDINGS` (e.g. `alice:viewer;ops-admin:admin`)
+- `STATUS_API_PRINCIPAL_ROLE_BINDINGS` (e.g. `alice=viewer;ops-admin=admin`; supports wildcard principal keys such as `workspace-*-viewer=viewer` and `workspace-*-admin=admin`)
 - `STATUS_API_REQUIRE_PRINCIPAL_ROLE_BINDING` (default `true`)
-- `STATUS_API_PRINCIPAL_TENANT_BINDINGS` (e.g. `alice:tenant_a|tenant_b;ops-admin:tenant_a`)
+- `STATUS_API_PRINCIPAL_TENANT_BINDINGS` (e.g. `alice=tenant_a|tenant_b;ops-admin=tenant_a`; supports wildcard principal keys and tenant wildcards like `workspace-*=tenant_ws_*`)
 - `STATUS_API_REQUIRE_PRINCIPAL_TENANT_BINDING` (default `true`)
 - `STATUS_API_REDACT_FAILURE_PROVIDER_DETAILS_FOR_VIEWER` (default `true`)
 - `STATUS_API_REDACT_CALLBACK_ERROR_DETAILS_FOR_VIEWER` (default `true`)

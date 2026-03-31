@@ -10,7 +10,7 @@ Azums is a durable execution platform that accepts supported intents and guarant
 | Intake | `apps/ingress_api` | Authentication, validation, normalization, durable submit |
 | Core | `crates/execution_core` | Lifecycle ownership, routing, classification, retry/replay policy |
 | Adapter | `crates/adapter_solana` | Domain execution for Solana intents |
-| Provider abstraction | `crates/rpc_layer` | RPC request/response normalization and resilience |
+| Provider abstraction | `crates/rpc_layer` | RPC request/response normalization, ordered provider failover, and provider provenance |
 | Delivery | `crates/callback_core` | Outbound callback delivery and attempt tracking |
 | Read/query | `crates/status_api` | Status, history, receipt, callback, replay endpoints |
 | UI | `apps/operator_ui` | Operator dashboard for querying and controlled actions |
@@ -35,3 +35,12 @@ Azums is a durable execution platform that accepts supported intents and guarant
 | Deterministic classification | Adapter outcomes are normalized into platform classes |
 | Truth before notify | Final external delivery only after durable truth is written |
 | Replay-safe lineage | Replay creates linked lineage rather than mutating history |
+
+## Cross-Chain Provider Model
+| Rule | Meaning |
+|---|---|
+| Core never owns provider failover policy | Ordered RPC/provider routing lives below the adapter->core contract |
+| Adapters keep the same contract | Solana, future EVM, and future Sui adapters all consume normalized intent and return normalized outcome |
+| Production routing is hybrid by default | External/managed provider first, self-hosted provider fallback second |
+| Provider provenance is durable | Attempt/receipt metadata should record `provider_used` and ordered provider list |
+| Signing policy stays separate | `customer_signed` remains the default production posture regardless of chain |
