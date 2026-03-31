@@ -1,6 +1,6 @@
 # Azums Execution Platform
 
-Multi-service execution platform with a strict execution core, adapter contract boundaries, callback delivery tracking, and tenant-scoped status APIs.
+Azums is a durable execution platform for supported intents. It provides ingress, durable queueing, execution orchestration, callbacks, receipts, replay, and status visibility. Solana is the first live adapter, with more adapters possible over time.
 
 Full product and technical documentation:
 
