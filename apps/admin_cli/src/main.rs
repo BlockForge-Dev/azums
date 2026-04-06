@@ -1,10 +1,12 @@
 use adapter_contract::AdapterRegistry;
+use adapter_paystack::{register_default_paystack_adapter, PaystackAdapter, PaystackAdapterConfig};
 use adapter_solana::{register_default_solana_adapter, SolanaAdapterConfig, SolanaQueueAdapter};
 use callback_core::{
     CallbackDispatcher, HttpCallbackDispatcher, HttpCallbackDispatcherConfig,
     PostgresQCallbackWorker, PostgresQCallbackWorkerConfig, PostgresQDeliveryStore,
     StdoutCallbackDispatcher, TenantRoutedCallbackDispatcher,
 };
+use exception_intelligence::PostgresExceptionStore;
 use execution_core::integration::postgresq::{
     PostgresQConfig, PostgresQStore, PostgresQWorker, PostgresQWorkerConfig,
 };
@@ -12,7 +14,6 @@ use execution_core::{
     AdapterId, Authorizer, ExecutionCore, OperatorPrincipal, ReplayPolicy, RetryPolicy,
     SystemClock, TenantId,
 };
-use exception_intelligence::PostgresExceptionStore;
 use recon_core::{PostgresReconStore, ReconWorker, ReconWorkerConfig};
 use sqlx::postgres::PgPoolOptions;
 use std::collections::HashSet;
@@ -112,6 +113,25 @@ async fn main() -> anyhow::Result<()> {
     let queue_retry_max_delay_secs = env_i64("EXECUTION_QUEUE_RETRY_MAX_DELAY_SECS", 300);
     let solana_sync_max_polls = env_usize("SOLANA_SYNC_MAX_POLLS", 8);
     let solana_sync_poll_delay_ms = env_u64("SOLANA_SYNC_POLL_DELAY_MS", 1_200);
+    let paystack_api_base_url = env_or("PAYSTACK_API_BASE_URL", "https://api.paystack.co");
+    let paystack_secret_key = env::var("PAYSTACK_SECRET_KEY")
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    let paystack_timeout_ms = env_u64("PAYSTACK_TIMEOUT_MS", 10_000);
+    let paystack_poll_after_ms = env_u64("PAYSTACK_POLL_AFTER_MS", 5_000);
+    let connector_broker_base_url = env::var("EXECUTION_CONNECTOR_BROKER_BASE_URL")
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    let connector_broker_bearer_token = env::var("EXECUTION_CONNECTOR_BROKER_BEARER_TOKEN")
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    let connector_broker_principal_id = env::var("EXECUTION_CONNECTOR_BROKER_PRINCIPAL_ID")
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
     let callback_delivery_url = env::var("EXECUTION_CALLBACK_DELIVERY_URL")
         .ok()
         .map(|v| v.trim().to_owned())
@@ -149,8 +169,12 @@ async fn main() -> anyhow::Result<()> {
         .filter(|hosts| !hosts.is_empty());
 
     let dispatch_task = if worker_mode.runs_dispatch() {
-        let pool = build_pool(&database_url, dispatch_db_max_connections, db_acquire_timeout_secs)
-            .await?;
+        let pool = build_pool(
+            &database_url,
+            dispatch_db_max_connections,
+            db_acquire_timeout_secs,
+        )
+        .await?;
         let store_cfg = PostgresQConfig {
             dispatch_queue: dispatch_queue.clone(),
             callback_queue: callback_queue.clone(),
@@ -162,7 +186,7 @@ async fn main() -> anyhow::Result<()> {
 
         let mut registry = AdapterRegistry::new();
         let solana_adapter = Arc::new(SolanaQueueAdapter::new(
-            pool,
+            pool.clone(),
             SolanaAdapterConfig {
                 sync_max_polls: solana_sync_max_polls,
                 sync_poll_delay_ms: solana_sync_poll_delay_ms,
@@ -170,14 +194,29 @@ async fn main() -> anyhow::Result<()> {
             },
         ));
         register_default_solana_adapter(&mut registry, solana_adapter);
+        let paystack_adapter = Arc::new(PaystackAdapter::new(
+            pool.clone(),
+            PaystackAdapterConfig {
+                api_base_url: paystack_api_base_url,
+                secret_key: paystack_secret_key,
+                timeout_ms: paystack_timeout_ms,
+                poll_after_ms: paystack_poll_after_ms,
+                connector_broker_base_url,
+                connector_broker_bearer_token,
+                connector_broker_principal_id,
+            },
+        )?);
+        register_default_paystack_adapter(&mut registry, paystack_adapter);
 
-        let allowed_adapters: HashSet<String> =
-            env_or("EXECUTION_ALLOWED_ADAPTERS", "adapter_solana")
-                .split(',')
-                .map(str::trim)
-                .filter(|v| !v.is_empty())
-                .map(ToOwned::to_owned)
-                .collect();
+        let allowed_adapters: HashSet<String> = env_or(
+            "EXECUTION_ALLOWED_ADAPTERS",
+            "adapter_solana,adapter_paystack",
+        )
+        .split(',')
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
+        .collect();
 
         let core = Arc::new(ExecutionCore::new(
             store.clone(),
@@ -213,8 +252,12 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let callback_task = if worker_mode.runs_callback() {
-        let pool = build_pool(&database_url, callback_db_max_connections, db_acquire_timeout_secs)
-            .await?;
+        let pool = build_pool(
+            &database_url,
+            callback_db_max_connections,
+            db_acquire_timeout_secs,
+        )
+        .await?;
         let callback_fallback_dispatcher: Arc<dyn CallbackDispatcher> =
             if let Some(url) = callback_delivery_url {
                 let mut dispatcher_cfg = HttpCallbackDispatcherConfig::new(url);
@@ -230,12 +273,11 @@ async fn main() -> anyhow::Result<()> {
             };
         let tenant_destination_store = Arc::new(PostgresQDeliveryStore::new(pool.clone()));
         tenant_destination_store.ensure_schema().await?;
-        let callback_dispatcher: Arc<dyn CallbackDispatcher> = Arc::new(
-            TenantRoutedCallbackDispatcher::new(
+        let callback_dispatcher: Arc<dyn CallbackDispatcher> =
+            Arc::new(TenantRoutedCallbackDispatcher::new(
                 tenant_destination_store,
                 callback_fallback_dispatcher,
-            ),
-        );
+            ));
         let callback_worker = PostgresQCallbackWorker::new(
             pool,
             callback_dispatcher,
@@ -252,14 +294,20 @@ async fn main() -> anyhow::Result<()> {
         callback_worker.ensure_schema().await?;
 
         println!("execution_core callback worker starting worker_id={callback_worker_id}");
-        Some(tokio::spawn(async move { callback_worker.run_forever().await }))
+        Some(tokio::spawn(
+            async move { callback_worker.run_forever().await },
+        ))
     } else {
         None
     };
 
     let recon_task = if worker_mode.runs_recon() {
-        let pool = build_pool(&database_url, callback_db_max_connections, db_acquire_timeout_secs)
-            .await?;
+        let pool = build_pool(
+            &database_url,
+            callback_db_max_connections,
+            db_acquire_timeout_secs,
+        )
+        .await?;
         let recon_store = Arc::new(PostgresReconStore::new(pool.clone()));
         let exception_store = Arc::new(PostgresExceptionStore::new(pool));
         let recon_worker = ReconWorker::new(
@@ -275,7 +323,9 @@ async fn main() -> anyhow::Result<()> {
         );
         recon_worker.ensure_schema().await?;
         println!("execution_core recon worker starting");
-        Some(tokio::spawn(async move { recon_worker.run_forever().await }))
+        Some(tokio::spawn(
+            async move { recon_worker.run_forever().await },
+        ))
     } else {
         None
     };

@@ -11,6 +11,7 @@ axum = { version = "0.7", features = ["json"] }
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 execution_core = { path = "../../crates/execution_core", features = ["postgresq"] }
+exception_intelligence = { path = "../../crates/exception_intelligence" }
 hex = "0.4"
 hmac = "0.12"
 observability = { path = "../../crates/observability" }

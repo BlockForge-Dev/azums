@@ -434,8 +434,20 @@ struct EnvironmentsQuery {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
+struct ApprovalsQuery {
+    state: Option<String>,
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 struct AgentsQuery {
     environment_id: Option<String>,
+    include_inactive: Option<bool>,
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+struct ConnectorBindingsQuery {
     include_inactive: Option<bool>,
     limit: Option<u32>,
 }
@@ -826,9 +838,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             "/api/ui/account/environments",
-            get(ui_get_environments),
+            get(ui_get_environments).post(ui_post_environment),
         )
-        .route("/api/ui/account/agents", get(ui_get_agents))
+        .route(
+            "/api/ui/account/agents",
+            get(ui_get_agents).post(ui_post_agent),
+        )
+        .route("/api/ui/account/approvals", get(ui_get_approvals))
+        .route(
+            "/api/ui/account/approvals/:approval_request_id",
+            get(ui_get_approval),
+        )
+        .route(
+            "/api/ui/account/approvals/:approval_request_id/approve",
+            post(ui_post_approval_approve),
+        )
+        .route(
+            "/api/ui/account/approvals/:approval_request_id/reject",
+            post(ui_post_approval_reject),
+        )
+        .route(
+            "/api/ui/account/approvals/:approval_request_id/escalate",
+            post(ui_post_approval_escalate),
+        )
+        .route(
+            "/api/ui/account/environments/:environment_id/connector-bindings",
+            get(ui_get_connector_bindings).post(ui_post_connector_binding),
+        )
+        .route(
+            "/api/ui/account/environments/:environment_id/connector-bindings/:binding_id/revoke",
+            post(ui_post_revoke_connector_binding),
+        )
         .route(
             "/api/ui/account/policy/templates",
             get(ui_get_policy_templates),
@@ -1892,10 +1932,32 @@ async fn ui_get_environments(
         ingress_get(
             &state,
             &path,
-            if params.is_empty() { None } else { Some(params.as_slice()) },
+            if params.is_empty() {
+                None
+            } else {
+                Some(params.as_slice())
+            },
         )
         .await?,
     ))
+}
+
+async fn ui_post_environment(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, UiError> {
+    let session = require_session(&state, &headers).await?;
+    if !role_can_manage_workspace(&session.role) {
+        return Err(UiError::forbidden(
+            "Only workspace owner/admin can register environments.",
+        ));
+    }
+    let path = format!(
+        "api/internal/tenants/{}/environments",
+        state.ingress_auth.tenant_id
+    );
+    Ok(Json(ingress_post_value(&state, &path, body, None).await?))
 }
 
 async fn ui_get_agents(
@@ -1909,7 +1971,10 @@ async fn ui_get_agents(
             "Only workspace owner/admin can view registered agents.",
         ));
     }
-    let path = format!("api/internal/tenants/{}/agents", state.ingress_auth.tenant_id);
+    let path = format!(
+        "api/internal/tenants/{}/agents",
+        state.ingress_auth.tenant_id
+    );
     let mut params = Vec::new();
     if let Some(environment_id) = query.environment_id.as_ref() {
         params.push(("environment_id", environment_id.clone()));
@@ -1924,10 +1989,218 @@ async fn ui_get_agents(
         ingress_get(
             &state,
             &path,
-            if params.is_empty() { None } else { Some(params.as_slice()) },
+            if params.is_empty() {
+                None
+            } else {
+                Some(params.as_slice())
+            },
         )
         .await?,
     ))
+}
+
+async fn ui_post_agent(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, UiError> {
+    let session = require_session(&state, &headers).await?;
+    if !role_can_manage_workspace(&session.role) {
+        return Err(UiError::forbidden(
+            "Only workspace owner/admin can register agents.",
+        ));
+    }
+    let path = format!(
+        "api/internal/tenants/{}/agents",
+        state.ingress_auth.tenant_id
+    );
+    Ok(Json(ingress_post_value(&state, &path, body, None).await?))
+}
+
+async fn ui_get_approvals(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(query): Query<ApprovalsQuery>,
+) -> Result<Json<Value>, UiError> {
+    let session = require_session(&state, &headers).await?;
+    if !role_can_manage_workspace(&session.role) {
+        return Err(UiError::forbidden(
+            "Only workspace owner/admin can view approval requests.",
+        ));
+    }
+    let path = format!(
+        "api/internal/tenants/{}/approvals",
+        state.ingress_auth.tenant_id
+    );
+    let mut params = Vec::new();
+    if let Some(state_filter) = query.state.as_ref() {
+        params.push(("state", state_filter.clone()));
+    }
+    if let Some(limit) = query.limit {
+        params.push(("limit", limit.to_string()));
+    }
+    Ok(Json(
+        ingress_get(
+            &state,
+            &path,
+            if params.is_empty() {
+                None
+            } else {
+                Some(params.as_slice())
+            },
+        )
+        .await?,
+    ))
+}
+
+async fn ui_get_approval(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(approval_request_id): Path<String>,
+) -> Result<Json<Value>, UiError> {
+    let session = require_session(&state, &headers).await?;
+    if !role_can_manage_workspace(&session.role) {
+        return Err(UiError::forbidden(
+            "Only workspace owner/admin can inspect approval requests.",
+        ));
+    }
+    let path = format!(
+        "api/internal/tenants/{}/approvals/{}",
+        state.ingress_auth.tenant_id, approval_request_id
+    );
+    Ok(Json(ingress_get(&state, &path, None).await?))
+}
+
+async fn ui_post_approval_approve(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(approval_request_id): Path<String>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, UiError> {
+    let session = require_session(&state, &headers).await?;
+    if !role_can_manage_workspace(&session.role) {
+        return Err(UiError::forbidden(
+            "Only workspace owner/admin can approve actions.",
+        ));
+    }
+    let path = format!(
+        "api/internal/tenants/{}/approvals/{}/approve",
+        state.ingress_auth.tenant_id, approval_request_id
+    );
+    Ok(Json(ingress_post_value(&state, &path, body, None).await?))
+}
+
+async fn ui_post_approval_reject(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(approval_request_id): Path<String>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, UiError> {
+    let session = require_session(&state, &headers).await?;
+    if !role_can_manage_workspace(&session.role) {
+        return Err(UiError::forbidden(
+            "Only workspace owner/admin can reject actions.",
+        ));
+    }
+    let path = format!(
+        "api/internal/tenants/{}/approvals/{}/reject",
+        state.ingress_auth.tenant_id, approval_request_id
+    );
+    Ok(Json(ingress_post_value(&state, &path, body, None).await?))
+}
+
+async fn ui_post_approval_escalate(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(approval_request_id): Path<String>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, UiError> {
+    let session = require_session(&state, &headers).await?;
+    if !role_can_manage_workspace(&session.role) {
+        return Err(UiError::forbidden(
+            "Only workspace owner/admin can escalate actions.",
+        ));
+    }
+    let path = format!(
+        "api/internal/tenants/{}/approvals/{}/escalate",
+        state.ingress_auth.tenant_id, approval_request_id
+    );
+    Ok(Json(ingress_post_value(&state, &path, body, None).await?))
+}
+
+async fn ui_get_connector_bindings(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(environment_id): Path<String>,
+    Query(query): Query<ConnectorBindingsQuery>,
+) -> Result<Json<Value>, UiError> {
+    let session = require_session(&state, &headers).await?;
+    if !role_can_manage_workspace(&session.role) {
+        return Err(UiError::forbidden(
+            "Only workspace owner/admin can view connector bindings.",
+        ));
+    }
+    let path = format!(
+        "api/internal/tenants/{}/environments/{}/connector-bindings",
+        state.ingress_auth.tenant_id, environment_id
+    );
+    let mut params = Vec::new();
+    if let Some(include_inactive) = query.include_inactive {
+        params.push(("include_inactive", include_inactive.to_string()));
+    }
+    if let Some(limit) = query.limit {
+        params.push(("limit", limit.to_string()));
+    }
+    Ok(Json(
+        ingress_get(
+            &state,
+            &path,
+            if params.is_empty() {
+                None
+            } else {
+                Some(params.as_slice())
+            },
+        )
+        .await?,
+    ))
+}
+
+async fn ui_post_connector_binding(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(environment_id): Path<String>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, UiError> {
+    let session = require_session(&state, &headers).await?;
+    if !role_can_manage_workspace(&session.role) {
+        return Err(UiError::forbidden(
+            "Only workspace owner/admin can create connector bindings.",
+        ));
+    }
+    let path = format!(
+        "api/internal/tenants/{}/environments/{}/connector-bindings",
+        state.ingress_auth.tenant_id, environment_id
+    );
+    Ok(Json(ingress_post_value(&state, &path, body, None).await?))
+}
+
+async fn ui_post_revoke_connector_binding(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path((environment_id, binding_id)): Path<(String, String)>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, UiError> {
+    let session = require_session(&state, &headers).await?;
+    if !role_can_manage_workspace(&session.role) {
+        return Err(UiError::forbidden(
+            "Only workspace owner/admin can revoke connector bindings.",
+        ));
+    }
+    let path = format!(
+        "api/internal/tenants/{}/environments/{}/connector-bindings/{}/revoke",
+        state.ingress_auth.tenant_id, environment_id, binding_id
+    );
+    Ok(Json(ingress_post_value(&state, &path, body, None).await?))
 }
 
 async fn ui_get_policy_templates(
@@ -1941,12 +2214,7 @@ async fn ui_get_policy_templates(
         ));
     }
     Ok(Json(
-        ingress_get(
-            &state,
-            "api/internal/policy/templates",
-            None,
-        )
-        .await?,
+        ingress_get(&state, "api/internal/policy/templates", None).await?,
     ))
 }
 
@@ -1973,7 +2241,11 @@ async fn ui_get_policy_bundles(
         ingress_get(
             &state,
             &path,
-            if params.is_empty() { None } else { Some(params.as_slice()) },
+            if params.is_empty() {
+                None
+            } else {
+                Some(params.as_slice())
+            },
         )
         .await?,
     ))
@@ -2030,7 +2302,9 @@ async fn ui_post_publish_policy_bundle(
         "api/internal/tenants/{}/policy/bundles/{}/publish",
         state.ingress_auth.tenant_id, bundle_id
     );
-    Ok(Json(ingress_post_value(&state, &path, json!({}), None).await?))
+    Ok(Json(
+        ingress_post_value(&state, &path, json!({}), None).await?,
+    ))
 }
 
 async fn ui_post_rollback_policy_bundle(

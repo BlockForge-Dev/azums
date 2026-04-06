@@ -43,6 +43,25 @@ export function UnifiedRequestInsights({
   const latestRun = latestReconRun(unified);
   const latestReceipt = latestReceiptEntry(unified);
   const openCases = unresolvedExceptions(unified);
+  const paystackEvidenceReferences = unified.evidence_references.filter(
+    (reference) => reference.source_table?.startsWith("paystack.") ?? false
+  );
+  const paystackExecutionEvidence = paystackEvidenceReferences.filter(
+    (reference) => reference.source_table === "paystack.executions"
+  );
+  const paystackWebhookEvidence = paystackEvidenceReferences.filter(
+    (reference) => reference.source_table === "paystack.webhook_events"
+  );
+  const paystackReference =
+    latestReceipt?.connector_outcome?.reference ??
+    latestReceipt?.recon_linkage?.connector_reference ??
+    latestReceipt?.adapter_execution_reference ??
+    latestReceipt?.details?.reference ??
+    latestReceipt?.details?.provider_reference ??
+    latestReceipt?.details?.remote_id ??
+    null;
+  const showPaystackEvidence =
+    unified.request.adapter_id === "adapter_paystack" || paystackEvidenceReferences.length > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -207,6 +226,66 @@ export function UnifiedRequestInsights({
           )}
         </article>
       </section>
+
+      {showPaystackEvidence ? (
+        <section className="bg-muted/30 rounded-xl border border-border/50 p-5">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <Badge variant="default">Fiat rail evidence</Badge>
+            <Badge variant="default">
+              execution rows {paystackExecutionEvidence.length}
+            </Badge>
+            <Badge variant="default">
+              webhook rows {paystackWebhookEvidence.length}
+            </Badge>
+            {latestRun?.machine_reason ? (
+              <Badge variant={dashboardBadgeVariant(unified.dashboard_status)}>
+                {latestRun.machine_reason}
+              </Badge>
+            ) : null}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className="rounded-lg border border-border/50 bg-background/40 p-3">
+              <span className="text-xs text-muted-foreground">Verification reference</span>
+              <p
+                className="mt-1 text-sm text-foreground font-mono break-all"
+                title={paystackReference ?? "-"}
+              >
+                {paystackReference ?? "-"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/50 bg-background/40 p-3">
+              <span className="text-xs text-muted-foreground">Provider status</span>
+              <p className="mt-1 text-sm text-foreground font-mono">
+                {latestReceipt?.details?.provider_status ??
+                  latestReceipt?.details?.status ??
+                  "pending"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/50 bg-background/40 p-3">
+              <span className="text-xs text-muted-foreground">Amount / currency</span>
+              <p className="mt-1 text-sm text-foreground font-mono">
+                {latestReceipt?.details?.amount_minor ?? "-"}{" "}
+                {latestReceipt?.details?.currency ?? ""}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/50 bg-background/40 p-3">
+              <span className="text-xs text-muted-foreground">Webhook lineage</span>
+              <p className="mt-1 text-sm text-foreground font-mono">
+                {paystackWebhookEvidence.length > 0
+                  ? paystackWebhookEvidence
+                      .slice(0, 2)
+                      .map((reference) => reference.source_id ?? reference.label)
+                      .join(", ")
+                  : "No correlated webhook evidence yet"}
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Paystack webhook evidence is downstream verification evidence. It does not rewrite the
+            original Azums execution receipt.
+          </p>
+        </section>
+      ) : null}
 
       <section className="bg-muted/30 rounded-xl border border-border/50 p-5">
         <h3 className="text-sm font-semibold text-foreground mb-3">Evidence references</h3>

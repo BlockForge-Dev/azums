@@ -736,6 +736,13 @@ async fn recon_receipts_capture_references_and_emit_signals() {
     );
     assert!(first_receipt.expected_fact_snapshot.is_some());
     assert_eq!(
+        first_receipt
+            .recon_linkage
+            .as_ref()
+            .and_then(|value| value.connector_reference.as_deref()),
+        Some("sig-pending")
+    );
+    assert_eq!(
         store.signal_kinds(),
         vec![ReconIntakeSignalKind::SubmittedWithReference]
     );
@@ -762,6 +769,21 @@ async fn recon_receipts_capture_references_and_emit_signals() {
     );
     assert_eq!(
         final_receipt.external_observation_key.as_deref(),
+        Some("sig-final")
+    );
+    assert_eq!(
+        final_receipt
+            .recon_linkage
+            .as_ref()
+            .and_then(|value| value.connector_reference.as_deref()),
+        Some("sig-final")
+    );
+    assert_eq!(
+        final_receipt
+            .expected_fact_snapshot
+            .as_ref()
+            .and_then(|value| value.pointer("/connector/reference"))
+            .and_then(|value| value.as_str()),
         Some("sig-final")
     );
     let signal_kinds = store.signal_kinds();
@@ -963,7 +985,10 @@ async fn agent_receipts_capture_requested_approved_executed_and_verified_context
         ("execution.signing_mode".to_owned(), "sponsored".to_owned()),
         ("execution.payer_source".to_owned(), "azums".to_owned()),
         ("execution.fee_payer".to_owned(), "wallet_1".to_owned()),
-        ("connector.outcome".to_owned(), "not_used".to_owned()),
+        ("connector.outcome".to_owned(), "queued".to_owned()),
+        ("connector.type".to_owned(), "slack".to_owned()),
+        ("connector.binding_id".to_owned(), "binding_slack_1".to_owned()),
+        ("connector.reference".to_owned(), "slack_action_123".to_owned()),
     ]);
 
     let submitted = core.submit_intent(value).await.unwrap();
@@ -1048,7 +1073,28 @@ async fn agent_receipts_capture_requested_approved_executed_and_verified_context
             .connector_outcome
             .as_ref()
             .map(|value| value.status.as_str()),
-        Some("not_used")
+        Some("queued")
+    );
+    assert_eq!(
+        receipt
+            .connector_outcome
+            .as_ref()
+            .and_then(|value| value.connector_type.as_deref()),
+        Some("slack")
+    );
+    assert_eq!(
+        receipt
+            .connector_outcome
+            .as_ref()
+            .and_then(|value| value.binding_id.as_deref()),
+        Some("binding_slack_1")
+    );
+    assert_eq!(
+        receipt
+            .connector_outcome
+            .as_ref()
+            .and_then(|value| value.reference.as_deref()),
+        Some("slack_action_123")
     );
     assert_eq!(
         receipt
@@ -1056,6 +1102,21 @@ async fn agent_receipts_capture_requested_approved_executed_and_verified_context
             .as_ref()
             .and_then(|value| value.recon_subject_id.as_deref()),
         receipt.recon_subject_id.as_deref()
+    );
+    assert_eq!(
+        receipt
+            .recon_linkage
+            .as_ref()
+            .and_then(|value| value.connector_reference.as_deref()),
+        Some("slack_action_123")
+    );
+    assert_eq!(
+        receipt
+            .expected_fact_snapshot
+            .as_ref()
+            .and_then(|value| value.pointer("/connector/reference"))
+            .and_then(|value| value.as_str()),
+        Some("slack_action_123")
     );
 }
 

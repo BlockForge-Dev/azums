@@ -78,8 +78,8 @@ mod tests {
     use super::*;
     use crate::model::ReconSubject;
     use execution_core::{
-        CanonicalState, CallbackId, PlatformClassification, ReconIntakeSignal,
-        ReconIntakeSignalId, ReconIntakeSignalKind, TenantId,
+        CallbackId, CanonicalState, PlatformClassification, ReconIntakeSignal, ReconIntakeSignalId,
+        ReconIntakeSignalKind, TenantId,
     };
     use std::collections::{HashMap, HashSet};
     use std::sync::Mutex;
@@ -92,7 +92,10 @@ mod tests {
 
     #[async_trait]
     impl ReconIntakeRepository for FakeRepo {
-        async fn claim_intake_signal(&self, signal: &ReconIntakeSignal) -> Result<bool, ReconError> {
+        async fn claim_intake_signal(
+            &self,
+            signal: &ReconIntakeSignal,
+        ) -> Result<bool, ReconError> {
             let mut seen = self.seen_signals.lock().unwrap();
             Ok(seen.insert(signal.signal_id.to_string()))
         }
@@ -161,7 +164,11 @@ mod tests {
                 .subjects
                 .lock()
                 .unwrap()
-                .get(&(tenant_id.to_owned(), intent_id.to_owned(), job_id.to_owned()))
+                .get(&(
+                    tenant_id.to_owned(),
+                    intent_id.to_owned(),
+                    job_id.to_owned(),
+                ))
                 .cloned())
         }
     }
@@ -184,7 +191,15 @@ mod tests {
             execution_correlation_id: Some("corr-1".to_owned()),
             adapter_execution_reference: Some("sig-final".to_owned()),
             external_observation_key: Some("sig-final".to_owned()),
-            expected_fact_snapshot: Some(serde_json::json!({ "version": 1 })),
+            expected_fact_snapshot: Some(serde_json::json!({
+                "version": 2,
+                "connector": {
+                    "status": "queued",
+                    "connector_type": "slack",
+                    "binding_id": "binding_slack_1",
+                    "reference": "slack_action_123"
+                }
+            })),
             payload: serde_json::json!({}),
             occurred_at_ms: 1,
         }
@@ -198,12 +213,24 @@ mod tests {
         let first = service.ingest_signal(&signal("sig_1")).await.unwrap();
         assert!(!first.duplicate_signal);
         assert_eq!(first.subject.subject_id, "reconsub_job_1");
-        assert_eq!(first.subject.latest_signal_kind.as_deref(), Some("finalized"));
+        assert_eq!(
+            first.subject.latest_signal_kind.as_deref(),
+            Some("finalized")
+        );
         assert_eq!(
             first.subject.adapter_execution_reference.as_deref(),
             Some("sig-final")
         );
         assert!(first.subject.expected_fact_snapshot.is_some());
+        assert_eq!(
+            first
+                .subject
+                .expected_fact_snapshot
+                .as_ref()
+                .and_then(|value| value.pointer("/connector/reference"))
+                .and_then(|value| value.as_str()),
+            Some("slack_action_123")
+        );
         assert_eq!(first.subject.scheduled_at_ms, Some(1));
 
         let second = service.ingest_signal(&signal("sig_1")).await.unwrap();

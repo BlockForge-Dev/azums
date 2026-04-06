@@ -32,6 +32,22 @@ async function waitForJsonPost(page: Page, pathFragment: string) {
   );
 }
 
+async function loginAsDemo(page: Page, nextPath: string) {
+  await page.goto(`/login?next=${encodeURIComponent(nextPath)}`, {
+    timeout: 120_000,
+    waitUntil: "domcontentloaded",
+  });
+  await waitForJsonGet(page, "/api/ui/account/session");
+
+  const emailInput = page.getByTestId("login-email");
+  const passwordInput = page.getByTestId("login-password");
+  await fillStable(emailInput, "demo@azums.dev");
+  await fillStable(passwordInput, "dev-password");
+  const loginResponse = waitForJsonPost(page, "/api/ui/account/login");
+  await page.getByTestId("login-submit").click({ noWaitAfter: true });
+  await loginResponse;
+}
+
 test("customer UI smoke covers login, workspace switch, Playground replay, API keys, and webhooks", async ({
   page,
   request,
@@ -45,19 +61,7 @@ test("customer UI smoke covers login, workspace switch, Playground replay, API k
   await warmRoute("/app/webhooks", request);
   await warmRoute("/api/ui/account/session", request);
 
-  await page.goto("/login?next=%2Fapp%2Fworkspaces", {
-    timeout: 120_000,
-    waitUntil: "domcontentloaded",
-  });
-  await waitForJsonGet(page, "/api/ui/account/session");
-
-  const emailInput = page.getByTestId("login-email");
-  const passwordInput = page.getByTestId("login-password");
-  await fillStable(emailInput, "demo@azums.dev");
-  await fillStable(passwordInput, "dev-password");
-  const loginResponse = waitForJsonPost(page, "/api/ui/account/login");
-  await page.getByTestId("login-submit").click({ noWaitAfter: true });
-  await loginResponse;
+  await loginAsDemo(page, "/app/workspaces");
 
   await Promise.all([
     waitForJsonGet(page, "/api/ui/account/session"),
@@ -120,4 +124,39 @@ test("customer UI smoke covers login, workspace switch, Playground replay, API k
   await page.getByTestId("webhooks-issue-key").click({ noWaitAfter: true });
   await issueWebhookResponse;
   await expect(page.getByText("Copy this secret now. It is shown once.")).toBeVisible();
+});
+
+test("operator smoke covers Paystack exception investigation", async ({ page, request }) => {
+  test.setTimeout(300_000);
+
+  await warmRoute("/login?next=%2Fops%2Fexceptions", request);
+  await warmRoute("/ops/exceptions", request);
+  await warmRoute("/api/ui/account/session", request);
+  await warmRoute("/api/ui/config", request);
+  await warmRoute("/api/ui/status/exceptions?limit=80&offset=0", request);
+
+  await loginAsDemo(page, "/ops/exceptions");
+
+  const configResponse = waitForJsonGet(page, "/api/ui/config");
+  const indexResponse = waitForJsonGet(page, "/api/ui/status/exceptions");
+  await page.goto("/ops/exceptions", {
+    timeout: 120_000,
+    waitUntil: "domcontentloaded",
+  });
+  await Promise.all([configResponse, indexResponse]);
+
+  await expect(
+    page.getByText("Paystack settlement amount did not match the protected execution request.")
+  ).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText("Fiat rail investigation")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText("Evidence rows")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText("1 execution / 1 webhook")).toBeVisible({ timeout: 120_000 });
+
+  const webhookExcerpt = page.getByText("Webhook payload excerpt");
+  await expect(webhookExcerpt).toBeVisible();
+  await webhookExcerpt.click();
+
+  await expect(page.getByText("event:refund.processed")).toBeVisible();
+  await expect(page.getByText("provider_status:success")).toBeVisible();
+  await expect(page.getByText("gateway:Refund processed by Paystack")).toBeVisible();
 });

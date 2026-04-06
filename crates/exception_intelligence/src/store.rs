@@ -213,6 +213,67 @@ impl PostgresExceptionStore {
         Ok(out)
     }
 
+    pub async fn sync_external_cases(
+        &self,
+        tenant_id: &str,
+        subject_id: &str,
+        intent_id: &str,
+        job_id: &str,
+        adapter_id: &str,
+        actor: &str,
+        source_reason: &str,
+        drafts: &[ExceptionDraft],
+        now_ms: u64,
+    ) -> Result<Vec<ExceptionCase>, ExceptionIntelligenceError> {
+        let classifier = ExceptionClassifier;
+        let mut tx = self.pool.begin().await.map_err(sqlx_to_internal)?;
+        let linkage = ExceptionLinkage::default();
+        let existing_cases = self
+            .load_subject_cases(&mut tx, tenant_id, subject_id)
+            .await?;
+        let existing_map: HashMap<String, ExceptionCase> = existing_cases
+            .into_iter()
+            .map(|case| (case.dedupe_key.clone(), case))
+            .collect();
+
+        let mut out = Vec::with_capacity(drafts.len());
+        for draft in drafts {
+            let classified = classifier.classify(
+                &ExceptionContext {
+                    tenant_id: tenant_id.to_owned(),
+                    subject_id: subject_id.to_owned(),
+                    intent_id: intent_id.to_owned(),
+                    job_id: job_id.to_owned(),
+                    adapter_id: adapter_id.to_owned(),
+                    latest_run_id: None,
+                    latest_outcome_id: None,
+                },
+                draft,
+            );
+            let existing = existing_map.get(&classified.dedupe_key);
+            let case = self
+                .upsert_external_case(
+                    &mut tx,
+                    existing,
+                    tenant_id,
+                    subject_id,
+                    intent_id,
+                    job_id,
+                    adapter_id,
+                    actor,
+                    source_reason,
+                    &classified,
+                    &linkage,
+                    now_ms,
+                )
+                .await?;
+            out.push(case);
+        }
+
+        tx.commit().await.map_err(sqlx_to_internal)?;
+        Ok(out)
+    }
+
     pub async fn list_cases_for_intent(
         &self,
         tenant_id: &str,
@@ -722,6 +783,171 @@ impl PostgresExceptionStore {
             latest_execution_receipt_id: linkage.latest_execution_receipt_id.clone(),
             latest_evidence_snapshot_id: linkage.latest_evidence_snapshot_id.clone(),
             last_actor: Some("recon_core".to_owned()),
+        })
+    }
+
+    async fn upsert_external_case(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        existing: Option<&ExceptionCase>,
+        tenant_id: &str,
+        subject_id: &str,
+        intent_id: &str,
+        job_id: &str,
+        adapter_id: &str,
+        actor: &str,
+        source_reason: &str,
+        classified: &ClassifiedExceptionDraft,
+        linkage: &ExceptionLinkage,
+        now_ms: u64,
+    ) -> Result<ExceptionCase, ExceptionIntelligenceError> {
+        let case_id = existing
+            .map(|case| case.case_id.clone())
+            .unwrap_or_else(|| format!("excase_{}", Uuid::new_v4().simple()));
+        let prior_state = existing.map(|case| case.state);
+        let next_state = next_active_state(existing.map(|case| case.state), classified.state);
+        let first_seen_at_ms = existing.map(|case| case.first_seen_at_ms).unwrap_or(now_ms);
+        let occurrence_count = existing
+            .map(|case| case.occurrence_count.saturating_add(1))
+            .unwrap_or(1);
+        let event_type = match prior_state {
+            None => "created",
+            Some(from) if from.is_terminal() && !next_state.is_terminal() => "reopened",
+            Some(from) if from != next_state => "state_changed",
+            Some(_) => "external_signal_observed",
+        };
+
+        if existing.is_some() {
+            sqlx::query(
+                r#"
+                UPDATE exception_cases
+                SET intent_id = $2,
+                    job_id = $3,
+                    adapter_id = $4,
+                    category = $5,
+                    severity = $6,
+                    state = $7,
+                    summary = $8,
+                    machine_reason = $9,
+                    cluster_key = $10,
+                    last_seen_at_ms = $11,
+                    occurrence_count = $12,
+                    updated_at_ms = $11,
+                    resolved_at_ms = NULL,
+                    last_actor = $13
+                WHERE case_id = $1
+                "#,
+            )
+            .bind(&case_id)
+            .bind(intent_id)
+            .bind(job_id)
+            .bind(adapter_id)
+            .bind(classified.category.as_str())
+            .bind(classified.severity.as_str())
+            .bind(next_state.as_str())
+            .bind(&classified.summary)
+            .bind(&classified.machine_reason)
+            .bind(&classified.cluster_key)
+            .bind(now_ms as i64)
+            .bind(occurrence_count as i64)
+            .bind(actor)
+            .execute(&mut **tx)
+            .await
+            .map_err(sqlx_to_internal)?;
+        } else {
+            sqlx::query(
+                r#"
+                INSERT INTO exception_cases (
+                    case_id, tenant_id, subject_id, intent_id, job_id, adapter_id,
+                    category, severity, state, summary, machine_reason,
+                    dedupe_key, cluster_key, first_seen_at_ms, last_seen_at_ms, occurrence_count,
+                    latest_run_id, latest_outcome_id, latest_recon_receipt_id,
+                    latest_execution_receipt_id, latest_evidence_snapshot_id,
+                    created_at_ms, updated_at_ms, resolved_at_ms, last_actor
+                )
+                VALUES (
+                    $1,$2,$3,$4,$5,$6,
+                    $7,$8,$9,$10,$11,
+                    $12,$13,$14,$15,$16,
+                    NULL,NULL,NULL,NULL,NULL,
+                    $17,$18,NULL,$19
+                )
+                "#,
+            )
+            .bind(&case_id)
+            .bind(tenant_id)
+            .bind(subject_id)
+            .bind(intent_id)
+            .bind(job_id)
+            .bind(adapter_id)
+            .bind(classified.category.as_str())
+            .bind(classified.severity.as_str())
+            .bind(next_state.as_str())
+            .bind(&classified.summary)
+            .bind(&classified.machine_reason)
+            .bind(&classified.dedupe_key)
+            .bind(&classified.cluster_key)
+            .bind(first_seen_at_ms as i64)
+            .bind(now_ms as i64)
+            .bind(occurrence_count as i64)
+            .bind(now_ms as i64)
+            .bind(now_ms as i64)
+            .bind(actor)
+            .execute(&mut **tx)
+            .await
+            .map_err(sqlx_to_internal)?;
+        }
+
+        self.record_event(
+            tx,
+            &case_id,
+            event_type,
+            prior_state,
+            Some(next_state),
+            actor,
+            source_reason,
+            json!({
+                "category": classified.category.as_str(),
+                "severity": classified.severity.as_str(),
+                "machine_reason": classified.machine_reason.clone(),
+                "dedupe_key": classified.dedupe_key.clone(),
+                "cluster_key": classified.cluster_key.clone(),
+            }),
+            now_ms,
+        )
+        .await?;
+
+        let evidence = build_evidence_records(&case_id, classified, linkage, now_ms);
+        self.attach_evidence(tx, &evidence).await?;
+
+        Ok(ExceptionCase {
+            case_id,
+            tenant_id: tenant_id.to_owned(),
+            subject_id: subject_id.to_owned(),
+            intent_id: intent_id.to_owned(),
+            job_id: job_id.to_owned(),
+            adapter_id: adapter_id.to_owned(),
+            category: classified.category,
+            severity: classified.severity,
+            state: next_state,
+            summary: classified.summary.clone(),
+            machine_reason: classified.machine_reason.clone(),
+            dedupe_key: classified.dedupe_key.clone(),
+            cluster_key: classified.cluster_key.clone(),
+            first_seen_at_ms,
+            last_seen_at_ms: now_ms,
+            occurrence_count,
+            created_at_ms: existing.map(|case| case.created_at_ms).unwrap_or(now_ms),
+            updated_at_ms: now_ms,
+            resolved_at_ms: None,
+            latest_run_id: existing.and_then(|case| case.latest_run_id.clone()),
+            latest_outcome_id: existing.and_then(|case| case.latest_outcome_id.clone()),
+            latest_recon_receipt_id: existing.and_then(|case| case.latest_recon_receipt_id.clone()),
+            latest_execution_receipt_id: existing
+                .and_then(|case| case.latest_execution_receipt_id.clone()),
+            latest_evidence_snapshot_id: existing
+                .and_then(|case| case.latest_evidence_snapshot_id.clone()),
+            last_actor: Some(actor.to_owned()),
         })
     }
 

@@ -173,6 +173,64 @@ export function RequestDetailPage({ intentId }: { intentId: string }) {
     };
   }, [latestReceiptEntry?.details]);
 
+  const paystackEvidence = useMemo(() => {
+    const details = latestReceiptEntry?.details ?? {};
+    const webhookEvidence = (unified?.evidence_references ?? []).filter(
+      (reference) => reference.source_table === "paystack.webhook_events"
+    );
+    const executionEvidence = (unified?.evidence_references ?? []).filter(
+      (reference) => reference.source_table === "paystack.executions"
+    );
+
+    return {
+      reference:
+        latestReceiptEntry?.connector_outcome?.reference ??
+        latestReceiptEntry?.recon_linkage?.connector_reference ??
+        latestReceiptEntry?.adapter_execution_reference ??
+        details.reference ??
+        details.provider_reference ??
+        details.remote_id ??
+        null,
+      remote_id: details.remote_id ?? null,
+      amount_minor: details.amount_minor ?? null,
+      currency: details.currency ?? null,
+      source_reference: details.source_reference ?? null,
+      destination_reference: details.destination_reference ?? null,
+      connector_reference:
+        details.connector_reference ??
+        latestReceiptEntry?.connector_outcome?.reference ??
+        latestReceiptEntry?.recon_linkage?.connector_reference ??
+        null,
+      provider_status: details.provider_status ?? null,
+      webhook_count: webhookEvidence.length,
+      execution_count: executionEvidence.length,
+      recon_status:
+        unified?.reconciliation.latest_receipt?.normalized_result ??
+        unified?.reconciliation.latest_receipt?.outcome ??
+        null,
+    };
+  }, [
+    latestReceiptEntry?.adapter_execution_reference,
+    latestReceiptEntry?.connector_outcome?.reference,
+    latestReceiptEntry?.details,
+    latestReceiptEntry?.recon_linkage?.connector_reference,
+    unified?.evidence_references,
+    unified?.reconciliation.latest_receipt?.normalized_result,
+    unified?.reconciliation.latest_receipt?.outcome,
+  ]);
+
+  const isPaystackRequest = useMemo(() => {
+    return (
+      request?.adapter_id === "adapter_paystack" ||
+      Boolean(
+        paystackEvidence.reference ||
+          paystackEvidence.remote_id ||
+          paystackEvidence.execution_count ||
+          paystackEvidence.webhook_count
+      )
+    );
+  }, [paystackEvidence, request?.adapter_id]);
+
   const replayEligible = useMemo(() => {
     return Boolean(canReplay && request);
   }, [canReplay, request]);
@@ -349,29 +407,80 @@ export function RequestDetailPage({ intentId }: { intentId: string }) {
                   <small className="text-xs text-muted-foreground">Latest classification recorded</small>
                 </article>
 
-                <article className="bg-muted/30 rounded-xl border border-border/50 p-4">
-                  <span className="text-sm text-muted-foreground">Signature</span>
-                  <strong className="text-foreground block mt-1 truncate" title={solanaEvidence.signature ?? "-"}>
-                    {solanaEvidence.signature ? middleEllipsis(solanaEvidence.signature) : "-"}
-                  </strong>
-                  <small className="text-xs text-muted-foreground">Network signature if available</small>
-                </article>
+                {isPaystackRequest ? (
+                  <>
+                    <article className="bg-muted/30 rounded-xl border border-border/50 p-4">
+                      <span className="text-sm text-muted-foreground">Verification reference</span>
+                      <strong
+                        className="text-foreground block mt-1 truncate"
+                        title={paystackEvidence.reference ?? "-"}
+                      >
+                        {paystackEvidence.reference
+                          ? middleEllipsis(paystackEvidence.reference)
+                          : "-"}
+                      </strong>
+                      <small className="text-xs text-muted-foreground">
+                        Provider or connector reference used for verification
+                      </small>
+                    </article>
 
-                <article className="bg-muted/30 rounded-xl border border-border/50 p-4">
-                  <span className="text-sm text-muted-foreground">Transaction hash</span>
-                  <strong className="text-foreground block mt-1 truncate" title={solanaEvidence.tx_hash ?? "-"}>
-                    {solanaEvidence.tx_hash ? middleEllipsis(solanaEvidence.tx_hash) : "-"}
-                  </strong>
-                  <small className="text-xs text-muted-foreground">Transaction reference</small>
-                </article>
+                    <article className="bg-muted/30 rounded-xl border border-border/50 p-4">
+                      <span className="text-sm text-muted-foreground">Fiat route</span>
+                      <strong
+                        className="text-foreground block mt-1 truncate"
+                        title={
+                          [paystackEvidence.source_reference, paystackEvidence.destination_reference]
+                            .filter(Boolean)
+                            .join(" -> ") || "-"
+                        }
+                      >
+                        {[paystackEvidence.source_reference, paystackEvidence.destination_reference]
+                          .filter(Boolean)
+                          .join(" -> ") || "-"}
+                      </strong>
+                      <small className="text-xs text-muted-foreground">
+                        Source and destination references recorded on the rail
+                      </small>
+                    </article>
 
-                <article className="bg-muted/30 rounded-xl border border-border/50 p-4">
-                  <span className="text-sm text-muted-foreground">Fee payer</span>
-                  <strong className="text-foreground block mt-1 truncate" title={solanaEvidence.fee_payer ?? "-"}>
-                    {solanaEvidence.fee_payer ? middleEllipsis(solanaEvidence.fee_payer) : "-"}
-                  </strong>
-                  <small className="text-xs text-muted-foreground">Fee payer recorded on the request</small>
-                </article>
+                    <article className="bg-muted/30 rounded-xl border border-border/50 p-4">
+                      <span className="text-sm text-muted-foreground">Verification evidence</span>
+                      <strong className="text-foreground block mt-1">
+                        {paystackEvidence.execution_count} execution / {paystackEvidence.webhook_count} webhook
+                      </strong>
+                      <small className="text-xs text-muted-foreground">
+                        Recon {paystackEvidence.recon_status ?? "pending"} · status{" "}
+                        {paystackEvidence.provider_status ?? "pending"}
+                      </small>
+                    </article>
+                  </>
+                ) : (
+                  <>
+                    <article className="bg-muted/30 rounded-xl border border-border/50 p-4">
+                      <span className="text-sm text-muted-foreground">Signature</span>
+                      <strong className="text-foreground block mt-1 truncate" title={solanaEvidence.signature ?? "-"}>
+                        {solanaEvidence.signature ? middleEllipsis(solanaEvidence.signature) : "-"}
+                      </strong>
+                      <small className="text-xs text-muted-foreground">Network signature if available</small>
+                    </article>
+
+                    <article className="bg-muted/30 rounded-xl border border-border/50 p-4">
+                      <span className="text-sm text-muted-foreground">Transaction hash</span>
+                      <strong className="text-foreground block mt-1 truncate" title={solanaEvidence.tx_hash ?? "-"}>
+                        {solanaEvidence.tx_hash ? middleEllipsis(solanaEvidence.tx_hash) : "-"}
+                      </strong>
+                      <small className="text-xs text-muted-foreground">Transaction reference</small>
+                    </article>
+
+                    <article className="bg-muted/30 rounded-xl border border-border/50 p-4">
+                      <span className="text-sm text-muted-foreground">Fee payer</span>
+                      <strong className="text-foreground block mt-1 truncate" title={solanaEvidence.fee_payer ?? "-"}>
+                        {solanaEvidence.fee_payer ? middleEllipsis(solanaEvidence.fee_payer) : "-"}
+                      </strong>
+                      <small className="text-xs text-muted-foreground">Fee payer recorded on the request</small>
+                    </article>
+                  </>
+                )}
               </div>
 
               <section>

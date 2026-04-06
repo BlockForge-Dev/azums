@@ -1,8 +1,8 @@
 use crate::error::ReconError;
 use crate::model::{
-    evidence, make_exception, make_fact_id, normalize_result, ExpectedFactDraft,
-    ObservedFactDraft, ReconContext, ReconEvidenceSnapshot, ReconReceipt, ReconResult, ReconRun,
-    ReconRunState, ReconRunStateTransition, ReconSubject,
+    evidence, make_exception, make_fact_id, normalize_result, ExpectedFactDraft, ObservedFactDraft,
+    ReconContext, ReconEvidenceSnapshot, ReconReceipt, ReconResult, ReconRun, ReconRunState,
+    ReconRunStateTransition, ReconSubject,
 };
 use crate::rules::ReconRuleRegistry;
 use async_trait::async_trait;
@@ -295,9 +295,9 @@ where
         run.expected_fact_count = expected.len() as u32;
         run.observed_fact_count = observed.len() as u32;
         run.matched_fact_count = matched.matched_fact_keys.len() as u32;
-        run.unmatched_fact_count =
-            (matched.missing_expected.len() + matched.unexpected_observed.len() + matched.mismatches.len())
-                as u32;
+        run.unmatched_fact_count = (matched.missing_expected.len()
+            + matched.unexpected_observed.len()
+            + matched.mismatches.len()) as u32;
         run.updated_at_ms = final_now_ms;
         run.completed_at_ms = Some(final_now_ms);
         run.exception_case_ids = cases.into_iter().map(|case| case.case_id).collect();
@@ -374,8 +374,16 @@ where
             self.schedule_retry(subject, run, err, expected, observed, context, adapter_rows)
                 .await
         } else {
-            self.finalize_terminal_failure(subject, run, err, expected, observed, context, adapter_rows)
-                .await
+            self.finalize_terminal_failure(
+                subject,
+                run,
+                err,
+                expected,
+                observed,
+                context,
+                adapter_rows,
+            )
+            .await
         }
     }
 
@@ -391,7 +399,10 @@ where
     ) -> Result<(), ReconError> {
         let now_ms = current_ms();
         let next_retry_at_ms = now_ms
-            + self.cfg.retry_backoff_ms.saturating_mul((subject.recon_retry_count + 1) as u64);
+            + self
+                .cfg
+                .retry_backoff_ms
+                .saturating_mul((subject.recon_retry_count + 1) as u64);
         let previous_state = run.lifecycle_state;
         run.lifecycle_state = ReconRunState::RetryScheduled;
         run.normalized_result = Some(ReconResult::PendingObservation);
@@ -413,12 +424,18 @@ where
             outcome: run.outcome,
             summary: run.summary.clone(),
             details: BTreeMap::from([
-                ("run_state".to_owned(), run.lifecycle_state.as_str().to_owned()),
+                (
+                    "run_state".to_owned(),
+                    run.lifecycle_state.as_str().to_owned(),
+                ),
                 (
                     "normalized_result".to_owned(),
                     ReconResult::PendingObservation.as_str().to_owned(),
                 ),
-                ("retry_scheduled_at_ms".to_owned(), next_retry_at_ms.to_string()),
+                (
+                    "retry_scheduled_at_ms".to_owned(),
+                    next_retry_at_ms.to_string(),
+                ),
                 ("error".to_owned(), err.to_string()),
             ]),
             created_at_ms: now_ms,
@@ -525,7 +542,10 @@ where
             outcome: run.outcome,
             summary: run.summary.clone(),
             details: BTreeMap::from([
-                ("run_state".to_owned(), run.lifecycle_state.as_str().to_owned()),
+                (
+                    "run_state".to_owned(),
+                    run.lifecycle_state.as_str().to_owned(),
+                ),
                 (
                     "normalized_result".to_owned(),
                     ReconResult::ManualReviewRequired.as_str().to_owned(),
@@ -682,7 +702,9 @@ fn current_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{ExpectedFactDraft, ObservedFactDraft, ReconClassification, ReconMatchResult};
+    use crate::model::{
+        ExpectedFactDraft, ObservedFactDraft, ReconClassification, ReconMatchResult,
+    };
     use crate::rules::ReconRulePack;
     use std::sync::Mutex;
 
@@ -741,9 +763,15 @@ mod tests {
             final_transition: &ReconRunStateTransition,
         ) -> Result<(), ReconError> {
             self.finalized_runs.lock().unwrap().push(run.clone());
-            self.finalized_receipts.lock().unwrap().push(receipt.clone());
+            self.finalized_receipts
+                .lock()
+                .unwrap()
+                .push(receipt.clone());
             self.evidence.lock().unwrap().push(evidence.clone());
-            self.transitions.lock().unwrap().push(final_transition.clone());
+            self.transitions
+                .lock()
+                .unwrap()
+                .push(final_transition.clone());
             Ok(())
         }
     }
@@ -915,8 +943,12 @@ mod tests {
         let exception_sink = Arc::new(FakeExceptionSink::default());
         let mut rules = ReconRuleRegistry::new();
         rules.register(Box::new(FakeRulePack));
-        let engine =
-            ReconEngine::new(store.clone(), exception_sink, rules, ReconEngineConfig::default());
+        let engine = ReconEngine::new(
+            store.clone(),
+            exception_sink,
+            rules,
+            ReconEngineConfig::default(),
+        );
 
         engine.process_subject(&subject()).await.unwrap();
 
@@ -950,15 +982,22 @@ mod tests {
         let exception_sink = Arc::new(FakeExceptionSink::default());
         let mut rules = ReconRuleRegistry::new();
         rules.register(Box::new(FakeRulePack));
-        let engine =
-            ReconEngine::new(store.clone(), exception_sink, rules, ReconEngineConfig::default());
+        let engine = ReconEngine::new(
+            store.clone(),
+            exception_sink,
+            rules,
+            ReconEngineConfig::default(),
+        );
 
         engine.process_subject(&subject()).await.unwrap();
 
         let runs = store.finalized_runs.lock().unwrap();
         assert_eq!(runs.len(), 1);
         assert_eq!(runs[0].lifecycle_state, ReconRunState::RetryScheduled);
-        assert_eq!(runs[0].normalized_result, Some(ReconResult::PendingObservation));
+        assert_eq!(
+            runs[0].normalized_result,
+            Some(ReconResult::PendingObservation)
+        );
         assert!(runs[0].retry_scheduled_at_ms.is_some());
         assert!(runs[0]
             .last_error

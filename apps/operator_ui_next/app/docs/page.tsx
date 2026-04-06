@@ -4,20 +4,23 @@ export default function PublicDocsPage() {
       <section className="landing-hero">
         <p className="landing-eyebrow">Public Docs</p>
         <h1>Quickstart and platform concepts</h1>
-        <p>For signed-in operators and developers, open the in-app docs at `/app/docs`.</p>
+        <p>
+          Azums supports two entry paths: direct API or webhooks, and agent gateway integration.
+          Both use the same execution truth model underneath.
+        </p>
       </section>
       <section className="landing-grid">
         <article className="landing-card">
-          <h2>Quickstart</h2>
-          <p>Sign up, create an API key, run a Playground request, and inspect the receipt.</p>
+          <h2>Direct API / webhooks</h2>
+          <p>Send typed backend requests or signed webhook traffic straight into ingress and inspect the same receipts later.</p>
         </article>
         <article className="landing-card">
-          <h2>Execution model</h2>
-          <p>States, classifications, retry model, replay lineage, callback records.</p>
+          <h2>Agent gateway</h2>
+          <p>Compile free-form or structured runtime input into the same request lifecycle without creating a second executor.</p>
         </article>
         <article className="landing-card">
-          <h2>Operator model</h2>
-          <p>Replay controls, intake audits, callback diagnostics, and activity logs.</p>
+          <h2>Shared truth</h2>
+          <p>Receipts, replay, reconciliation, exceptions, and operator diagnostics remain consistent regardless of entry path.</p>
         </article>
       </section>
     </div>

@@ -8,6 +8,7 @@
 - `GET /metrics`
 - `POST /api/requests`
 - `POST /webhooks/:source`
+- `POST /webhooks/paystack/:tenant_id`
 
 ## `POST /api/requests`
 
@@ -53,6 +54,15 @@ Optional:
   If `x-submitter-kind=signed_webhook_sender`, webhook signature validation is required.
 - `x-idempotency-key` to attach a stable idempotency identifier to normalized intent.
 
+## `POST /webhooks/paystack/:tenant_id`
+
+Dedicated Paystack evidence-ingestion route.
+
+- Verifies `x-paystack-signature` using `INGRESS_PAYSTACK_WEBHOOK_SECRETS`.
+- Stores the webhook durably in `paystack.webhook_events`.
+- Correlates the event back to `paystack.executions` and the latest receipt when possible.
+- Does not submit execution truth or invoke adapters directly.
+
 ## Env
 
 - `DATABASE_URL` (required)
@@ -63,6 +73,7 @@ Optional:
 - `INGRESS_API_KEY` (global API key)
 - `INGRESS_TENANT_API_KEYS` (`tenant_a:key_a,tenant_b:key_b`)
 - `INGRESS_WEBHOOK_SIGNATURE_SECRETS` (`tenant_a:secret_a,...`)
+- `INGRESS_PAYSTACK_WEBHOOK_SECRETS` (`tenant_a:paystack_secret_a,...`)
 - `INGRESS_PRINCIPAL_SUBMITTER_BINDINGS` (`svc_a=internal_service;tenant_client=api_key_holder`; supports wildcard principal keys, e.g. `workspace-*=internal_service`)
 - `INGRESS_REQUIRE_PRINCIPAL_SUBMITTER_BINDING` (default `true`)
 - `INGRESS_PRINCIPAL_TENANT_BINDINGS` (`svc_a=tenant_a|tenant_b;tenant_client=tenant_a`; supports wildcard principal keys and tenant wildcards, e.g. `workspace-*=tenant_ws_*`)
@@ -106,12 +117,30 @@ Built-in schema ids:
 
 - `solana.transfer.v1`
 - `solana.broadcast.v1`
+- `paystack.transaction.verify.v1`
+- `paystack.refund.create.v1`
+- `paystack.refund.verify.v1`
+- `paystack.transfer.create.v1`
+- `paystack.transfer.verify.v1`
 
 Default mapping:
 
 ```text
-solana.transfer.v1=solana.transfer.v1;solana.broadcast.v1=solana.broadcast.v1
+solana.transfer.v1=solana.transfer.v1;solana.broadcast.v1=solana.broadcast.v1;paystack.transaction.verify.v1=paystack.transaction.verify.v1;paystack.refund.create.v1=paystack.refund.create.v1;paystack.refund.verify.v1=paystack.refund.verify.v1;paystack.transfer.create.v1=paystack.transfer.create.v1;paystack.transfer.verify.v1=paystack.transfer.verify.v1
 ```
+
+Paystack routes are opt-in at runtime. To enable the fiat rail, append the Paystack intent kinds to
+`INGRESS_INTENT_ROUTES` and configure the execution worker with either:
+
+- `PAYSTACK_SECRET_KEY` as a worker-wide fallback, or
+- the connector-broker path:
+  - `EXECUTION_CONNECTOR_BROKER_BASE_URL`
+  - `EXECUTION_CONNECTOR_BROKER_BEARER_TOKEN`
+  - `EXECUTION_CONNECTOR_BROKER_PRINCIPAL_ID`
+
+For tenant/environment-scoped execution, include `connector_binding_id` on the Paystack payload or
+emit `connector.binding_id` metadata so the worker resolves the secret through the protected
+connector-binding path instead of using a global fallback.
 
 ## Execution Policy Enforcement
 

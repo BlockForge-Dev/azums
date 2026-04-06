@@ -287,7 +287,8 @@ impl SolanaObservationResolver {
                     "supplemental",
                 );
             }
-            if let Some(blockhash_used) = row.get("blockhash_used").and_then(|value| value.as_str()) {
+            if let Some(blockhash_used) = row.get("blockhash_used").and_then(|value| value.as_str())
+            {
                 push_observed_fact_with_mode(
                     &mut out,
                     "solana",
@@ -352,7 +353,9 @@ impl SolanaObservationResolver {
                 "solana",
                 "solana.distinct_signature_count",
                 json!(distinct_signatures.len() as u64),
-                row.get("attempt_id").and_then(|value| value.as_str()).map(ToOwned::to_owned),
+                row.get("attempt_id")
+                    .and_then(|value| value.as_str())
+                    .map(ToOwned::to_owned),
                 observed_at_ms,
                 metadata,
                 "supplemental",
@@ -419,7 +422,9 @@ impl ReconRulePack for SolanaReconRulePack {
 
         let expected_finality = if subject.canonical_state.eq_ignore_ascii_case("Succeeded") {
             "finalized"
-        } else if subject.canonical_state.eq_ignore_ascii_case("FailedTerminal")
+        } else if subject
+            .canonical_state
+            .eq_ignore_ascii_case("FailedTerminal")
             || subject.canonical_state.eq_ignore_ascii_case("Rejected")
             || subject.canonical_state.eq_ignore_ascii_case("DeadLettered")
         {
@@ -440,7 +445,10 @@ impl ReconRulePack for SolanaReconRulePack {
             fact_type: "solana".to_owned(),
             fact_key: "solana.confirmation_expectation".to_owned(),
             fact_value: json!(expected_finality),
-            derived_from: advisory_source("execution_core_receipts", subject.latest_receipt_id.as_deref()),
+            derived_from: advisory_source(
+                "execution_core_receipts",
+                subject.latest_receipt_id.as_deref(),
+            ),
         });
         out.push(ExpectedFactDraft {
             fact_type: "solana".to_owned(),
@@ -452,7 +460,12 @@ impl ReconRulePack for SolanaReconRulePack {
         if let Some(intent) = context.intent.as_ref() {
             if let Some(source_addr) = extract_text_from_value(
                 intent,
-                &["/payload/from_addr", "/payload/from", "/payload/fee_payer", "/payload/payer"],
+                &[
+                    "/payload/from_addr",
+                    "/payload/from",
+                    "/payload/fee_payer",
+                    "/payload/payer",
+                ],
             ) {
                 out.push(ExpectedFactDraft {
                     fact_type: "solana".to_owned(),
@@ -512,7 +525,10 @@ impl ReconRulePack for SolanaReconRulePack {
                 }),
             });
             let action = extract_text_from_value(intent, &["/payload/action", "/payload/type"])
-                .unwrap_or_else(|| extract_text_from_value(intent, &["/kind"]).unwrap_or_else(|| "transfer".to_owned()));
+                .unwrap_or_else(|| {
+                    extract_text_from_value(intent, &["/kind"])
+                        .unwrap_or_else(|| "transfer".to_owned())
+                });
             out.push(ExpectedFactDraft {
                 fact_type: "solana".to_owned(),
                 fact_key: "solana.action".to_owned(),
@@ -608,11 +624,11 @@ impl ReconRulePack for SolanaReconRulePack {
             fact.fact_key == "delivery.state"
                 && fact.fact_value.as_str() == Some("terminal_failure")
         });
-        let observed_error_present = observed.iter().any(|fact| {
-            fact.fact_key == "solana.observed_error" && !fact.fact_value.is_null()
-        });
-        let distinct_signature_count = observed_fact_u64(observed, "solana.distinct_signature_count")
-            .unwrap_or_default();
+        let observed_error_present = observed
+            .iter()
+            .any(|fact| fact.fact_key == "solana.observed_error" && !fact.fact_value.is_null());
+        let distinct_signature_count =
+            observed_fact_u64(observed, "solana.distinct_signature_count").unwrap_or_default();
         let expected_window_ms =
             expected_fact_u64(expected, "solana.terminal_window_ms").unwrap_or(300_000);
         let age_ms = current_ms().saturating_sub(subject.updated_at_ms);
@@ -627,9 +643,9 @@ impl ReconRulePack for SolanaReconRulePack {
             .mismatches
             .iter()
             .any(|mismatch| mismatch.fact_key == "solana.execution_reference");
-        let observed_finality_unknown = observed
-            .iter()
-            .any(|fact| fact.fact_key == "solana.finality" && fact.fact_value.as_str() == Some("unknown"));
+        let observed_finality_unknown = observed.iter().any(|fact| {
+            fact.fact_key == "solana.finality" && fact.fact_value.as_str() == Some("unknown")
+        });
         let has_finality_mismatch = matched
             .mismatches
             .iter()
@@ -647,15 +663,17 @@ impl ReconRulePack for SolanaReconRulePack {
             classification.outcome = Some(ReconOutcome::Queued);
             classification.summary =
                 Some("reconciliation subject queued behind execution progression".to_owned());
-            classification.machine_reason = Some("execution_not_ready_for_reconciliation".to_owned());
+            classification.machine_reason =
+                Some("execution_not_ready_for_reconciliation".to_owned());
             return classification;
         }
 
         if distinct_signature_count > 1 {
             apply_subcode(&mut classification, SolanaMismatchSubcode::DuplicateSignal);
             classification.outcome = Some(ReconOutcome::ManualReviewRequired);
-            classification.summary =
-                Some("multiple Solana signatures were observed for one execution subject".to_owned());
+            classification.summary = Some(
+                "multiple Solana signatures were observed for one execution subject".to_owned(),
+            );
             classification.machine_reason =
                 Some(SolanaMismatchSubcode::DuplicateSignal.as_str().to_owned());
             classification.exceptions.push(make_exception(
@@ -719,12 +737,14 @@ impl ReconRulePack for SolanaReconRulePack {
                     SolanaMismatchSubcode::PendingTooLong.as_str().to_owned(),
                 );
                 classification.outcome = Some(ReconOutcome::Stale);
-                classification.summary =
-                    Some("Solana execution reference is still missing beyond the expected window".to_owned());
+                classification.summary = Some(
+                    "Solana execution reference is still missing beyond the expected window"
+                        .to_owned(),
+                );
                 classification.machine_reason =
                     Some(SolanaMismatchSubcode::PendingTooLong.as_str().to_owned());
                 classification.exceptions.push(make_exception(
-                    ExceptionCategory::DelayedFinality,
+                    ExceptionCategory::DelayedVerification,
                     ExceptionSeverity::Warning,
                     ExceptionState::Investigating,
                     "Solana execution reference was not observed within the expected confirmation window",
@@ -751,12 +771,18 @@ impl ReconRulePack for SolanaReconRulePack {
         }
 
         if has_finality_mismatch {
-            apply_subcode(&mut classification, SolanaMismatchSubcode::OnchainStateUnresolved);
+            apply_subcode(
+                &mut classification,
+                SolanaMismatchSubcode::OnchainStateUnresolved,
+            );
             classification.outcome = Some(ReconOutcome::Unmatched);
             classification.summary =
                 Some("execution truth diverges from observed Solana state".to_owned());
-            classification.machine_reason =
-                Some(SolanaMismatchSubcode::OnchainStateUnresolved.as_str().to_owned());
+            classification.machine_reason = Some(
+                SolanaMismatchSubcode::OnchainStateUnresolved
+                    .as_str()
+                    .to_owned(),
+            );
             classification.exceptions.push(make_exception(
                 ExceptionCategory::StateMismatch,
                 ExceptionSeverity::High,
@@ -791,7 +817,7 @@ impl ReconRulePack for SolanaReconRulePack {
                 classification.machine_reason =
                     Some(SolanaMismatchSubcode::PendingTooLong.as_str().to_owned());
                 classification.exceptions.push(make_exception(
-                    ExceptionCategory::DelayedFinality,
+                    ExceptionCategory::DelayedVerification,
                     ExceptionSeverity::Warning,
                     ExceptionState::Investigating,
                     "finalized execution has not yet produced matching finalized observation",
@@ -819,12 +845,20 @@ impl ReconRulePack for SolanaReconRulePack {
         }
 
         if reference_mismatch {
-            apply_subcode(&mut classification, SolanaMismatchSubcode::OnchainStateUnresolved);
+            apply_subcode(
+                &mut classification,
+                SolanaMismatchSubcode::OnchainStateUnresolved,
+            );
             classification.outcome = Some(ReconOutcome::Unmatched);
-            classification.summary =
-                Some("observed Solana execution reference does not correlate with execution truth".to_owned());
-            classification.machine_reason =
-                Some(SolanaMismatchSubcode::OnchainStateUnresolved.as_str().to_owned());
+            classification.summary = Some(
+                "observed Solana execution reference does not correlate with execution truth"
+                    .to_owned(),
+            );
+            classification.machine_reason = Some(
+                SolanaMismatchSubcode::OnchainStateUnresolved
+                    .as_str()
+                    .to_owned(),
+            );
             classification.exceptions.push(make_exception(
                 ExceptionCategory::StateMismatch,
                 ExceptionSeverity::High,
@@ -845,12 +879,18 @@ impl ReconRulePack for SolanaReconRulePack {
         }
 
         if observed_finality_unknown {
-            apply_subcode(&mut classification, SolanaMismatchSubcode::OnchainStateUnresolved);
+            apply_subcode(
+                &mut classification,
+                SolanaMismatchSubcode::OnchainStateUnresolved,
+            );
             classification.outcome = Some(ReconOutcome::ManualReviewRequired);
             classification.summary =
                 Some("observed Solana state is unresolved and requires manual review".to_owned());
-            classification.machine_reason =
-                Some(SolanaMismatchSubcode::OnchainStateUnresolved.as_str().to_owned());
+            classification.machine_reason = Some(
+                SolanaMismatchSubcode::OnchainStateUnresolved
+                    .as_str()
+                    .to_owned(),
+            );
             classification.exceptions.push(make_exception(
                 ExceptionCategory::ExternalStateUnknown,
                 ExceptionSeverity::Warning,
@@ -934,7 +974,10 @@ impl ReconRulePack for SolanaReconRulePack {
             .iter()
             .any(|mismatch| mismatch.fact_key == "solana.destination")
         {
-            apply_subcode(&mut classification, SolanaMismatchSubcode::DestinationMismatch);
+            apply_subcode(
+                &mut classification,
+                SolanaMismatchSubcode::DestinationMismatch,
+            );
             classification.outcome = Some(ReconOutcome::PartiallyMatched);
             classification.summary =
                 Some("solana destination differs from expected execution truth".to_owned());
@@ -962,7 +1005,9 @@ impl ReconRulePack for SolanaReconRulePack {
             .any(|mismatch| mismatch.fact_key == "solana.source")
         {
             apply_subcode(&mut classification, SolanaMismatchSubcode::SourceMismatch);
-            classification.outcome.get_or_insert(ReconOutcome::PartiallyMatched);
+            classification
+                .outcome
+                .get_or_insert(ReconOutcome::PartiallyMatched);
         }
 
         if matched
@@ -971,7 +1016,9 @@ impl ReconRulePack for SolanaReconRulePack {
             .any(|mismatch| mismatch.fact_key == "solana.program")
         {
             apply_subcode(&mut classification, SolanaMismatchSubcode::ProgramMismatch);
-            classification.outcome.get_or_insert(ReconOutcome::PartiallyMatched);
+            classification
+                .outcome
+                .get_or_insert(ReconOutcome::PartiallyMatched);
         }
 
         if matched
@@ -980,7 +1027,9 @@ impl ReconRulePack for SolanaReconRulePack {
             .any(|mismatch| mismatch.fact_key == "solana.action")
         {
             apply_subcode(&mut classification, SolanaMismatchSubcode::ActionMismatch);
-            classification.outcome.get_or_insert(ReconOutcome::PartiallyMatched);
+            classification
+                .outcome
+                .get_or_insert(ReconOutcome::PartiallyMatched);
         }
 
         if delivery_terminal_failure {
@@ -1059,7 +1108,9 @@ fn expected_execution_reference(subject: &ReconSubject, context: &ReconContext) 
 fn expected_terminal_window_ms(subject: &ReconSubject) -> u64 {
     if subject.canonical_state.eq_ignore_ascii_case("Succeeded") {
         300_000
-    } else if subject.canonical_state.eq_ignore_ascii_case("FailedTerminal")
+    } else if subject
+        .canonical_state
+        .eq_ignore_ascii_case("FailedTerminal")
         || subject.canonical_state.eq_ignore_ascii_case("Rejected")
         || subject.canonical_state.eq_ignore_ascii_case("DeadLettered")
     {
@@ -1167,7 +1218,9 @@ fn values_match(fact_key: &str, expected: &Value, observed: &Value) -> bool {
 fn mismatch_type_for_fact(fact_key: &str) -> String {
     match fact_key {
         "solana.amount" => SolanaMismatchSubcode::AmountMismatch.as_str().to_owned(),
-        "solana.destination" => SolanaMismatchSubcode::DestinationMismatch.as_str().to_owned(),
+        "solana.destination" => SolanaMismatchSubcode::DestinationMismatch
+            .as_str()
+            .to_owned(),
         "solana.execution_reference" | "solana.signature" => {
             SolanaMismatchSubcode::SignatureMissing.as_str().to_owned()
         }
@@ -1249,19 +1302,21 @@ fn normalize_text(value: Option<&str>) -> Option<String> {
 
 fn extract_text_from_value(value: &Value, pointers: &[&str]) -> Option<String> {
     pointers.iter().find_map(|pointer| {
-        value.pointer(pointer).and_then(|candidate| match candidate {
-            Value::String(text) => {
-                let trimmed = text.trim();
-                if trimmed.is_empty() {
-                    None
-                } else {
-                    Some(trimmed.to_owned())
+        value
+            .pointer(pointer)
+            .and_then(|candidate| match candidate {
+                Value::String(text) => {
+                    let trimmed = text.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_owned())
+                    }
                 }
-            }
-            Value::Number(number) => Some(number.to_string()),
-            Value::Bool(flag) => Some(flag.to_string()),
-            _ => None,
-        })
+                Value::Number(number) => Some(number.to_string()),
+                Value::Bool(flag) => Some(flag.to_string()),
+                _ => None,
+            })
     })
 }
 

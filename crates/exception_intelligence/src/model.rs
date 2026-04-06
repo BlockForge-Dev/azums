@@ -8,8 +8,9 @@ pub enum ExceptionCategory {
     StateMismatch,
     AmountMismatch,
     DestinationMismatch,
-    DelayedFinality,
+    DelayedVerification,
     DuplicateSignal,
+    RepeatedRequestPattern,
     ExternalStateUnknown,
     PolicyViolation,
     ManualReviewRequired,
@@ -22,8 +23,9 @@ impl ExceptionCategory {
             Self::StateMismatch => "state_mismatch",
             Self::AmountMismatch => "amount_mismatch",
             Self::DestinationMismatch => "destination_mismatch",
-            Self::DelayedFinality => "delayed_finality",
+            Self::DelayedVerification => "delayed_verification",
             Self::DuplicateSignal => "duplicate_signal",
+            Self::RepeatedRequestPattern => "repeated_request_pattern",
             Self::ExternalStateUnknown => "external_state_unknown",
             Self::PolicyViolation => "policy_violation",
             Self::ManualReviewRequired => "manual_review_required",
@@ -36,8 +38,9 @@ impl ExceptionCategory {
             "state_mismatch" => Some(Self::StateMismatch),
             "amount_mismatch" => Some(Self::AmountMismatch),
             "destination_mismatch" => Some(Self::DestinationMismatch),
-            "delayed_finality" => Some(Self::DelayedFinality),
+            "delayed_verification" | "delayed_finality" => Some(Self::DelayedVerification),
             "duplicate_signal" => Some(Self::DuplicateSignal),
+            "repeated_request_pattern" => Some(Self::RepeatedRequestPattern),
             "external_state_unknown" => Some(Self::ExternalStateUnknown),
             "policy_violation" => Some(Self::PolicyViolation),
             "manual_review_required" | "manual_review" => Some(Self::ManualReviewRequired),
@@ -250,4 +253,25 @@ pub struct ExceptionEvidenceDraft {
     pub source_id: Option<String>,
     pub observed_at_ms: Option<u64>,
     pub payload: Value,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ExceptionCategory;
+
+    #[test]
+    fn exception_category_parse_accepts_new_and_legacy_tokens() {
+        assert_eq!(
+            ExceptionCategory::parse("delayed_verification"),
+            Some(ExceptionCategory::DelayedVerification)
+        );
+        assert_eq!(
+            ExceptionCategory::parse("delayed_finality"),
+            Some(ExceptionCategory::DelayedVerification)
+        );
+        assert_eq!(
+            ExceptionCategory::parse("repeated_request_pattern"),
+            Some(ExceptionCategory::RepeatedRequestPattern)
+        );
+    }
 }

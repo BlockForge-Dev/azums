@@ -1,14 +1,15 @@
-use crate::error::ReconError;
 use crate::engine::{ReconEngine, ReconEngineConfig};
+use crate::error::ReconError;
 use crate::intake::ReconIntakeService;
 use crate::model::ReconSubject;
+use crate::paystack_rules::PaystackReconRulePack;
 use crate::postgres::PostgresReconStore;
 use crate::rules::{ReconRuleRegistry, SolanaReconRulePack};
+use exception_intelligence::PostgresExceptionStore;
 use execution_core::{
     AdapterId, CallbackId, CanonicalState, IntentId, JobId, PlatformClassification,
     ReconIntakeSignal, ReconIntakeSignalId, ReconIntakeSignalKind, TenantId, TransitionId,
 };
-use exception_intelligence::PostgresExceptionStore;
 use serde_json::json;
 use sqlx::Row;
 use std::sync::Arc;
@@ -50,6 +51,7 @@ impl ReconWorker {
     ) -> Self {
         let mut rules = ReconRuleRegistry::new();
         rules.register(Box::new(SolanaReconRulePack));
+        rules.register(Box::new(PaystackReconRulePack));
         let engine = ReconEngine::new(
             recon_store.clone(),
             exception_store.clone(),
@@ -81,6 +83,8 @@ impl ReconWorker {
         self.ingest_receipts().await?;
         self.ingest_transitions().await?;
         self.ingest_solana_attempts().await?;
+        self.ingest_paystack_executions().await?;
+        self.ingest_paystack_webhook_events().await?;
         self.ingest_callbacks().await?;
         self.reconcile_dirty_subjects().await?;
         Ok(())
@@ -404,6 +408,129 @@ impl ReconWorker {
         Ok(())
     }
 
+    async fn ingest_paystack_executions(&self) -> Result<(), ReconError> {
+        let watermark = self
+            .recon_store
+            .get_watermark("paystack.executions")
+            .await?;
+        let ts = watermark
+            .get("ts")
+            .and_then(|value| value.as_i64())
+            .unwrap_or_default();
+        let id = watermark
+            .get("id")
+            .and_then(|value| value.as_str())
+            .unwrap_or_default();
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                intent_id,
+                tenant_id,
+                job_id,
+                (EXTRACT(EPOCH FROM updated_at) * 1000)::BIGINT AS updated_at_ms
+            FROM paystack.executions
+            WHERE job_id IS NOT NULL
+              AND (
+                    (EXTRACT(EPOCH FROM updated_at) * 1000)::BIGINT > $1
+                 OR (
+                        (EXTRACT(EPOCH FROM updated_at) * 1000)::BIGINT = $1
+                    AND intent_id > $2
+                 )
+              )
+            ORDER BY updated_at ASC, intent_id ASC
+            LIMIT $3
+            "#,
+        )
+        .bind(ts)
+        .bind(id)
+        .bind(self.cfg.intake_batch_size as i64)
+        .fetch_all(self.recon_store.pool())
+        .await
+        .map_err(|err| ReconError::Backend(err.to_string()))?;
+
+        let mut latest_cursor = None;
+        for row in rows {
+            let intent_id: String = row.get("intent_id");
+            let tenant_id: String = row.get("tenant_id");
+            let job_id: String = row.get("job_id");
+            let updated_at_ms = row.get::<i64, _>("updated_at_ms").max(0) as u64;
+            self.recon_store
+                .mark_subject_dirty(&tenant_id, &intent_id, &job_id, updated_at_ms)
+                .await?;
+            latest_cursor = Some(json!({ "ts": updated_at_ms, "id": intent_id }));
+        }
+
+        if let Some(cursor) = latest_cursor {
+            self.recon_store
+                .set_watermark("paystack.executions", cursor, current_ms())
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn ingest_paystack_webhook_events(&self) -> Result<(), ReconError> {
+        let watermark = self
+            .recon_store
+            .get_watermark("paystack.webhook_events")
+            .await?;
+        let ts = watermark
+            .get("ts")
+            .and_then(|value| value.as_i64())
+            .unwrap_or_default();
+        let id = watermark
+            .get("id")
+            .and_then(|value| value.as_str())
+            .unwrap_or_default();
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                event_key,
+                tenant_id,
+                correlated_intent_id AS intent_id,
+                correlated_job_id AS job_id,
+                received_at_ms
+            FROM paystack.webhook_events
+            WHERE correlated_intent_id IS NOT NULL
+              AND correlated_job_id IS NOT NULL
+              AND (
+                    received_at_ms > $1
+                 OR (
+                        received_at_ms = $1
+                    AND event_key > $2
+                 )
+              )
+            ORDER BY received_at_ms ASC, event_key ASC
+            LIMIT $3
+            "#,
+        )
+        .bind(ts)
+        .bind(id)
+        .bind(self.cfg.intake_batch_size as i64)
+        .fetch_all(self.recon_store.pool())
+        .await
+        .map_err(|err| ReconError::Backend(err.to_string()))?;
+
+        let mut latest_cursor = None;
+        for row in rows {
+            let event_key: String = row.get("event_key");
+            let tenant_id: String = row.get("tenant_id");
+            let intent_id: String = row.get("intent_id");
+            let job_id: String = row.get("job_id");
+            let received_at_ms = row.get::<i64, _>("received_at_ms").max(0) as u64;
+            self.recon_store
+                .mark_subject_dirty(&tenant_id, &intent_id, &job_id, received_at_ms)
+                .await?;
+            latest_cursor = Some(json!({ "ts": received_at_ms, "id": event_key }));
+        }
+
+        if let Some(cursor) = latest_cursor {
+            self.recon_store
+                .set_watermark("paystack.webhook_events", cursor, current_ms())
+                .await?;
+        }
+        Ok(())
+    }
+
     async fn reconcile_dirty_subjects(&self) -> Result<(), ReconError> {
         let subjects = self
             .recon_store
@@ -426,7 +553,9 @@ fn map_recon_signal_row(
 ) -> Result<ReconIntakeSignal, ReconError> {
     let signal_kind_raw: String = row.get("signal_kind");
     let signal_kind = ReconIntakeSignalKind::parse(signal_kind_raw.as_str()).ok_or_else(|| {
-        ReconError::Backend(format!("unknown recon intake signal kind `{signal_kind_raw}`"))
+        ReconError::Backend(format!(
+            "unknown recon intake signal kind `{signal_kind_raw}`"
+        ))
     })?;
     let canonical_state = row
         .try_get::<Option<String>, _>("canonical_state")

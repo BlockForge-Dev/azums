@@ -3,6 +3,12 @@
 ## Purpose
 Azums is a durable execution platform that accepts supported intents and guarantees a durable, queryable outcome trail.
 
+## Supported Entry Paths
+| Entry path | Role | Shared-core rule |
+|---|---|---|
+| Direct API / webhook integration | Backend services and event producers submit typed requests or signed webhooks directly into ingress | Converges into the same normalized intent, execution core, receipt, replay, reconciliation, and exception surfaces |
+| Agent gateway integration | Customer-owned runtimes and AI assistants compile free-form or structured input into a typed request through the gateway | Converges into the same normalized intent, execution core, receipt, replay, reconciliation, and exception surfaces |
+
 ## Service Topology
 | Layer | Service | Role |
 |---|---|---|
@@ -33,6 +39,7 @@ Azums is a durable execution platform that accepts supported intents and guarant
 | Durable acceptance | Accepted intents are persisted before execution workflow |
 | Canonical lifecycle | Core-owned state machine is adapter-agnostic |
 | Deterministic classification | Adapter outcomes are normalized into platform classes |
+| One core beneath both entry paths | Direct API/webhook and agent gateway traffic share the same execution truth model |
 | Truth before notify | Final external delivery only after durable truth is written |
 | Replay-safe lineage | Replay creates linked lineage rather than mutating history |
 

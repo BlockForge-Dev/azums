@@ -238,6 +238,61 @@ export interface TenantAgentRecord {
   updated_at_ms: number;
 }
 
+export interface ApprovalRequestRecord {
+  approval_request_id: string;
+  tenant_id: string;
+  action_request_id: string;
+  agent_id: string;
+  environment_id: string;
+  environment_kind: string;
+  intent_type: string;
+  execution_mode: string;
+  adapter_type: string;
+  requested_scope: string[];
+  effective_scope: string[];
+  reason: string;
+  submitted_by: string;
+  status: string;
+  required_approvals: number;
+  approvals_received: number;
+  approved_by: string[];
+  policy_bundle_id?: string | null;
+  policy_bundle_version?: number | null;
+  policy_explanation: string;
+  obligations: PolicyRuleObligations;
+  matched_rules: PolicyRuleMatch[];
+  decision_trace: PolicyDecisionTraceEntry[];
+  expires_at_ms: number;
+  requested_at_ms: number;
+  resolved_at_ms?: number | null;
+  resolved_by_actor_id?: string | null;
+  resolved_by_actor_source?: string | null;
+  resolution_note?: string | null;
+  slack_delivery_state?: string | null;
+  slack_delivery_error?: string | null;
+  slack_last_attempt_at_ms?: number | null;
+}
+
+export interface ConnectorBindingRecord {
+  tenant_id: string;
+  environment_id: string;
+  binding_id: string;
+  connector_type: string;
+  name: string;
+  status: string;
+  secret_ref: string;
+  current_secret_version: number;
+  secret_fields: string[];
+  config: Record<string, unknown> | null;
+  created_by_principal_id: string;
+  updated_by_principal_id: string;
+  created_at_ms: number;
+  updated_at_ms: number;
+  rotated_at_ms: number;
+  revoked_at_ms?: number | null;
+  revoked_reason?: string | null;
+}
+
 export interface TenantPolicyBundleRecord {
   tenant_id: string;
   bundle_id: string;
@@ -414,6 +469,28 @@ interface EnvironmentsResponse {
 interface AgentsResponse {
   ok: boolean;
   agents: TenantAgentRecord[];
+  limit?: number;
+}
+
+interface ApprovalResponse {
+  ok: boolean;
+  approval: ApprovalRequestRecord;
+}
+
+interface ApprovalsResponse {
+  ok: boolean;
+  approvals: ApprovalRequestRecord[];
+  limit?: number;
+}
+
+interface ConnectorBindingResponse {
+  ok: boolean;
+  binding: ConnectorBindingRecord;
+}
+
+interface ConnectorBindingsResponse {
+  ok: boolean;
+  bindings: ConnectorBindingRecord[];
   limit?: number;
 }
 
@@ -787,6 +864,22 @@ export async function listEnvironments(
   return out.environments ?? [];
 }
 
+export async function createEnvironment(input: {
+  environment_id: string;
+  name: string;
+  environment_kind: string;
+  status?: string;
+}): Promise<TenantEnvironmentRecord> {
+  const out = await apiRequest<{ ok: boolean; environment: TenantEnvironmentRecord }>(
+    "account/environments",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
+  );
+  return out.environment;
+}
+
 export async function listAgents(input?: {
   environment_id?: string;
   include_inactive?: boolean;
@@ -801,6 +894,159 @@ export async function listAgents(input?: {
   }
   const out = await apiGet<AgentsResponse>(`account/agents?${params.toString()}`);
   return out.agents ?? [];
+}
+
+export async function createAgent(input: {
+  agent_id: string;
+  environment_id: string;
+  name: string;
+  runtime_type: string;
+  runtime_identity: string;
+  status?: string;
+  trust_tier?: string;
+  risk_tier?: string;
+  owner_team?: string;
+}): Promise<TenantAgentRecord> {
+  const out = await apiRequest<{ ok: boolean; agent: TenantAgentRecord }>(
+    "account/agents",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
+  );
+  return out.agent;
+}
+
+export async function listApprovals(input?: {
+  state?: string;
+  limit?: number;
+}): Promise<ApprovalRequestRecord[]> {
+  const params = new URLSearchParams();
+  if (input?.state) {
+    params.set("state", input.state);
+  }
+  params.set("limit", String(input?.limit ?? 50));
+  const suffix = params.toString();
+  const out = await apiGet<ApprovalsResponse>(
+    suffix ? `account/approvals?${suffix}` : "account/approvals"
+  );
+  return out.approvals ?? [];
+}
+
+export async function getApproval(
+  approvalRequestId: string
+): Promise<ApprovalRequestRecord> {
+  const out = await apiGet<ApprovalResponse>(
+    `account/approvals/${encodeURIComponent(approvalRequestId)}`
+  );
+  return out.approval;
+}
+
+export async function approveRequest(
+  approvalRequestId: string,
+  input: { note?: string } = {}
+): Promise<ApprovalRequestRecord> {
+  const out = await apiRequest<ApprovalResponse>(
+    `account/approvals/${encodeURIComponent(approvalRequestId)}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        note: input.note ?? "approved from customer ui",
+      }),
+    }
+  );
+  return out.approval;
+}
+
+export async function rejectRequest(
+  approvalRequestId: string,
+  input: { note?: string } = {}
+): Promise<ApprovalRequestRecord> {
+  const out = await apiRequest<ApprovalResponse>(
+    `account/approvals/${encodeURIComponent(approvalRequestId)}/reject`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        note: input.note ?? "rejected from customer ui",
+      }),
+    }
+  );
+  return out.approval;
+}
+
+export async function escalateRequest(
+  approvalRequestId: string,
+  input: { note?: string } = {}
+): Promise<ApprovalRequestRecord> {
+  const out = await apiRequest<ApprovalResponse>(
+    `account/approvals/${encodeURIComponent(approvalRequestId)}/escalate`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        note: input.note ?? "escalated from customer ui",
+      }),
+    }
+  );
+  return out.approval;
+}
+
+export async function listConnectorBindings(input: {
+  environment_id: string;
+  include_inactive?: boolean;
+  limit?: number;
+}): Promise<ConnectorBindingRecord[]> {
+  const params = new URLSearchParams({
+    include_inactive: input.include_inactive === true ? "true" : "false",
+    limit: String(input.limit ?? 100),
+  });
+  const out = await apiGet<ConnectorBindingsResponse>(
+    `account/environments/${encodeURIComponent(
+      input.environment_id
+    )}/connector-bindings?${params.toString()}`
+  );
+  return out.bindings ?? [];
+}
+
+export async function createConnectorBinding(input: {
+  environment_id: string;
+  binding_id: string;
+  connector_type: string;
+  name: string;
+  config?: Record<string, unknown>;
+  secrets: Record<string, string>;
+}): Promise<ConnectorBindingRecord> {
+  const out = await apiRequest<ConnectorBindingResponse>(
+    `account/environments/${encodeURIComponent(input.environment_id)}/connector-bindings`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        binding_id: input.binding_id,
+        connector_type: input.connector_type,
+        name: input.name,
+        config: input.config ?? {},
+        secrets: input.secrets,
+      }),
+    }
+  );
+  return out.binding;
+}
+
+export async function revokeConnectorBinding(input: {
+  environment_id: string;
+  binding_id: string;
+  reason?: string;
+}): Promise<void> {
+  await apiRequest<OkResponse>(
+    `account/environments/${encodeURIComponent(
+      input.environment_id
+    )}/connector-bindings/${encodeURIComponent(input.binding_id)}/revoke`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        reason: input.reason ?? "revoked from customer ui",
+      }),
+    }
+  );
 }
 
 export async function listPolicyTemplates(): Promise<PolicyTemplateDefinition[]> {

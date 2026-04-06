@@ -86,6 +86,22 @@ export interface ReceiptEntry {
   classification: string;
   summary: string;
   details?: Record<string, string>;
+  connector_outcome?: {
+    status: string;
+    connector_type?: string | null;
+    binding_id?: string | null;
+    reference?: string | null;
+  } | null;
+  recon_linkage?: {
+    recon_subject_id?: string | null;
+    reconciliation_eligible: boolean;
+    execution_correlation_id?: string | null;
+    adapter_execution_reference?: string | null;
+    external_observation_key?: string | null;
+    connector_type?: string | null;
+    connector_binding_id?: string | null;
+    connector_reference?: string | null;
+  } | null;
   occurred_at_ms: number;
 }
 

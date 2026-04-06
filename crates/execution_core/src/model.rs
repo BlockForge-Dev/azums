@@ -440,6 +440,12 @@ pub struct ReceiptReconLinkage {
     pub adapter_execution_reference: Option<String>,
     #[serde(default)]
     pub external_observation_key: Option<String>,
+    #[serde(default)]
+    pub connector_type: Option<String>,
+    #[serde(default)]
+    pub connector_binding_id: Option<String>,
+    #[serde(default)]
+    pub connector_reference: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

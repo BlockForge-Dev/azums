@@ -6,7 +6,7 @@ Date: 2026-02-28
 Audience: platform engineers, solution architects, operators, and technical buyers
 
 ## 1. Executive Summary
-Azums is a self-hostable durable execution platform that accepts supported intents (API or webhook), records them durably, executes them through a strict execution core plus adapter contract, and returns explainable outcomes through receipts, status APIs, and delivery history.
+Azums is a self-hostable durable execution platform that accepts supported intents through direct API/webhook integration or agent gateway integration, records them durably, executes them through a strict execution core plus adapter contract, and returns explainable outcomes through receipts, status APIs, and delivery history.
 
 Core promise:
 
@@ -24,6 +24,20 @@ Azums is a multi-service execution platform with:
 - durable receipts and state transitions
 - callback delivery tracking separate from execution truth
 - operator-grade replay and audit visibility
+
+### 2.3 Supported Entry Paths
+Azums publicly supports two first-class entry paths:
+
+| Entry Path | Fit | Shared Core Rule |
+|---|---|---|
+| Direct API / webhook integration | Backend services, partner systems, and event producers | Uses the same normalized intent, execution core, receipt, replay, reconciliation, and exception surfaces as every other path |
+| Agent gateway integration | Customer-owned runtimes, AI assistants, and agentic automation | Compiles requests into the same normalized intent and hands them into the same policy + execution path rather than creating a second executor |
+
+API users remain first-class.
+
+Agent users are additive.
+
+Both paths operate over one shared execution truth model.
 
 ### 2.2 What It Is Not
 Azums is not:
@@ -177,6 +191,11 @@ Milestone 10 implementation status:
 - adding future adapters is now a product decision, not an architectural rewrite
 
 ### 4.5 Agent and AI Entry Surfaces
+Azums supports two public integration modes:
+
+- direct API / webhook integration
+- agent gateway integration
+
 Azums may expose AI, agent, Slack, approval, and UI-assisted product surfaces.
 
 Those surfaces are entry points, not alternate execution cores.
@@ -191,6 +210,7 @@ The governing rules are:
 Reference document:
 
 - `docs/adrs/ADR-0004-agent-and-api-entry-surfaces-converge-into-one-execution-path.md`
+- `docs/architecture/entry-paths.md`
 
 ## 5. Canonical Lifecycle
 | State | Meaning |

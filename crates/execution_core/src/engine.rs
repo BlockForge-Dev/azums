@@ -1368,12 +1368,17 @@ fn build_receipt_recon_linkage(
     receipt_context: &ReceiptContext,
     reconciliation_eligible: bool,
 ) -> ReceiptReconLinkage {
+    let connector = receipt_context.connector_outcome.as_ref();
+    let connector_reference = recon_downstream_reference(receipt_context);
     ReceiptReconLinkage {
         recon_subject_id: Some(recon_subject_id_for_job(&job.job_id)),
         reconciliation_eligible,
         execution_correlation_id: receipt_context.correlation_id.clone(),
         adapter_execution_reference: receipt_context.adapter_execution_reference.clone(),
         external_observation_key: receipt_context.external_observation_key.clone(),
+        connector_type: connector.and_then(|value| value.connector_type.clone()),
+        connector_binding_id: connector.and_then(|value| value.binding_id.clone()),
+        connector_reference,
     }
 }
 
@@ -1472,8 +1477,27 @@ fn build_expected_fact_snapshot(
                 | CanonicalState::DeadLettered
                 | CanonicalState::Rejected
         );
+    let connector_reference = recon_downstream_reference(receipt_context);
+    let connector_snapshot = receipt_context.connector_outcome.as_ref().map(|connector| {
+        serde_json::json!({
+            "status": connector.status.clone(),
+            "connector_type": connector.connector_type.clone(),
+            "binding_id": connector.binding_id.clone(),
+            "reference": connector_reference,
+        })
+    }).or_else(|| {
+        connector_reference.map(|reference| {
+            serde_json::json!({
+                "status": "external_reference_only",
+                "connector_type": Value::Null,
+                "binding_id": Value::Null,
+                "reference": reference,
+            })
+        })
+    });
     Some(serde_json::json!({
-        "version": 1,
+        "version": 2,
+        "recon_subject_id": recon_subject_id_for_job(&job.job_id),
         "job_id": job.job_id,
         "tenant_id": job.tenant_id,
         "intent_id": job.intent_id,
@@ -1487,8 +1511,18 @@ fn build_expected_fact_snapshot(
         "payload_hash": receipt_context.payload_hash,
         "adapter_execution_reference": receipt_context.adapter_execution_reference,
         "external_observation_key": receipt_context.external_observation_key,
+        "connector": connector_snapshot,
         "reconciliation_eligible": reconciliation_eligible,
     }))
+}
+
+fn recon_downstream_reference(receipt_context: &ReceiptContext) -> Option<String> {
+    receipt_context
+        .connector_outcome
+        .as_ref()
+        .and_then(|value| value.reference.clone())
+        .or_else(|| receipt_context.adapter_execution_reference.clone())
+        .or_else(|| receipt_context.external_observation_key.clone())
 }
 
 fn normalize_idempotency_key(value: Option<String>) -> Option<String> {

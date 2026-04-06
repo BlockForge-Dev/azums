@@ -174,8 +174,8 @@ export function OnboardingPage() {
           <p className="eyebrow">Get started</p>
           <h2>Finish setup in a few clear steps.</h2>
           <p>
-            Create a key, send a test request, review the result, and connect callbacks
-            for your app.
+            Start with a direct API key and test request, or use the optional agent path if
+            API is not your thing. Both paths land in the same requests and receipts model.
           </p>
         </div>
 
@@ -264,7 +264,7 @@ export function OnboardingPage() {
       <section className="surface onboarding-code-card">
         <div className="panel-header">
           <div>
-            <h3>Backend example</h3>
+            <h3>Direct API example</h3>
             <p className="panel-subtitle">
               Use this example when sending requests from your backend instead of the Playground.
             </p>
@@ -280,6 +280,29 @@ export function OnboardingPage() {
 
           <Link className="btn ghost" href="/app/docs">
             Open docs
+          </Link>
+        </div>
+      </section>
+
+      <section className="surface onboarding-code-card">
+        <div className="panel-header">
+          <div>
+            <h3>Optional agent path</h3>
+            <p className="panel-subtitle">
+              If direct API is not your thing, register an agent and publish policy in Settings,
+              then send runtime traffic through the agent gateway. The same request and receipt
+              pages still apply.
+            </p>
+          </div>
+        </div>
+
+        <div className="onboarding-actions">
+          <Link className="btn ghost" href="/app/settings#ai-trust-controls">
+            Open AI trust controls
+          </Link>
+
+          <Link className="btn ghost" href="/app/docs">
+            Open gateway docs
           </Link>
         </div>
       </section>

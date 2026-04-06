@@ -840,12 +840,127 @@ impl PostgresReconStore {
             .collect())
     }
 
+    pub async fn load_latest_paystack_observations(
+        &self,
+        subject: &ReconSubject,
+    ) -> Result<Vec<Value>, ReconError> {
+        if subject.adapter_id != "adapter_paystack" {
+            return Ok(Vec::new());
+        }
+
+        let execution_row = sqlx::query(
+            r#"
+            SELECT
+                intent_id,
+                tenant_id,
+                job_id,
+                intent_kind,
+                operation,
+                status,
+                provider_reference,
+                remote_id,
+                request_payload_json,
+                last_response_json,
+                last_error_code,
+                last_error_message,
+                amount_minor,
+                currency,
+                source_reference,
+                destination_reference,
+                connector_reference,
+                (EXTRACT(EPOCH FROM updated_at) * 1000)::BIGINT AS updated_at_ms
+            FROM paystack.executions
+            WHERE tenant_id = $1
+              AND intent_id = $2
+              AND job_id = $3
+            ORDER BY updated_at DESC, intent_id DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(&subject.tenant_id)
+        .bind(&subject.intent_id)
+        .bind(&subject.job_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(sqlx_to_internal)?;
+
+        let webhook_rows = sqlx::query(
+            r#"
+            SELECT
+                event_key,
+                event_type,
+                provider_reference,
+                remote_id,
+                correlated_intent_id,
+                correlated_job_id,
+                correlated_receipt_id,
+                payload_json,
+                received_at_ms
+            FROM paystack.webhook_events
+            WHERE tenant_id = $1
+              AND correlated_intent_id = $2
+              AND correlated_job_id = $3
+            ORDER BY received_at_ms DESC, event_key DESC
+            LIMIT 8
+            "#,
+        )
+        .bind(&subject.tenant_id)
+        .bind(&subject.intent_id)
+        .bind(&subject.job_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sqlx_to_internal)?;
+
+        let mut out = Vec::new();
+        if let Some(row) = execution_row {
+            out.push(json!({
+                "row_kind": "execution",
+                "intent_id": row.get::<String, _>("intent_id"),
+                "tenant_id": row.get::<String, _>("tenant_id"),
+                "job_id": row.try_get::<Option<String>, _>("job_id").ok().flatten(),
+                "intent_kind": row.get::<String, _>("intent_kind"),
+                "operation": row.get::<String, _>("operation"),
+                "status": row.get::<String, _>("status"),
+                "provider_reference": row.try_get::<Option<String>, _>("provider_reference").ok().flatten(),
+                "remote_id": row.try_get::<Option<String>, _>("remote_id").ok().flatten(),
+                "request_payload_json": row.get::<Value, _>("request_payload_json"),
+                "last_response_json": row.try_get::<Option<Value>, _>("last_response_json").ok().flatten(),
+                "last_error_code": row.try_get::<Option<String>, _>("last_error_code").ok().flatten(),
+                "last_error_message": row.try_get::<Option<String>, _>("last_error_message").ok().flatten(),
+                "amount_minor": row.try_get::<Option<i64>, _>("amount_minor").ok().flatten(),
+                "currency": row.try_get::<Option<String>, _>("currency").ok().flatten(),
+                "source_reference": row.try_get::<Option<String>, _>("source_reference").ok().flatten(),
+                "destination_reference": row.try_get::<Option<String>, _>("destination_reference").ok().flatten(),
+                "connector_reference": row.try_get::<Option<String>, _>("connector_reference").ok().flatten(),
+                "updated_at_ms": row.get::<i64, _>("updated_at_ms").max(0) as u64,
+            }));
+        }
+
+        out.extend(webhook_rows.into_iter().map(|row| {
+            json!({
+                "row_kind": "webhook",
+                "event_key": row.get::<String, _>("event_key"),
+                "event_type": row.get::<String, _>("event_type"),
+                "provider_reference": row.try_get::<Option<String>, _>("provider_reference").ok().flatten(),
+                "remote_id": row.try_get::<Option<String>, _>("remote_id").ok().flatten(),
+                "correlated_intent_id": row.try_get::<Option<String>, _>("correlated_intent_id").ok().flatten(),
+                "correlated_job_id": row.try_get::<Option<String>, _>("correlated_job_id").ok().flatten(),
+                "correlated_receipt_id": row.try_get::<Option<String>, _>("correlated_receipt_id").ok().flatten(),
+                "payload": row.get::<Value, _>("payload_json"),
+                "received_at_ms": row.get::<i64, _>("received_at_ms").max(0) as u64,
+            })
+        }));
+
+        Ok(out)
+    }
+
     pub async fn load_adapter_observations(
         &self,
         subject: &ReconSubject,
     ) -> Result<Vec<Value>, ReconError> {
         match subject.adapter_id.as_str() {
             "adapter_solana" => self.load_latest_solana_observations(subject).await,
+            "adapter_paystack" => self.load_latest_paystack_observations(subject).await,
             _ => Ok(Vec::new()),
         }
     }

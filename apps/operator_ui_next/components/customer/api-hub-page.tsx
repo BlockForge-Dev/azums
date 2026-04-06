@@ -65,6 +65,11 @@ export function ApiHubPage() {
     return `${base}/webhooks/${encodeURIComponent(webhookSource.trim() || "default")}`;
   }, [config?.ingress_base_url, webhookSource]);
 
+  const agentGatewayUrl = useMemo(() => {
+    const base = config?.ingress_base_url?.replace(/\/$/, "") ?? "http://127.0.0.2:8000";
+    return `${base}/api/agent/gateway/requests`;
+  }, [config?.ingress_base_url]);
+
   const sampleRequestPayload = useMemo(
     () =>
       JSON.stringify(
@@ -162,12 +167,29 @@ export function ApiHubPage() {
   -d '${sampleRequestPayload}'`;
   }, [config?.tenant_id, ingressRequestUrl, sampleRequestPayload]);
 
+  const agentGatewaySnippet = useMemo(() => {
+    const tenantId = config?.tenant_id ?? "<TENANT_ID>";
+    return `curl -X POST "${agentGatewayUrl}" \\
+  -H "content-type: application/json" \\
+  -H "x-tenant-id: ${tenantId}" \\
+  -H "x-submitter-kind: agent_runtime" \\
+  -H "x-environment-id: <ENVIRONMENT_ID>" \\
+  -H "x-agent-id: <AGENT_ID>" \\
+  -H "x-agent-runtime-type: managed_runtime" \\
+  -H "x-agent-runtime-id: runtime-demo-01" \\
+  -d '{
+    "free_form_input":"transfer 1 SOL to GK8jAw6oibNGWT7WRwh2PCKSTb1XGQSiuPZdCaWRpqRC for treasury payout",
+    "requested_scope":["payments"],
+    "reason":"approved low-risk payout"
+  }'`;
+  }, [agentGatewayUrl, config?.tenant_id]);
+
   return (
     <div className="stack">
       <section className="surface hero-surface">
         <p className="eyebrow">API & Integrations</p>
         <h2>Unified API Hub</h2>
-        <p>Manage API keys, webhook signing keys, and backend integration snippets from one page.</p>
+        <p>Manage direct API and webhook credentials here. If API is not your thing, the optional agent gateway still lands in the same request and receipt model.</p>
       </section>
 
       {error ? <section className="surface error-surface">{error}</section> : null}
@@ -193,14 +215,25 @@ export function ApiHubPage() {
             <span>Webhook receiver</span>
             <strong>{webhookReceiverUrl}</strong>
           </div>
+          <div>
+            <span>Agent gateway</span>
+            <strong>{agentGatewayUrl}</strong>
+          </div>
         </div>
       </section>
 
       <section className="surface">
-        <h3>Backend quickstart</h3>
-        <p className="hint-line">Use Playground for customer-side activation. Use these examples for backend and webhook integrations.</p>
+        <h3>Direct API quickstart</h3>
+        <p className="hint-line">Use Playground for customer-side activation. Use this example for backend and webhook-led integrations.</p>
         <pre>{curlSnippet}</pre>
         <pre>{sampleRequestPayload}</pre>
+      </section>
+
+      <section className="surface">
+        <h3>Optional agent gateway</h3>
+        <p className="hint-line">Use this path when you want an AI or customer-owned runtime to compile requests. It still lands in the same execution truth and receipt model.</p>
+        <pre>{agentGatewaySnippet}</pre>
+        <p className="hint-line">If you want the lighter guided path, register agents, policies, approvals, and connector metadata in <a href="/app/settings#ai-trust-controls">Settings → AI trust controls</a>.</p>
       </section>
 
       <section className="surface">

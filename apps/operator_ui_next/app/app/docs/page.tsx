@@ -4,24 +4,36 @@ export default function Page() {
       <section className="bg-gradient-to-br from-primary/20 via-card to-card rounded-2xl p-8 border border-primary/20">
         <p className="text-sm font-medium text-primary mb-2">Docs</p>
         <h2 className="text-2xl font-bold text-foreground mb-2">Customer Console Docs</h2>
-        <p className="text-muted-foreground">Quickstart, Playground guidance, API references, lifecycle state meanings, and callback signing guidance.</p>
+        <p className="text-muted-foreground">Quickstart, entry-path guidance, API references, lifecycle state meanings, and callback signing guidance.</p>
       </section>
 
       <section className="bg-card rounded-xl border border-border/50 p-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Quickstart</h3>
         <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
-          <li>Finish onboarding and create an API key.</li>
+          <li>Choose your entry path: direct API or webhook integration, or the optional agent gateway path.</li>
           <li>Configure outbound callback destination.</li>
-          <li>Run a sample request from Playground.</li>
+          <li>Run a sample request from Playground or send a request through the agent gateway.</li>
           <li>Open Request Detail and inspect the Receipt tab.</li>
-          <li>Validate callback delivery history, then wire backend or webhook integrations.</li>
+          <li>Validate callback delivery history, then wire backend, webhook, or agent runtime integrations.</li>
         </ol>
+      </section>
+
+      <section className="bg-card rounded-xl border border-border/50 p-6">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Two supported entry paths</h3>
+        <ul className="space-y-2 text-muted-foreground">
+          <li><strong className="text-foreground">Direct API / webhooks</strong>: use backend services or signed webhook senders to call ingress directly.</li>
+          <li><strong className="text-foreground">Agent gateway</strong>: use a customer-owned runtime to compile free-form or structured input into a typed request.</li>
+          <li><strong className="text-foreground">Shared core</strong>: both paths converge into the same normalized intent, execution lifecycle, receipt, replay, reconciliation, and exception surfaces.</li>
+          <li><strong className="text-foreground">Optional UI</strong>: if direct API is not your thing, use <code className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono">Settings → AI trust controls</code> to manage the trust model, while runtime traffic still goes through the gateway.</li>
+        </ul>
       </section>
 
       <section className="bg-card rounded-xl border border-border/50 p-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">API reference</h3>
         <ul className="space-y-2 text-muted-foreground">
-          <li><code className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono">POST /api/requests</code> accepts supported intent payloads from backend services, inbound webhooks, and Playground.</li>
+          <li><code className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono">POST /api/requests</code> accepts supported typed intent payloads from backend services and customer-controlled submit surfaces.</li>
+          <li><code className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono">POST /webhooks/:source</code> accepts signed inbound webhook traffic through the same ingress contract.</li>
+          <li><code className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono">POST /api/agent/gateway/requests</code> accepts agent runtime traffic, compiles free-form or structured input, and hands it into the same policy and execution path.</li>
           <li><code className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono">GET /status/requests/:intent_id</code> fetch current request state.</li>
           <li><code className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono">GET /status/requests/:intent_id/receipt</code> fetch durable receipt entries.</li>
           <li><code className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono">GET /status/requests/:intent_id/history</code> fetch lifecycle transitions.</li>

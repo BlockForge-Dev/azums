@@ -73,7 +73,7 @@ impl ExceptionClassifier {
 
 fn severity_floor(category: ExceptionCategory) -> ExceptionSeverity {
     match category {
-        ExceptionCategory::ObservationMissing | ExceptionCategory::DelayedFinality => {
+        ExceptionCategory::ObservationMissing | ExceptionCategory::DelayedVerification => {
             ExceptionSeverity::Warning
         }
         ExceptionCategory::PolicyViolation => ExceptionSeverity::Critical,
@@ -81,6 +81,7 @@ fn severity_floor(category: ExceptionCategory) -> ExceptionSeverity {
         | ExceptionCategory::AmountMismatch
         | ExceptionCategory::DestinationMismatch
         | ExceptionCategory::DuplicateSignal
+        | ExceptionCategory::RepeatedRequestPattern
         | ExceptionCategory::ExternalStateUnknown
         | ExceptionCategory::ManualReviewRequired => ExceptionSeverity::High,
     }
@@ -98,11 +99,7 @@ fn normalize_active_state(state: ExceptionState) -> ExceptionState {
 }
 
 fn normalize_token(value: impl AsRef<str>) -> String {
-    value
-        .as_ref()
-        .trim()
-        .to_ascii_lowercase()
-        .replace(' ', "_")
+    value.as_ref().trim().to_ascii_lowercase().replace(' ', "_")
 }
 
 #[cfg(test)]
@@ -144,5 +141,32 @@ mod tests {
             classified.cluster_key,
             "solana|policy_violation|policy_blocked"
         );
+    }
+
+    #[test]
+    fn repeated_request_patterns_are_raised_to_high_severity() {
+        let classifier = ExceptionClassifier;
+        let draft = ExceptionDraft {
+            category: ExceptionCategory::RepeatedRequestPattern,
+            severity: ExceptionSeverity::Info,
+            state: ExceptionState::Open,
+            summary: "duplicate retries detected".to_owned(),
+            machine_reason: "idempotency_repeated_while_pending".to_owned(),
+            evidence: Vec::new(),
+        };
+        let classified = classifier.classify(
+            &ExceptionContext {
+                tenant_id: "tenant_a".to_owned(),
+                subject_id: "subject_a".to_owned(),
+                intent_id: "intent_a".to_owned(),
+                job_id: "job_a".to_owned(),
+                adapter_id: "solana".to_owned(),
+                latest_run_id: None,
+                latest_outcome_id: None,
+            },
+            &draft,
+        );
+
+        assert_eq!(classified.severity, ExceptionSeverity::High);
     }
 }

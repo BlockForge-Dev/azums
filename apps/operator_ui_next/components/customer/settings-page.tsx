@@ -11,6 +11,7 @@ import {
 import { apiGet, formatMs } from "@/lib/client-api";
 import type { UiConfigResponse } from "@/lib/types";
 import { Card, CardHeader, Button, Input, Select } from "@/components/ui";
+import { AiTrustControlsSection } from "@/components/customer/ai-trust-controls-section";
 import { PolicyStagingSection } from "@/components/customer/policy-staging-section";
 
 export function SettingsPage() {
@@ -175,7 +176,11 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <PolicyStagingSection canManage={canManage} session={session} />
+      <AiTrustControlsSection canManage={canManage} session={session} />
+
+      <div id="policy-staging">
+        <PolicyStagingSection canManage={canManage} session={session} />
+      </div>
 
       <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-yellow-500 mb-4">Security posture</h3>

@@ -5,18 +5,18 @@ export default function ProductPage() {
         <p className="landing-eyebrow">Product</p>
         <h1>Durable execution for request-driven workflows</h1>
         <p>
-          Azums persists execution truth across ingress, queueing, adapter dispatch, retries,
-          callbacks, and replay lineage.
+          Azums supports direct API or webhook integration and agent gateway integration,
+          both landing in the same execution truth, receipt, replay, and reconciliation model.
         </p>
       </section>
       <section className="landing-grid">
         <article className="landing-card">
-          <h2>Core Objects</h2>
-          <p>Intent, Request, Job, Receipt, Callback, Replay, Audit.</p>
+          <h2>Entry Paths</h2>
+          <p>Use direct API or signed webhooks, or send runtime traffic through the agent gateway.</p>
         </article>
         <article className="landing-card">
-          <h2>Delivery Guarantees</h2>
-          <p>Durable state transitions and callback attempt history from backend truth.</p>
+          <h2>Shared Core</h2>
+          <p>Both paths converge into one normalized intent model, one execution core, and one receipt surface.</p>
         </article>
         <article className="landing-card">
           <h2>Operator Controls</h2>

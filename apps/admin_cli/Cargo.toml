@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 adapter_contract = { path = "../../crates/adapter_contract" }
+adapter_paystack = { path = "../../crates/adapter_paystack" }
 adapter_solana = { path = "../../crates/adapter_solana" }
 anyhow = "1"
 callback_core = { path = "../../crates/callback_core" }

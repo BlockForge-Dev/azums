@@ -52,6 +52,59 @@ const TRANSITION_STATES = [
   "false_positive",
 ];
 
+function isPaystackAdapter(adapterId: string | null | undefined): boolean {
+  return (adapterId ?? "").trim().toLowerCase() === "adapter_paystack";
+}
+
+function payloadValue(
+  payload: Record<string, unknown> | null | undefined,
+  key: string
+): string | null {
+  const value = payload?.[key];
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return null;
+}
+
+function nestedPayloadValue(
+  payload: Record<string, unknown> | null | undefined,
+  path: string[]
+): string | null {
+  let current: unknown = payload;
+
+  for (const key of path) {
+    if (!current || typeof current !== "object" || Array.isArray(current)) {
+      return null;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+
+  if (typeof current === "string") {
+    const trimmed = current.trim();
+    return trimmed ? trimmed : null;
+  }
+  if (typeof current === "number" || typeof current === "boolean") {
+    return String(current);
+  }
+  return null;
+}
+
+function payloadPreview(payload: Record<string, unknown> | null | undefined): string {
+  if (!payload) return "{}";
+  const raw = JSON.stringify(payload, null, 2);
+  return raw.length > 1200 ? `${raw.slice(0, 1200)}\n...` : raw;
+}
+
+function formatMachineReason(reason: string | null | undefined): string {
+  if (!reason) return "pending";
+  return reason.replaceAll("_", " ");
+}
+
 function withTenant(path: string, tenantId: string): string {
   if (!tenantId) return path;
   const separator = path.includes("?") ? "&" : "?";
@@ -141,8 +194,88 @@ export function OperatorExceptionsPage() {
       highSeverity: unresolved.filter(
         (item) => item.severity === "high" || item.severity === "critical"
       ).length,
+      paystack: unresolved.filter((item) => isPaystackAdapter(item.adapter_id)).length,
     };
   }, [cases]);
+
+  const paystackCase = useMemo(() => {
+    if (!detail) return null;
+    const latestExecutionReceipt = unified?.receipt.entries?.length
+      ? unified.receipt.entries[unified.receipt.entries.length - 1]
+      : null;
+    const paystackEvidence = detail.case.evidence.filter(
+      (entry) => entry.source_table?.startsWith("paystack.") ?? false
+    );
+    const executionRows = paystackEvidence.filter(
+      (entry) => entry.source_table === "paystack.executions"
+    );
+    const webhookRows = paystackEvidence.filter(
+      (entry) => entry.source_table === "paystack.webhook_events"
+    );
+    const reference =
+      latestExecutionReceipt?.connector_outcome?.reference ??
+      latestExecutionReceipt?.recon_linkage?.connector_reference ??
+      latestExecutionReceipt?.adapter_execution_reference ??
+      executionRows
+        .map((entry) =>
+          payloadValue(entry.payload, "reference") ??
+          payloadValue(entry.payload, "provider_reference") ??
+          payloadValue(entry.payload, "remote_id") ??
+          entry.source_id ??
+          null
+        )
+        .find(Boolean) ??
+      webhookRows
+        .map((entry) =>
+          payloadValue(entry.payload, "reference") ??
+          payloadValue(entry.payload, "provider_reference") ??
+          payloadValue(entry.payload, "remote_id") ??
+          entry.source_id ??
+          null
+        )
+        .find(Boolean) ??
+      null;
+    const providerStatus =
+      latestExecutionReceipt?.details?.provider_status ??
+      executionRows
+        .map((entry) => payloadValue(entry.payload, "status"))
+        .find(Boolean) ??
+      webhookRows
+        .map((entry) => payloadValue(entry.payload, "status"))
+        .find(Boolean) ??
+      null;
+    const destination =
+      latestExecutionReceipt?.details?.destination_reference ??
+      executionRows
+        .map((entry) => payloadValue(entry.payload, "destination_reference"))
+        .find(Boolean) ??
+      null;
+    const amount =
+      latestExecutionReceipt?.details?.amount_minor ??
+      executionRows
+        .map((entry) => payloadValue(entry.payload, "amount"))
+        .find(Boolean) ??
+      null;
+    const currency =
+      latestExecutionReceipt?.details?.currency ??
+      executionRows
+        .map((entry) => payloadValue(entry.payload, "currency"))
+        .find(Boolean) ??
+      null;
+
+    return {
+      enabled:
+        isPaystackAdapter(detail.case.adapter_id) || paystackEvidence.length > 0,
+      reference,
+      providerStatus,
+      destination,
+      amount,
+      currency,
+      executionRows,
+      webhookRows,
+      mismatchFocus: formatMachineReason(detail.case.machine_reason),
+    };
+  }, [detail, unified]);
 
   async function loadRolloutSummary() {
     setSummaryLoading(true);
@@ -380,6 +513,7 @@ export function OperatorExceptionsPage() {
             <Badge variant="default">{stats.total} cases</Badge>
             <Badge variant="warn">{stats.unresolved} unresolved</Badge>
             <Badge variant="error">{stats.manualReview} manual review</Badge>
+            <Badge variant="default">{stats.paystack} fiat rail</Badge>
           </div>
         </div>
       </section>
@@ -526,6 +660,9 @@ export function OperatorExceptionsPage() {
                     <Badge variant={severityBadgeVariant(item.severity)}>{item.severity}</Badge>
                     <Badge variant="default">{item.category}</Badge>
                     <Badge variant="default">{item.state}</Badge>
+                    {isPaystackAdapter(item.adapter_id) ? (
+                      <Badge variant="default">fiat rail</Badge>
+                    ) : null}
                     <span className="text-xs text-muted-foreground font-mono">
                       {shortId(item.case_id)}
                     </span>
@@ -533,6 +670,7 @@ export function OperatorExceptionsPage() {
                   <p className="text-sm text-foreground">{item.summary}</p>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground font-mono">
                     <span>adapter:{item.adapter_id}</span>
+                    <span>focus:{formatMachineReason(item.machine_reason)}</span>
                     <span>intent:{shortId(item.intent_id)}</span>
                     <span>updated:{formatMs(item.updated_at_ms)}</span>
                   </div>
@@ -567,6 +705,9 @@ export function OperatorExceptionsPage() {
                   </Badge>
                   <Badge variant="default">{detail.case.category}</Badge>
                   <Badge variant="default">{detail.case.state}</Badge>
+                  {isPaystackAdapter(detail.case.adapter_id) ? (
+                    <Badge variant="default">fiat rail</Badge>
+                  ) : null}
                   {unified ? (
                     <Badge variant={dashboardBadgeVariant(unified.dashboard_status)}>
                       {formatDashboardStatus(unified.dashboard_status)}
@@ -576,6 +717,7 @@ export function OperatorExceptionsPage() {
                 <p className="text-sm text-foreground">{detail.case.summary}</p>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground font-mono">
                   <span>{detail.case.machine_reason}</span>
+                  <span>focus:{formatMachineReason(detail.case.machine_reason)}</span>
                   <span>first_seen:{formatMs(detail.case.first_seen_at_ms)}</span>
                   <span>last_seen:{formatMs(detail.case.last_seen_at_ms)}</span>
                 </div>
@@ -703,6 +845,57 @@ export function OperatorExceptionsPage() {
                 </div>
               ) : null}
 
+              {paystackCase?.enabled ? (
+                <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-3">
+                    Fiat rail investigation
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                    <div className="rounded-lg border border-border/50 bg-background/40 p-3">
+                      <span className="text-xs text-muted-foreground">Verification reference</span>
+                      <p
+                        className="mt-1 text-sm text-foreground font-mono break-all"
+                        title={paystackCase.reference ?? "-"}
+                      >
+                        {paystackCase.reference ?? "-"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border/50 bg-background/40 p-3">
+                      <span className="text-xs text-muted-foreground">Provider status</span>
+                      <p className="mt-1 text-sm text-foreground font-mono">
+                        {paystackCase.providerStatus ?? "pending"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border/50 bg-background/40 p-3">
+                      <span className="text-xs text-muted-foreground">Mismatch focus</span>
+                      <p className="mt-1 text-sm text-foreground font-mono">
+                        {paystackCase.mismatchFocus}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border/50 bg-background/40 p-3">
+                      <span className="text-xs text-muted-foreground">Evidence rows</span>
+                      <p className="mt-1 text-sm text-foreground font-mono">
+                        {paystackCase.executionRows.length} execution /{" "}
+                        {paystackCase.webhookRows.length} webhook
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground font-mono">
+                    <span>amount:{paystackCase.amount ?? "-"}</span>
+                    <span>currency:{paystackCase.currency ?? "-"}</span>
+                    <span>destination:{paystackCase.destination ?? "-"}</span>
+                    <span>
+                      latest_recon_receipt:{detail.case.latest_recon_receipt_id ?? "not_written"}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Paystack webhook evidence is downstream verification evidence. Operator actions
+                    here can re-run reconciliation or request replay review, but they do not
+                    rewrite Azums execution truth.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
                 <h3 className="text-sm font-semibold text-foreground mb-3">Evidence</h3>
                 <div className="space-y-3">
@@ -716,10 +909,65 @@ export function OperatorExceptionsPage() {
                               {entry.source_table}
                             </span>
                           ) : null}
+                          {entry.source_table?.startsWith("paystack.") ? (
+                            <Badge variant="default">fiat evidence</Badge>
+                          ) : null}
                         </div>
                         <p className="text-xs text-muted-foreground font-mono break-all">
                           {entry.source_id ?? shortId(entry.evidence_id)}
                         </p>
+                        {entry.source_table?.startsWith("paystack.") ? (
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground font-mono">
+                            {payloadValue(entry.payload, "reference") ? (
+                              <span>ref:{payloadValue(entry.payload, "reference")}</span>
+                            ) : null}
+                            {payloadValue(entry.payload, "provider_reference") ? (
+                              <span>provider_ref:{payloadValue(entry.payload, "provider_reference")}</span>
+                            ) : null}
+                            {payloadValue(entry.payload, "remote_id") ? (
+                              <span>remote_id:{payloadValue(entry.payload, "remote_id")}</span>
+                            ) : null}
+                            {payloadValue(entry.payload, "status") ? (
+                              <span>status:{payloadValue(entry.payload, "status")}</span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {canTransition &&
+                        entry.source_table === "paystack.webhook_events" ? (
+                          <details className="mt-2 rounded-md border border-border/40 bg-muted/20 overflow-hidden">
+                            <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/30 transition-colors">
+                              Webhook payload excerpt
+                            </summary>
+                            <div className="px-3 pb-3 pt-1">
+                              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground font-mono mb-2">
+                                {payloadValue(entry.payload, "event") ? (
+                                  <span>event:{payloadValue(entry.payload, "event")}</span>
+                                ) : null}
+                                {nestedPayloadValue(entry.payload, ["data", "reference"]) ? (
+                                  <span>
+                                    ref:
+                                    {nestedPayloadValue(entry.payload, ["data", "reference"])}
+                                  </span>
+                                ) : null}
+                                {nestedPayloadValue(entry.payload, ["data", "status"]) ? (
+                                  <span>
+                                    provider_status:
+                                    {nestedPayloadValue(entry.payload, ["data", "status"])}
+                                  </span>
+                                ) : null}
+                                {nestedPayloadValue(entry.payload, ["data", "gateway_response"]) ? (
+                                  <span>
+                                    gateway:
+                                    {nestedPayloadValue(entry.payload, ["data", "gateway_response"])}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <pre className="text-xs text-muted-foreground font-mono overflow-x-auto whitespace-pre-wrap break-words">
+                                {payloadPreview(entry.payload)}
+                              </pre>
+                            </div>
+                          </details>
+                        ) : null}
                         <small className="text-xs text-muted-foreground">
                           {formatMs(entry.observed_at_ms ?? entry.created_at_ms)}
                         </small>

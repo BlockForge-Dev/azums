@@ -131,6 +131,58 @@ export function ReceiptDetailPage({ receiptId }: { receiptId: string }) {
     };
   }, [selectedEntry?.details]);
 
+  const paystackEvidence = useMemo(() => {
+    const details = selectedEntry?.details ?? {};
+    const paystackRefs = (unified?.evidence_references ?? []).filter(
+      (reference) => reference.source_table?.startsWith("paystack.") ?? false
+    );
+
+    return {
+      reference:
+        selectedEntry?.connector_outcome?.reference ??
+        selectedEntry?.recon_linkage?.connector_reference ??
+        selectedEntry?.adapter_execution_reference ??
+        details.reference ??
+        details.provider_reference ??
+        details.remote_id ??
+        "pending",
+      remoteId: details.remote_id ?? "pending",
+      amount: details.amount_minor ?? "-",
+      currency: details.currency ?? "-",
+      sourceReference: details.source_reference ?? "-",
+      destinationReference: details.destination_reference ?? "-",
+      connectorReference:
+        details.connector_reference ??
+        selectedEntry?.connector_outcome?.reference ??
+        selectedEntry?.recon_linkage?.connector_reference ??
+        "-",
+      providerStatus: details.provider_status ?? details.status ?? "pending",
+      executionEvidenceCount: paystackRefs.filter(
+        (reference) => reference.source_table === "paystack.executions"
+      ).length,
+      webhookEvidenceCount: paystackRefs.filter(
+        (reference) => reference.source_table === "paystack.webhook_events"
+      ).length,
+    };
+  }, [
+    selectedEntry?.adapter_execution_reference,
+    selectedEntry?.connector_outcome?.reference,
+    selectedEntry?.details,
+    selectedEntry?.recon_linkage?.connector_reference,
+    unified?.evidence_references,
+  ]);
+
+  const isPaystackReceipt = useMemo(() => {
+    return (
+      request?.adapter_id === "adapter_paystack" ||
+      Boolean(
+        paystackEvidence.reference !== "pending" ||
+          paystackEvidence.executionEvidenceCount ||
+          paystackEvidence.webhookEvidenceCount
+      )
+    );
+  }, [paystackEvidence, request?.adapter_id]);
+
   const attemptEvents = useMemo(() => {
     if (!orderedEntries.length) return [];
 
@@ -167,6 +219,13 @@ export function ReceiptDetailPage({ receiptId }: { receiptId: string }) {
         if (
           key.includes("signature") ||
           key.includes("provider") ||
+          key.includes("reference") ||
+          key.includes("remote") ||
+          key.includes("currency") ||
+          key.includes("amount") ||
+          key.includes("destination") ||
+          key.includes("source") ||
+          key.includes("connector") ||
           key.includes("blockhash") ||
           key.includes("simulation") ||
           key.includes("error")
@@ -212,11 +271,28 @@ export function ReceiptDetailPage({ receiptId }: { receiptId: string }) {
             <Summary label="State" value={selectedEntry?.state ?? "-"} />
             <Summary label="Class" value={selectedEntry?.classification ?? "-"} />
             <Summary label="Attempt" value={String(selectedEntry?.attempt_no ?? 0)} />
-            <Summary label="Signing mode" value={executionFunding.signingMode} />
-            <Summary label="Payer source" value={executionFunding.payerSource} />
-            <Summary label="Fee payer" value={executionFunding.feePayer} />
-            <Summary label="Tx ref" value={executionFunding.txRef} />
             <Summary label="Occurred" value={formatMs(selectedEntry?.occurred_at_ms)} />
+            {isPaystackReceipt ? (
+              <>
+                <Summary label="Verify ref" value={paystackEvidence.reference} />
+                <Summary
+                  label="Amount"
+                  value={`${paystackEvidence.amount} ${paystackEvidence.currency}`}
+                />
+                <Summary label="Remote ID" value={paystackEvidence.remoteId} />
+                <Summary
+                  label="Route"
+                  value={`${paystackEvidence.sourceReference} -> ${paystackEvidence.destinationReference}`}
+                />
+              </>
+            ) : (
+              <>
+                <Summary label="Signing mode" value={executionFunding.signingMode} />
+                <Summary label="Payer source" value={executionFunding.payerSource} />
+                <Summary label="Fee payer" value={executionFunding.feePayer} />
+                <Summary label="Tx ref" value={executionFunding.txRef} />
+              </>
+            )}
           </div>
 
           {/* Tabs */}
@@ -283,13 +359,30 @@ export function ReceiptDetailPage({ receiptId }: { receiptId: string }) {
                 </div>
 
                 <div className="bg-muted/30 rounded-xl p-5 border border-border/50">
-                  <p className="text-sm font-medium text-foreground mb-3">Execution funding</p>
-                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground font-mono">
-                    <span>signing:{executionFunding.signingMode}</span>
-                    <span>payer:{executionFunding.payerSource}</span>
-                    <span>fee_payer:{executionFunding.feePayer}</span>
-                    <span>tx_ref:{executionFunding.txRef}</span>
-                  </div>
+                  <p className="text-sm font-medium text-foreground mb-3">
+                    {isPaystackReceipt ? "Fiat rail evidence" : "Execution funding"}
+                  </p>
+                  {isPaystackReceipt ? (
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground font-mono">
+                      <span>verify_ref:{paystackEvidence.reference}</span>
+                      <span>remote_id:{paystackEvidence.remoteId}</span>
+                      <span>amount:{paystackEvidence.amount}</span>
+                      <span>currency:{paystackEvidence.currency}</span>
+                      <span>source:{paystackEvidence.sourceReference}</span>
+                      <span>destination:{paystackEvidence.destinationReference}</span>
+                      <span>connector:{paystackEvidence.connectorReference}</span>
+                      <span>status:{paystackEvidence.providerStatus}</span>
+                      <span>execution_rows:{paystackEvidence.executionEvidenceCount}</span>
+                      <span>webhook_rows:{paystackEvidence.webhookEvidenceCount}</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground font-mono">
+                      <span>signing:{executionFunding.signingMode}</span>
+                      <span>payer:{executionFunding.payerSource}</span>
+                      <span>fee_payer:{executionFunding.feePayer}</span>
+                      <span>tx_ref:{executionFunding.txRef}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -440,6 +533,31 @@ export function ReceiptDetailPage({ receiptId }: { receiptId: string }) {
                       )}
                     </div>
                   </div>
+
+                  {isPaystackReceipt ? (
+                    <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
+                      <p className="text-sm font-medium text-foreground mb-2">
+                        Downstream verification
+                      </p>
+                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground font-mono">
+                        <span>execution_rows:{paystackEvidence.executionEvidenceCount}</span>
+                        <span>webhook_rows:{paystackEvidence.webhookEvidenceCount}</span>
+                        <span>
+                          recon_subject:{selectedEntry?.recon_subject_id ?? "not_linked"}
+                        </span>
+                        <span>
+                          recon_ref:
+                          {selectedEntry?.recon_linkage?.connector_reference ??
+                            selectedEntry?.recon_linkage?.adapter_execution_reference ??
+                            "pending"}
+                        </span>
+                        <span>
+                          connector_binding:
+                          {selectedEntry?.recon_linkage?.connector_binding_id ?? "n/a"}
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
                     <p className="text-sm font-medium text-foreground mb-2">Lineage</p>

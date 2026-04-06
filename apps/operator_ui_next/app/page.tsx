@@ -188,7 +188,9 @@ function HeroSection() {
           
           {/* Subheadline */}
           <p className="text-lg md:text-xl text-white/45 leading-relaxed mb-10 max-w-2xl mx-auto font-light">
-            Azums is a receipt-oriented execution layer that records what happened every time an intent runs — success or failure — with reconciliation-backed correctness and queryable outcomes.
+            Azums is a receipt-oriented execution layer for direct API or webhook traffic and
+            agent gateway traffic, recording what happened every time an intent runs with one
+            shared execution truth model underneath.
           </p>
           
           {/* CTAs */}
@@ -369,9 +371,9 @@ function WhatAzumsIsToday() {
                 Azums is the execution and receipt layer for modern transaction flows.
               </p>
               <p>
-                When an intent enters Azums, it moves through an explicit execution path. 
-                If the action succeeds, Azums records a receipt. If the action fails, Azums 
-                still records a receipt.
+                Customers can integrate Azums directly through API or webhook traffic, or
+                through the agent gateway. Once accepted, both paths converge into the same
+                explicit execution path.
               </p>
               <p>
                 That gives teams a clear, queryable record of what happened and reduces 
@@ -891,14 +893,14 @@ function ArchitecturePreview() {
         </div>
         
         <div className="bg-[#101018] rounded-2xl border border-white/[0.08] p-8">
-          {/* Top Layer - Applications */}
+          {/* Top Layer - Entry Paths */}
           <div className="mb-8">
             <div className="text-center mb-4">
-              <span className="text-xs font-medium text-white/30 uppercase tracking-wider">Applications</span>
+              <span className="text-xs font-medium text-white/30 uppercase tracking-wider">Entry Paths</span>
             </div>
             <div className="flex justify-center gap-3">
-              <div className="px-4 py-2 rounded-lg bg-[#0c0c14] border border-white/[0.05] text-white/40 text-sm">Operator Systems</div>
-              <div className="px-4 py-2 rounded-lg bg-[#0c0c14] border border-white/[0.05] text-white/40 text-sm">Future Products</div>
+              <div className="px-4 py-2 rounded-lg bg-[#0c0c14] border border-white/[0.05] text-white/40 text-sm">Direct API / Webhooks</div>
+              <div className="px-4 py-2 rounded-lg bg-[#0c0c14] border border-white/[0.05] text-white/40 text-sm">Agent Gateway</div>
             </div>
           </div>
           
@@ -974,8 +976,8 @@ function ArchitecturePreview() {
         </div>
         
         <p className="mt-8 text-center text-white/35 max-w-2xl mx-auto font-light">
-          Azums separates execution, receipts, and reconciliation into a clearer operating model 
-          so that outcomes remain visible and explainable.
+          Azums keeps direct API and agent runtime entry paths additive on top of one shared
+          execution core so outcomes remain visible and explainable.
         </p>
       </div>
     </section>

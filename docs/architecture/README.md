@@ -2,6 +2,7 @@
 
 | File | Purpose |
 |---|---|
+| `entry-paths.md` | Public definition of direct API/webhook and agent gateway entry paths over one shared execution core |
 | `system-overview.md` | Service topology, durable truth model, guarantees |
 | `component-boundaries.md` | Layer ownership boundaries and anti-patterns |
 | `data-flow.md` | End-to-end flows for inbound, retry, terminal, replay |

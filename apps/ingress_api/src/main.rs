@@ -13,6 +13,10 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use chrono::{Datelike, Timelike, Utc, Weekday};
+use exception_intelligence::{
+    ExceptionCategory, ExceptionDraft, ExceptionEvidenceDraft, ExceptionSeverity, ExceptionState,
+    PostgresExceptionStore,
+};
 use execution_core::integration::postgresq::{PostgresQConfig, PostgresQStore};
 use execution_core::ports::Clock;
 use execution_core::{
@@ -33,7 +37,7 @@ use platform_auth::{
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha512};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Row};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -49,12 +53,14 @@ use grants::{CapabilityGrantConsumptionRequest, IngressCapabilityGrantStore};
 use secret_crypto::SecretCipher;
 
 type HmacSha256 = Hmac<Sha256>;
+type HmacSha512 = Hmac<Sha512>;
 const FREE_PLAY_WINDOW_MS: u64 = 1000 * 60 * 60 * 24 * 30;
 
 #[derive(Clone)]
 struct AppState {
     core: Arc<ExecutionCore>,
     audit_store: Arc<IngressIntakeAuditStore>,
+    exception_store: Arc<PostgresExceptionStore>,
     environment_store: Arc<IngressEnvironmentStore>,
     agent_store: Arc<IngressAgentStore>,
     agent_action_idempotency_store: Arc<IngressAgentActionIdempotencyStore>,
@@ -68,6 +74,7 @@ struct AppState {
     policy_bundle_store: Arc<IngressPolicyBundleStore>,
     api_key_store: Arc<IngressTenantApiKeyStore>,
     webhook_key_store: Arc<IngressTenantWebhookKeyStore>,
+    paystack_webhook_store: Arc<IngressPaystackWebhookStore>,
     quota_store: Arc<IngressTenantQuotaStore>,
     auth: Arc<IngressAuthConfig>,
     schemas: Arc<IngressSchemaRegistry>,
@@ -270,6 +277,170 @@ impl IngressIntakeAuditStore {
         .context("failed to persist ingress intake audit row")?;
 
         Ok(())
+    }
+}
+
+#[derive(Clone)]
+struct IngressPaystackWebhookStore {
+    pool: PgPool,
+}
+
+#[derive(Debug, Clone, Default)]
+struct PaystackWebhookCorrelation {
+    intent_id: Option<String>,
+    job_id: Option<String>,
+    receipt_id: Option<String>,
+}
+
+impl IngressPaystackWebhookStore {
+    fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
+    async fn ensure_schema(&self) -> anyhow::Result<()> {
+        let ddl = [
+            "CREATE SCHEMA IF NOT EXISTS paystack",
+            r#"
+            CREATE TABLE IF NOT EXISTS paystack.webhook_events (
+                event_key TEXT PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                provider_reference TEXT NULL,
+                remote_id TEXT NULL,
+                correlated_intent_id TEXT NULL,
+                correlated_job_id TEXT NULL,
+                correlated_receipt_id TEXT NULL,
+                payload_json JSONB NOT NULL,
+                received_at_ms BIGINT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            "#,
+            r#"
+            CREATE INDEX IF NOT EXISTS paystack_webhook_events_tenant_created_idx
+            ON paystack.webhook_events(tenant_id, created_at DESC)
+            "#,
+            r#"
+            CREATE INDEX IF NOT EXISTS paystack_webhook_events_provider_reference_idx
+            ON paystack.webhook_events(provider_reference)
+            "#,
+            r#"
+            CREATE INDEX IF NOT EXISTS paystack_webhook_events_remote_id_idx
+            ON paystack.webhook_events(remote_id)
+            "#,
+        ];
+
+        for stmt in ddl {
+            sqlx::query(stmt)
+                .execute(&self.pool)
+                .await
+                .context("failed to ensure paystack webhook schema")?;
+        }
+
+        Ok(())
+    }
+
+    async fn correlate_execution(
+        &self,
+        tenant_id: &str,
+        provider_reference: Option<&str>,
+        remote_id: Option<&str>,
+    ) -> anyhow::Result<PaystackWebhookCorrelation> {
+        let execution = sqlx::query(
+            r#"
+            SELECT intent_id, job_id
+            FROM paystack.executions
+            WHERE tenant_id = $1
+              AND (
+                ($2::TEXT IS NOT NULL AND (provider_reference = $2 OR source_reference = $2))
+                OR ($3::TEXT IS NOT NULL AND remote_id = $3)
+              )
+            ORDER BY updated_at DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(provider_reference)
+        .bind(remote_id)
+        .fetch_optional(&self.pool)
+        .await
+        .context("failed to correlate paystack execution from webhook")?;
+
+        let Some(execution) = execution else {
+            return Ok(PaystackWebhookCorrelation::default());
+        };
+
+        let intent_id: String = execution.get("intent_id");
+        let job_id: String = execution.get("job_id");
+        let receipt_id = sqlx::query(
+            r#"
+            SELECT receipt_id
+            FROM execution_core_receipts
+            WHERE tenant_id = $1
+              AND intent_id = $2
+              AND job_id = $3
+            ORDER BY occurred_at_ms DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(&intent_id)
+        .bind(&job_id)
+        .fetch_optional(&self.pool)
+        .await
+        .context("failed to load correlated execution receipt for paystack webhook")?
+        .map(|row| row.get::<String, _>("receipt_id"));
+
+        Ok(PaystackWebhookCorrelation {
+            intent_id: Some(intent_id),
+            job_id: Some(job_id),
+            receipt_id,
+        })
+    }
+
+    async fn record_event(
+        &self,
+        tenant_id: &str,
+        event_type: &str,
+        provider_reference: Option<&str>,
+        remote_id: Option<&str>,
+        correlation: &PaystackWebhookCorrelation,
+        payload: &Value,
+        received_at_ms: u64,
+    ) -> anyhow::Result<bool> {
+        let event_key = paystack_event_key(event_type, remote_id, provider_reference, payload);
+        let result = sqlx::query(
+            r#"
+            INSERT INTO paystack.webhook_events (
+                event_key,
+                tenant_id,
+                event_type,
+                provider_reference,
+                remote_id,
+                correlated_intent_id,
+                correlated_job_id,
+                correlated_receipt_id,
+                payload_json,
+                received_at_ms
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+            ON CONFLICT (event_key) DO NOTHING
+            "#,
+        )
+        .bind(&event_key)
+        .bind(tenant_id)
+        .bind(event_type)
+        .bind(provider_reference)
+        .bind(remote_id)
+        .bind(correlation.intent_id.as_deref())
+        .bind(correlation.job_id.as_deref())
+        .bind(correlation.receipt_id.as_deref())
+        .bind(payload)
+        .bind(received_at_ms as i64)
+        .execute(&self.pool)
+        .await
+        .context("failed to persist paystack webhook event")?;
+
+        Ok(result.rows_affected() > 0)
     }
 }
 
@@ -3969,6 +4140,7 @@ struct IngressAuthConfig {
     global_api_key: Option<String>,
     tenant_api_keys: HashMap<String, String>,
     webhook_signature_secrets: HashMap<String, String>,
+    paystack_webhook_secrets: HashMap<String, String>,
     principal_submitter_kinds: HashMap<String, SubmitterKind>,
     principal_tenants: HashMap<String, HashSet<String>>,
     api_allowed_submitters: HashSet<SubmitterKind>,
@@ -3989,6 +4161,9 @@ impl IngressAuthConfig {
             tenant_api_keys: parse_kv_map(env_var_opt("INGRESS_TENANT_API_KEYS").as_deref()),
             webhook_signature_secrets: parse_kv_map(
                 env_var_opt("INGRESS_WEBHOOK_SIGNATURE_SECRETS").as_deref(),
+            ),
+            paystack_webhook_secrets: parse_kv_map(
+                env_var_opt("INGRESS_PAYSTACK_WEBHOOK_SECRETS").as_deref(),
             ),
             principal_submitter_kinds: parse_principal_submitter_kind_map(
                 env_var_opt("INGRESS_PRINCIPAL_SUBMITTER_BINDINGS").as_deref(),
@@ -4319,7 +4494,7 @@ impl IngressSchemaRegistry {
         let strict = env_bool("INGRESS_REQUIRE_SCHEMA_FOR_ALL_ROUTES", true);
         let raw = env_or(
             "INGRESS_INTENT_SCHEMAS",
-            "solana.transfer.v1=solana.transfer.v1;solana.broadcast.v1=solana.broadcast.v1",
+            "solana.transfer.v1=solana.transfer.v1;solana.broadcast.v1=solana.broadcast.v1;paystack.transaction.verify.v1=paystack.transaction.verify.v1;paystack.refund.create.v1=paystack.refund.create.v1;paystack.refund.verify.v1=paystack.refund.verify.v1;paystack.transfer.create.v1=paystack.transfer.create.v1;paystack.transfer.verify.v1=paystack.transfer.verify.v1",
         );
         let mappings = parse_intent_schema_map(&raw)?;
         Self::from_mappings(mappings, strict, routes)
@@ -4375,6 +4550,11 @@ impl IngressSchemaRegistry {
 enum BuiltinIntentSchema {
     SolanaTransferV1,
     SolanaBroadcastV1,
+    PaystackTransactionVerifyV1,
+    PaystackRefundCreateV1,
+    PaystackRefundVerifyV1,
+    PaystackTransferCreateV1,
+    PaystackTransferVerifyV1,
 }
 
 impl BuiltinIntentSchema {
@@ -4382,6 +4562,11 @@ impl BuiltinIntentSchema {
         match id.trim() {
             "solana.transfer.v1" => Some(Self::SolanaTransferV1),
             "solana.broadcast.v1" => Some(Self::SolanaBroadcastV1),
+            "paystack.transaction.verify.v1" => Some(Self::PaystackTransactionVerifyV1),
+            "paystack.refund.create.v1" => Some(Self::PaystackRefundCreateV1),
+            "paystack.refund.verify.v1" => Some(Self::PaystackRefundVerifyV1),
+            "paystack.transfer.create.v1" => Some(Self::PaystackTransferCreateV1),
+            "paystack.transfer.verify.v1" => Some(Self::PaystackTransferVerifyV1),
             _ => None,
         }
     }
@@ -4390,6 +4575,13 @@ impl BuiltinIntentSchema {
         match self {
             Self::SolanaTransferV1 => validate_solana_intent_payload(payload, false),
             Self::SolanaBroadcastV1 => validate_solana_intent_payload(payload, false),
+            Self::PaystackTransactionVerifyV1 => {
+                validate_paystack_transaction_verify_payload(payload)
+            }
+            Self::PaystackRefundCreateV1 => validate_paystack_refund_create_payload(payload),
+            Self::PaystackRefundVerifyV1 => validate_paystack_refund_verify_payload(payload),
+            Self::PaystackTransferCreateV1 => validate_paystack_transfer_create_payload(payload),
+            Self::PaystackTransferVerifyV1 => validate_paystack_transfer_verify_payload(payload),
         }
     }
 }
@@ -4482,6 +4674,204 @@ fn validate_solana_intent_payload(payload: &Value, require_signed_tx: bool) -> R
     Ok(())
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PaystackTransactionVerifyPayloadSchema {
+    reference: String,
+    #[serde(default)]
+    amount: Option<i64>,
+    #[serde(default)]
+    currency: Option<String>,
+    #[serde(default)]
+    customer_reference: Option<String>,
+    #[serde(default)]
+    expected_state: Option<String>,
+    #[serde(default)]
+    connector_binding_id: Option<String>,
+    #[serde(default)]
+    connector_reference: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PaystackRefundCreatePayloadSchema {
+    #[serde(default, alias = "transaction_reference", alias = "reference")]
+    payment_reference: Option<String>,
+    amount: i64,
+    #[serde(default)]
+    currency: Option<String>,
+    #[serde(default)]
+    destination_reference: Option<String>,
+    #[serde(default)]
+    reason_code: Option<String>,
+    #[serde(default)]
+    connector_binding_id: Option<String>,
+    #[serde(default)]
+    connector_reference: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PaystackRefundVerifyPayloadSchema {
+    #[serde(default, alias = "id", alias = "refund_reference")]
+    refund_id: Option<String>,
+    #[serde(default)]
+    connector_binding_id: Option<String>,
+    #[serde(default)]
+    connector_reference: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PaystackTransferCreatePayloadSchema {
+    #[serde(default, alias = "recipient")]
+    recipient_code: Option<String>,
+    amount: i64,
+    #[serde(default)]
+    currency: Option<String>,
+    #[serde(default)]
+    reference: Option<String>,
+    #[serde(default)]
+    reason: Option<String>,
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    connector_binding_id: Option<String>,
+    #[serde(default)]
+    connector_reference: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PaystackTransferVerifyPayloadSchema {
+    reference: String,
+    #[serde(default)]
+    connector_binding_id: Option<String>,
+    #[serde(default)]
+    connector_reference: Option<String>,
+}
+
+fn validate_paystack_transaction_verify_payload(payload: &Value) -> Result<(), String> {
+    let parsed: PaystackTransactionVerifyPayloadSchema =
+        serde_json::from_value(payload.clone()).map_err(|err| err.to_string())?;
+    if parsed.reference.trim().is_empty() {
+        return Err("payload field `reference` is required".to_owned());
+    }
+    ensure_non_empty_optional("currency", parsed.currency.as_deref())?;
+    ensure_non_empty_optional("customer_reference", parsed.customer_reference.as_deref())?;
+    ensure_non_empty_optional("expected_state", parsed.expected_state.as_deref())?;
+    ensure_non_empty_optional(
+        "connector_binding_id",
+        parsed.connector_binding_id.as_deref(),
+    )?;
+    ensure_non_empty_optional("connector_reference", parsed.connector_reference.as_deref())?;
+    if let Some(amount) = parsed.amount {
+        if amount <= 0 {
+            return Err(
+                "payload field `amount` must be a positive integer when provided".to_owned(),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn validate_paystack_refund_create_payload(payload: &Value) -> Result<(), String> {
+    let parsed: PaystackRefundCreatePayloadSchema =
+        serde_json::from_value(payload.clone()).map_err(|err| err.to_string())?;
+    let payment_reference = parsed
+        .payment_reference
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            "payload field `payment_reference` (or alias `transaction_reference`) is required"
+                .to_owned()
+        })?;
+    if payment_reference.is_empty() {
+        return Err("payload field `payment_reference` must not be empty".to_owned());
+    }
+    if parsed.amount <= 0 {
+        return Err("payload field `amount` must be a positive integer".to_owned());
+    }
+    ensure_non_empty_optional("currency", parsed.currency.as_deref())?;
+    ensure_non_empty_optional(
+        "destination_reference",
+        parsed.destination_reference.as_deref(),
+    )?;
+    ensure_non_empty_optional("reason_code", parsed.reason_code.as_deref())?;
+    ensure_non_empty_optional(
+        "connector_binding_id",
+        parsed.connector_binding_id.as_deref(),
+    )?;
+    ensure_non_empty_optional("connector_reference", parsed.connector_reference.as_deref())?;
+    Ok(())
+}
+
+fn validate_paystack_refund_verify_payload(payload: &Value) -> Result<(), String> {
+    let parsed: PaystackRefundVerifyPayloadSchema =
+        serde_json::from_value(payload.clone()).map_err(|err| err.to_string())?;
+    let refund_id = parsed
+        .refund_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            "payload field `refund_id` (or alias `refund_reference`) is required".to_owned()
+        })?;
+    if refund_id.is_empty() {
+        return Err("payload field `refund_id` must not be empty".to_owned());
+    }
+    ensure_non_empty_optional(
+        "connector_binding_id",
+        parsed.connector_binding_id.as_deref(),
+    )?;
+    ensure_non_empty_optional("connector_reference", parsed.connector_reference.as_deref())?;
+    Ok(())
+}
+
+fn validate_paystack_transfer_create_payload(payload: &Value) -> Result<(), String> {
+    let parsed: PaystackTransferCreatePayloadSchema =
+        serde_json::from_value(payload.clone()).map_err(|err| err.to_string())?;
+    let recipient_code = parsed
+        .recipient_code
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            "payload field `recipient_code` (or alias `recipient`) is required".to_owned()
+        })?;
+    if recipient_code.is_empty() {
+        return Err("payload field `recipient_code` must not be empty".to_owned());
+    }
+    if parsed.amount <= 0 {
+        return Err("payload field `amount` must be a positive integer".to_owned());
+    }
+    ensure_non_empty_optional("currency", parsed.currency.as_deref())?;
+    ensure_non_empty_optional("reference", parsed.reference.as_deref())?;
+    ensure_non_empty_optional("reason", parsed.reason.as_deref())?;
+    ensure_non_empty_optional("source", parsed.source.as_deref())?;
+    ensure_non_empty_optional(
+        "connector_binding_id",
+        parsed.connector_binding_id.as_deref(),
+    )?;
+    ensure_non_empty_optional("connector_reference", parsed.connector_reference.as_deref())?;
+    Ok(())
+}
+
+fn validate_paystack_transfer_verify_payload(payload: &Value) -> Result<(), String> {
+    let parsed: PaystackTransferVerifyPayloadSchema =
+        serde_json::from_value(payload.clone()).map_err(|err| err.to_string())?;
+    if parsed.reference.trim().is_empty() {
+        return Err("payload field `reference` is required".to_owned());
+    }
+    ensure_non_empty_optional(
+        "connector_binding_id",
+        parsed.connector_binding_id.as_deref(),
+    )?;
+    ensure_non_empty_optional("connector_reference", parsed.connector_reference.as_deref())?;
+    Ok(())
+}
+
 fn intent_kind_requires_signed_tx_policy(intent_kind: &str) -> bool {
     matches!(intent_kind, "solana.transfer.v1" | "solana.broadcast.v1")
 }
@@ -4538,10 +4928,9 @@ impl AgentExecutionMode {
             "mode_b_scoped_runtime" | "mode-b-scoped-runtime" | "mode_b" | "mode-b" => {
                 Ok(Self::ModeBScopedRuntime)
             }
-            "mode_c_protected_execution"
-            | "mode-c-protected-execution"
-            | "mode_c"
-            | "mode-c" => Ok(Self::ModeCProtectedExecution),
+            "mode_c_protected_execution" | "mode-c-protected-execution" | "mode_c" | "mode-c" => {
+                Ok(Self::ModeCProtectedExecution)
+            }
             other => Err(ApiError::bad_request(format!(
                 "unsupported execution_mode `{other}`"
             ))),
@@ -4659,6 +5048,10 @@ struct AgentRefundPayloadSchema {
     destination_reference: Option<String>,
     #[serde(default)]
     reason_code: Option<String>,
+    #[serde(default)]
+    connector_binding_id: Option<String>,
+    #[serde(default)]
+    connector_reference: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -4767,6 +5160,20 @@ fn validate_agent_refund_payload(payload: &Value) -> Result<(), ApiError> {
         if value.trim().is_empty() {
             return Err(ApiError::bad_request(
                 "refund payload field `reason_code` must not be empty",
+            ));
+        }
+    }
+    if let Some(value) = parsed.connector_binding_id.as_deref() {
+        if value.trim().is_empty() {
+            return Err(ApiError::bad_request(
+                "refund payload field `connector_binding_id` must not be empty",
+            ));
+        }
+    }
+    if let Some(value) = parsed.connector_reference.as_deref() {
+        if value.trim().is_empty() {
+            return Err(ApiError::bad_request(
+                "refund payload field `connector_reference` must not be empty",
             ));
         }
     }
@@ -4977,10 +5384,23 @@ fn normalize_agent_action_request(
             "runtime.generate_invoice.v1".to_owned(),
             action_payload,
         ),
-        (AgentIntentType::Refund, AgentExecutionMode::ModeCProtectedExecution, adapter_type) => {
-            return Err(ApiError::bad_request(format!(
-                "intent_type `refund` requires protected execution, but no normalized intent mapping exists yet for adapter_type `{adapter_type}`"
-            )))
+        (
+            AgentIntentType::Refund,
+            AgentExecutionMode::ModeCProtectedExecution,
+            "adapter_paystack" | "paystack" | "paystack_adapter",
+        ) => {
+            let mut object = match action_payload {
+                Value::Object(map) => map,
+                _ => {
+                    return Err(ApiError::bad_request(
+                        "refund payload must be a JSON object",
+                    ))
+                }
+            };
+            object
+                .entry("type".to_owned())
+                .or_insert_with(|| Value::String("refund".to_owned()));
+            ("paystack.refund.create.v1".to_owned(), Value::Object(object))
         }
         (intent_type, execution_mode, adapter_type) => {
             return Err(ApiError::bad_request(format!(
@@ -5081,7 +5501,8 @@ fn default_scope_for_agent_intent(
 fn default_adapter_for_agent_intent(intent_type: AgentIntentType) -> &'static str {
     match intent_type {
         AgentIntentType::Transfer => "adapter_solana",
-        AgentIntentType::Refund | AgentIntentType::GenerateInvoice => "billing_adapter",
+        AgentIntentType::Refund => "adapter_paystack",
+        AgentIntentType::GenerateInvoice => "billing_adapter",
     }
 }
 
@@ -5659,6 +6080,20 @@ struct SubmitIntentResponse {
     route_rule: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct PaystackWebhookAckResponse {
+    ok: bool,
+    tenant_id: String,
+    event_type: String,
+    event_key: String,
+    duplicate: bool,
+    provider_reference: Option<String>,
+    remote_id: Option<String>,
+    intent_id: Option<String>,
+    job_id: Option<String>,
+    receipt_id: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 struct SubmitAgentActionResponse {
     ok: bool,
@@ -6115,6 +6550,11 @@ async fn main() -> anyhow::Result<()> {
         .ensure_schema()
         .await
         .context("failed to ensure ingress intake audit schema")?;
+    let exception_store = Arc::new(PostgresExceptionStore::new(pool.clone()));
+    exception_store
+        .ensure_schema()
+        .await
+        .context("failed to ensure exception intelligence schema")?;
     let api_key_store = Arc::new(IngressTenantApiKeyStore::new(pool.clone()));
     api_key_store
         .ensure_schema()
@@ -6125,6 +6565,11 @@ async fn main() -> anyhow::Result<()> {
         .ensure_schema()
         .await
         .context("failed to ensure ingress tenant webhook key schema")?;
+    let paystack_webhook_store = Arc::new(IngressPaystackWebhookStore::new(pool.clone()));
+    paystack_webhook_store
+        .ensure_schema()
+        .await
+        .context("failed to ensure paystack webhook schema")?;
     let environment_store = Arc::new(IngressEnvironmentStore::new(pool.clone()));
     environment_store
         .ensure_schema()
@@ -6261,6 +6706,7 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         core,
         audit_store,
+        exception_store,
         environment_store,
         agent_store,
         agent_action_idempotency_store,
@@ -6274,6 +6720,7 @@ async fn main() -> anyhow::Result<()> {
         policy_bundle_store,
         api_key_store,
         webhook_key_store,
+        paystack_webhook_store,
         quota_store,
         auth: Arc::new(IngressAuthConfig::from_env()?),
         schemas,
@@ -6398,6 +6845,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/webhooks/slack/approvals/:tenant_id",
             post(handle_slack_approval_callback),
+        )
+        .route(
+            "/webhooks/paystack/:tenant_id",
+            post(submit_paystack_webhook),
         )
         .route("/webhooks/:source", post(submit_webhook))
         .with_state(state)
@@ -9346,7 +9797,35 @@ fn build_agent_execution_metadata(
     if let Some(scope) = ctx.metering_scope {
         metadata.insert("metering.scope".to_owned(), scope.to_owned());
     }
-    metadata.insert("connector.outcome".to_owned(), "not_used".to_owned());
+    let connector_binding_id = ctx
+        .normalized_payload
+        .get("connector_binding_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    let connector_reference = ctx
+        .normalized_payload
+        .get("connector_reference")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    if let Some(binding_id) = connector_binding_id.as_ref() {
+        metadata.insert("connector.binding_id".to_owned(), binding_id.clone());
+        if ctx.adapter_type.eq_ignore_ascii_case("adapter_paystack")
+            || ctx.adapter_type.eq_ignore_ascii_case("paystack")
+            || ctx.adapter_type.eq_ignore_ascii_case("paystack_adapter")
+        {
+            metadata.insert("connector.type".to_owned(), "paystack".to_owned());
+        }
+        metadata.insert("connector.outcome".to_owned(), "queued".to_owned());
+    } else {
+        metadata.insert("connector.outcome".to_owned(), "not_used".to_owned());
+    }
+    if let Some(reference) = connector_reference {
+        metadata.insert("connector.reference".to_owned(), reference);
+    }
     if let Some(callback_config) = ctx.callback_config {
         if let Some(url) = callback_config.url.as_ref() {
             metadata.insert("callback.url".to_owned(), url.clone());
@@ -9738,6 +10217,7 @@ async fn submit_agent_action_request(
         Ok(value) => value,
         Err(error) => {
             let message = error.to_string();
+            let details = json!({ "stage": "idempotency_prepolicy" });
             let api_error = if message.contains("different normalized request") {
                 ApiError::conflict(format!(
                     "idempotency conflict for key `{}`: {message}",
@@ -9748,12 +10228,37 @@ async fn submit_agent_action_request(
                     "agent action idempotency store unavailable: {message}"
                 ))
             };
+            if api_error.status == StatusCode::CONFLICT {
+                let mut exception_audit = audit.clone();
+                exception_audit.mark_rejected(
+                    "agent_action_idempotency_failed",
+                    &api_error,
+                    details.clone(),
+                );
+                persist_agent_exception_async(
+                    &state,
+                    normalized_action.tenant_id.clone(),
+                    ingress_repeated_pattern_subject_id(&normalized_action),
+                    ingress_action_exception_intent_id(&normalized_action.action_request_id),
+                    ingress_action_exception_job_id(&normalized_action.action_request_id),
+                    normalized_action.adapter_type.clone(),
+                    "repeated_request_pattern",
+                    vec![build_repeated_request_pattern_exception_draft(
+                        &normalized_action,
+                        &request_id,
+                        correlation_id.as_deref(),
+                        &exception_audit,
+                        "idempotency_conflict_different_payload",
+                        "agent runtime retried the same idempotency binding with a different normalized request",
+                    )],
+                );
+            }
             return reject_with_audit(
                 &state,
                 &mut audit,
                 api_error,
                 "agent_action_idempotency_failed",
-                json!({ "stage": "idempotency_prepolicy" }),
+                details,
             )
             .await;
         }
@@ -9856,15 +10361,40 @@ async fn submit_agent_action_request(
             )));
         }
         AgentActionIdempotencyDecision::ExistingPending => {
+            let api_error = ApiError::conflict(format!(
+                "agent action idempotency key `{}` is already reserved and still pending",
+                normalized_action.idempotency_key
+            ));
+            let details = json!({ "stage": "idempotency_prepolicy" });
+            let mut exception_audit = audit.clone();
+            exception_audit.mark_rejected(
+                "agent_action_idempotency_pending",
+                &api_error,
+                details.clone(),
+            );
+            persist_agent_exception_async(
+                &state,
+                normalized_action.tenant_id.clone(),
+                ingress_repeated_pattern_subject_id(&normalized_action),
+                ingress_action_exception_intent_id(&normalized_action.action_request_id),
+                ingress_action_exception_job_id(&normalized_action.action_request_id),
+                normalized_action.adapter_type.clone(),
+                "repeated_request_pattern",
+                vec![build_repeated_request_pattern_exception_draft(
+                    &normalized_action,
+                    &request_id,
+                    correlation_id.as_deref(),
+                    &exception_audit,
+                    "idempotency_repeated_while_pending",
+                    "agent runtime repeated an action request while the original request was still pending",
+                )],
+            );
             return reject_with_audit(
                 &state,
                 &mut audit,
-                ApiError::conflict(format!(
-                    "agent action idempotency key `{}` is already reserved and still pending",
-                    normalized_action.idempotency_key
-                )),
+                api_error,
                 "agent_action_idempotency_pending",
-                json!({ "stage": "idempotency_prepolicy" }),
+                details,
             )
             .await;
         }
@@ -10021,6 +10551,22 @@ async fn submit_agent_action_request(
             "policy_bundle_id": policy_decision.published_bundle_id,
             "policy_bundle_version": policy_decision.published_bundle_version,
         });
+        persist_agent_exception_async(
+            &state,
+            normalized_action.tenant_id.clone(),
+            ingress_action_exception_subject_id(&normalized_action.action_request_id),
+            ingress_action_exception_intent_id(&normalized_action.action_request_id),
+            ingress_action_exception_job_id(&normalized_action.action_request_id),
+            normalized_action.adapter_type.clone(),
+            "out_of_policy_attempt",
+            vec![build_out_of_policy_exception_draft(
+                &normalized_action,
+                &request_id,
+                correlation_id.as_deref(),
+                &audit,
+                &policy_decision,
+            )],
+        );
         persist_intake_audit_async(&state, audit.clone());
         return Ok(Json(build_agent_action_response(
             &normalized_action,
@@ -11250,6 +11796,132 @@ async fn submit_webhook(
     }
 }
 
+async fn submit_paystack_webhook(
+    State(state): State<AppState>,
+    Path(tenant_id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Json<PaystackWebhookAckResponse>, ApiError> {
+    let request_id = header_opt(&headers, "x-request-id")
+        .map(RequestId::from)
+        .unwrap_or_else(RequestId::new);
+    let mut audit = IngressIntakeAuditRecord::new(
+        request_id.to_string(),
+        IngressChannel::Webhook,
+        "/webhooks/paystack/:tenant_id",
+        "POST",
+        state.clock.now_ms(),
+    );
+    audit.set_tenant(&tenant_id);
+    audit.principal_id = Some("paystack_provider".to_owned());
+    audit.submitter_kind = Some("signed_webhook_sender".to_owned());
+    audit.auth_scheme = Some("paystack_signature".to_owned());
+
+    if let Err(err) = verify_paystack_webhook_signature(&state, &tenant_id, &headers, &body) {
+        return reject_with_audit(
+            &state,
+            &mut audit,
+            err,
+            "paystack_webhook_signature_invalid",
+            json!({ "stage": "signature_verification" }),
+        )
+        .await;
+    }
+
+    let payload: Value = match serde_json::from_slice(&body) {
+        Ok(value) => value,
+        Err(err) => {
+            return reject_with_audit(
+                &state,
+                &mut audit,
+                ApiError::bad_request(format!("invalid paystack webhook json payload: {err}")),
+                "invalid_paystack_webhook_json",
+                json!({ "stage": "parse_payload" }),
+            )
+            .await
+        }
+    };
+
+    let event_type = payload
+        .get("event")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ApiError::bad_request("paystack webhook payload missing `event`"))?;
+    let (provider_reference, remote_id) = extract_paystack_webhook_references(&payload);
+    let correlation = state
+        .paystack_webhook_store
+        .correlate_execution(
+            &tenant_id,
+            provider_reference.as_deref(),
+            remote_id.as_deref(),
+        )
+        .await
+        .map_err(|err| {
+            ApiError::service_unavailable(format!(
+                "failed to correlate paystack webhook execution evidence: {err}"
+            ))
+        })?;
+    let accepted = state
+        .paystack_webhook_store
+        .record_event(
+            &tenant_id,
+            event_type,
+            provider_reference.as_deref(),
+            remote_id.as_deref(),
+            &correlation,
+            &payload,
+            state.clock.now_ms(),
+        )
+        .await
+        .map_err(|err| {
+            ApiError::service_unavailable(format!(
+                "failed to persist paystack webhook event: {err}"
+            ))
+        })?;
+
+    let event_key = paystack_event_key(
+        event_type,
+        remote_id.as_deref(),
+        provider_reference.as_deref(),
+        &payload,
+    );
+    audit.intent_kind = Some(format!("webhook.paystack.{}", sanitize_source(event_type)));
+    audit.validation_result = "accepted".to_owned();
+    audit.rejection_reason = None;
+    audit.error_status = None;
+    audit.error_message = None;
+    audit.idempotency_decision = Some(if accepted {
+        "accepted_provider_webhook".to_owned()
+    } else {
+        "duplicate_short_circuit".to_owned()
+    });
+    audit.details_json = json!({
+        "event_type": event_type,
+        "event_key": event_key,
+        "duplicate": !accepted,
+        "provider_reference": provider_reference,
+        "remote_id": remote_id,
+        "correlated_intent_id": correlation.intent_id,
+        "correlated_job_id": correlation.job_id,
+        "correlated_receipt_id": correlation.receipt_id,
+    });
+    persist_intake_audit_async(&state, audit);
+
+    Ok(Json(PaystackWebhookAckResponse {
+        ok: true,
+        tenant_id,
+        event_type: event_type.to_owned(),
+        event_key,
+        duplicate: !accepted,
+        provider_reference,
+        remote_id,
+        intent_id: correlation.intent_id,
+        job_id: correlation.job_id,
+        receipt_id: correlation.receipt_id,
+    }))
+}
+
 async fn submit_normalized_intent(
     state: &AppState,
     tenant_id: String,
@@ -11356,6 +12028,62 @@ fn compute_webhook_signature(secret: &str, body: &[u8]) -> Result<String, ApiErr
         .map_err(|err| ApiError::internal(format!("invalid webhook signing secret: {err}")))?;
     mac.update(body);
     Ok(hex::encode(mac.finalize().into_bytes()))
+}
+
+fn compute_paystack_webhook_signature(secret: &str, body: &[u8]) -> Result<String, ApiError> {
+    let mut mac = HmacSha512::new_from_slice(secret.as_bytes())
+        .map_err(|err| ApiError::internal(format!("invalid paystack webhook secret: {err}")))?;
+    mac.update(body);
+    Ok(hex::encode(mac.finalize().into_bytes()))
+}
+
+fn paystack_event_key(
+    event_type: &str,
+    remote_id: Option<&str>,
+    provider_reference: Option<&str>,
+    payload: &Value,
+) -> String {
+    let remote_id = remote_id.unwrap_or("_");
+    let provider_reference = provider_reference.unwrap_or("_");
+    if remote_id != "_" || provider_reference != "_" {
+        return format!(
+            "paystack:{}:{}:{}",
+            sanitize_source(event_type),
+            sanitize_source(remote_id),
+            sanitize_source(provider_reference)
+        );
+    }
+
+    let canonical = serde_json::to_vec(&canonicalize_json_value(payload)).unwrap_or_default();
+    let mut hasher = Sha256::new();
+    hasher.update(canonical);
+    format!(
+        "paystack:{}:{}",
+        sanitize_source(event_type),
+        &hex::encode(hasher.finalize())[..32]
+    )
+}
+
+fn extract_paystack_webhook_references(payload: &Value) -> (Option<String>, Option<String>) {
+    let data = payload.get("data").unwrap_or(payload);
+    let provider_reference = ["reference", "transaction_reference", "transfer_code"]
+        .iter()
+        .find_map(|key| {
+            data.get(*key)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned)
+        });
+    let remote_id = data.get("id").and_then(|value| match value {
+        Value::String(value) => Some(value.trim().to_owned()),
+        Value::Number(value) => Some(value.to_string()),
+        _ => None,
+    });
+    (
+        provider_reference,
+        remote_id.filter(|value| !value.is_empty()),
+    )
 }
 
 fn compute_slack_signature(
@@ -11597,6 +12325,34 @@ async fn verify_webhook_signature_for_tenant(
     Err(ApiError::unauthorized("invalid webhook signature"))
 }
 
+fn verify_paystack_webhook_signature(
+    state: &AppState,
+    tenant_id: &str,
+    headers: &HeaderMap,
+    body: &[u8],
+) -> Result<(), ApiError> {
+    let signature_hex = headers
+        .get("x-paystack-signature")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ApiError::unauthorized("missing x-paystack-signature"))?;
+
+    let secret = state
+        .auth
+        .paystack_webhook_secrets
+        .get(tenant_id)
+        .ok_or_else(|| {
+            ApiError::unauthorized("no paystack webhook signing secret configured for tenant")
+        })?;
+    let expected = compute_paystack_webhook_signature(secret, body)?;
+    if constant_time_eq(signature_hex.as_bytes(), expected.as_bytes()) {
+        return Ok(());
+    }
+
+    Err(ApiError::unauthorized("invalid paystack webhook signature"))
+}
+
 fn normalize_webhook_source(raw: Option<&str>) -> Option<String> {
     let value = raw.unwrap_or("default").trim().to_ascii_lowercase();
     if value.is_empty() || value.len() > 64 {
@@ -11641,6 +12397,220 @@ fn persist_intake_audit_async(state: &AppState, record: IngressIntakeAuditRecord
     tokio::spawn(async move {
         if let Err(err) = audit_store.record(&record).await {
             warn!(error = %err, "failed to persist ingress intake audit row");
+        }
+    });
+}
+
+fn ingress_action_exception_subject_id(action_request_id: &str) -> String {
+    format!("agent_action:{action_request_id}")
+}
+
+fn ingress_action_exception_intent_id(action_request_id: &str) -> String {
+    format!("agent_action:{action_request_id}")
+}
+
+fn ingress_action_exception_job_id(action_request_id: &str) -> String {
+    format!("agent_action:{action_request_id}:ingress")
+}
+
+fn ingress_idempotency_binding_source_id(action: &NormalizedAgentActionRequest) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(action.tenant_id.as_bytes());
+    hasher.update(b":");
+    hasher.update(action.agent_id.as_bytes());
+    hasher.update(b":");
+    hasher.update(action.environment_id.as_bytes());
+    hasher.update(b":");
+    hasher.update(action.idempotency_key.as_bytes());
+    let digest = hex::encode(hasher.finalize());
+    format!("idem_{}", &digest[..24])
+}
+
+fn ingress_repeated_pattern_subject_id(action: &NormalizedAgentActionRequest) -> String {
+    format!(
+        "agent_request_pattern:{}",
+        ingress_idempotency_binding_source_id(action)
+    )
+}
+
+fn build_agent_action_signal_payload(
+    action: &NormalizedAgentActionRequest,
+    request_id: &RequestId,
+    correlation_id: Option<&str>,
+    audit: &IngressIntakeAuditRecord,
+) -> Value {
+    canonicalize_json_value(&json!({
+        "request_id": request_id.to_string(),
+        "action_request_id": action.action_request_id.clone(),
+        "tenant_id": action.tenant_id.clone(),
+        "agent_id": action.agent_id.clone(),
+        "environment_id": action.environment_id.clone(),
+        "intent_type": action.intent_type.as_str(),
+        "execution_mode": action.execution_mode.as_str(),
+        "execution_owner": action.execution_mode.owner_label(),
+        "adapter_type": action.adapter_type.clone(),
+        "idempotency_binding_id": ingress_idempotency_binding_source_id(action),
+        "requested_scope": action.requested_scope.clone(),
+        "reason": action.reason.clone(),
+        "submitted_by": action.submitted_by.clone(),
+        "correlation_id": correlation_id,
+        "resource_binding": derive_action_resource_binding(action.intent_type, &action.normalized_payload),
+        "amount": derive_action_amount(action.intent_type, &action.normalized_payload),
+        "audit_id": audit.audit_id.to_string(),
+        "audit_validation_result": audit.validation_result.clone(),
+        "audit_rejection_reason": audit.rejection_reason.clone(),
+        "audit_error_status": audit.error_status,
+    }))
+}
+
+fn build_repeated_request_pattern_exception_draft(
+    action: &NormalizedAgentActionRequest,
+    request_id: &RequestId,
+    correlation_id: Option<&str>,
+    audit: &IngressIntakeAuditRecord,
+    machine_reason: &str,
+    summary: &str,
+) -> ExceptionDraft {
+    let request_payload =
+        build_agent_action_signal_payload(action, request_id, correlation_id, audit);
+    let idempotency_binding_id = ingress_idempotency_binding_source_id(action);
+    ExceptionDraft {
+        category: ExceptionCategory::RepeatedRequestPattern,
+        severity: ExceptionSeverity::High,
+        state: ExceptionState::Open,
+        summary: summary.trim().to_owned(),
+        machine_reason: machine_reason.trim().to_owned(),
+        evidence: vec![
+            ExceptionEvidenceDraft {
+                evidence_type: "agent_action_request".to_owned(),
+                source_table: Some("ingress_api_agent_action_idempotency".to_owned()),
+                source_id: Some(idempotency_binding_id.clone()),
+                observed_at_ms: Some(audit.created_at_ms),
+                payload: request_payload,
+            },
+            ExceptionEvidenceDraft {
+                evidence_type: "ingress_intake_audit".to_owned(),
+                source_table: Some("ingress_api_intake_audits".to_owned()),
+                source_id: Some(audit.audit_id.to_string()),
+                observed_at_ms: Some(audit.created_at_ms),
+                payload: canonicalize_json_value(&json!({
+                    "audit_id": audit.audit_id.to_string(),
+                    "request_id": audit.request_id.clone(),
+                    "tenant_id": audit.tenant_id.clone(),
+                    "validation_result": audit.validation_result.clone(),
+                    "rejection_reason": audit.rejection_reason.clone(),
+                    "error_status": audit.error_status,
+                    "error_message": audit.error_message.clone(),
+                    "idempotency_decision": audit.idempotency_decision.clone(),
+                    "details": audit.details_json.clone(),
+                })),
+            },
+        ],
+    }
+}
+
+fn build_out_of_policy_exception_draft(
+    action: &NormalizedAgentActionRequest,
+    request_id: &RequestId,
+    correlation_id: Option<&str>,
+    audit: &IngressIntakeAuditRecord,
+    policy_decision: &PolicyDecisionExplanation,
+) -> ExceptionDraft {
+    let request_payload =
+        build_agent_action_signal_payload(action, request_id, correlation_id, audit);
+    let policy_bundle_source_id = policy_decision.published_bundle_id.clone().or_else(|| {
+        policy_decision
+            .published_bundle_version
+            .map(|version| format!("policy_bundle_version:{version}"))
+    });
+    ExceptionDraft {
+        category: ExceptionCategory::PolicyViolation,
+        severity: ExceptionSeverity::Critical,
+        state: ExceptionState::Open,
+        summary: format!(
+            "agent action `{}` was blocked by tenant policy before execution",
+            action.action_request_id
+        ),
+        machine_reason: "out_of_policy_attempt".to_owned(),
+        evidence: vec![
+            ExceptionEvidenceDraft {
+                evidence_type: "agent_action_request".to_owned(),
+                source_table: Some("ingress_api_intake_audits".to_owned()),
+                source_id: Some(audit.audit_id.to_string()),
+                observed_at_ms: Some(audit.created_at_ms),
+                payload: request_payload,
+            },
+            ExceptionEvidenceDraft {
+                evidence_type: "policy_decision".to_owned(),
+                source_table: Some("ingress_api_tenant_policy_bundles".to_owned()),
+                source_id: policy_bundle_source_id,
+                observed_at_ms: Some(audit.created_at_ms),
+                payload: canonicalize_json_value(&json!({
+                    "final_effect": policy_decision.final_effect.clone(),
+                    "explanation": policy_decision.explanation.clone(),
+                    "effective_scope": policy_decision.effective_scope.clone(),
+                    "obligations": policy_decision.obligations.clone(),
+                    "matched_rules": policy_decision.matched_rules.clone(),
+                    "decision_trace": policy_decision.decision_trace.clone(),
+                    "policy_bundle_id": policy_decision.published_bundle_id.clone(),
+                    "policy_bundle_version": policy_decision.published_bundle_version,
+                })),
+            },
+            ExceptionEvidenceDraft {
+                evidence_type: "ingress_intake_audit".to_owned(),
+                source_table: Some("ingress_api_intake_audits".to_owned()),
+                source_id: Some(audit.audit_id.to_string()),
+                observed_at_ms: Some(audit.created_at_ms),
+                payload: canonicalize_json_value(&json!({
+                    "audit_id": audit.audit_id.to_string(),
+                    "request_id": audit.request_id.clone(),
+                    "tenant_id": audit.tenant_id.clone(),
+                    "validation_result": audit.validation_result.clone(),
+                    "rejection_reason": audit.rejection_reason.clone(),
+                    "details": audit.details_json.clone(),
+                })),
+            },
+        ],
+    }
+}
+
+fn persist_agent_exception_async(
+    state: &AppState,
+    tenant_id: String,
+    subject_id: String,
+    intent_id: String,
+    job_id: String,
+    adapter_id: String,
+    source_reason: &'static str,
+    drafts: Vec<ExceptionDraft>,
+) {
+    if drafts.is_empty() {
+        return;
+    }
+    let exception_store = state.exception_store.clone();
+    let now_ms = state.clock.now_ms();
+    tokio::spawn(async move {
+        if let Err(err) = exception_store
+            .sync_external_cases(
+                &tenant_id,
+                &subject_id,
+                &intent_id,
+                &job_id,
+                &adapter_id,
+                "ingress_api",
+                source_reason,
+                &drafts,
+                now_ms,
+            )
+            .await
+        {
+            warn!(
+                error = %err,
+                tenant_id = tenant_id,
+                subject_id = subject_id,
+                adapter_id = adapter_id,
+                "failed to persist ingress exception signal"
+            );
         }
     });
 }
@@ -11958,20 +12928,23 @@ fn env_bool(key: &str, default: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        compile_agent_gateway_request, compute_slack_signature, ensure_scope_not_broader,
-        evaluate_policy_layers, normalize_agent_action_request, normalize_connector_config,
-        normalize_connector_secret_values, normalize_environment_kind,
+        build_out_of_policy_exception_draft, build_repeated_request_pattern_exception_draft,
+        compile_agent_gateway_request, compute_paystack_webhook_signature, compute_slack_signature,
+        ensure_scope_not_broader, evaluate_policy_layers, normalize_agent_action_request,
+        normalize_connector_config, normalize_connector_secret_values, normalize_environment_kind,
         normalize_grant_spec_from_approval, normalize_policy_bundle_document,
         normalize_registry_status, parse_intent_schema_map, parse_principal_tenant_map,
-        parse_slack_approval_payload, parse_submitter_set, validate_solana_intent_payload,
-        AgentActionCallbackConfig, AgentGatewayRequest, AgentGatewayStructuredActionInput,
-        AgentIntentType, ApprovalDecisionKind, ApprovalGrantRequest, ApprovalRequestRecord,
-        ApprovalState, CapabilityGrantRecord, CapabilityGrantStatus, GrantWorkflowConfig,
+        parse_slack_approval_payload, parse_submitter_set, paystack_event_key,
+        validate_solana_intent_payload, AgentActionCallbackConfig, AgentGatewayRequest,
+        AgentGatewayStructuredActionInput, AgentIntentType, ApiError, ApprovalDecisionKind,
+        ApprovalGrantRequest, ApprovalRequestRecord, ApprovalState, CapabilityGrantRecord,
+        CapabilityGrantStatus, GrantWorkflowConfig, IngressIntakeAuditRecord,
         IngressSchemaRegistry, PolicyDecisionExplanation, PolicyEffect, PolicyEvaluationContext,
         PolicyRuleConditions, PolicyRuleDefinition, PolicyRuleObligations, RequestId,
         ResolvedAgentIdentity, RouteMapping, SubmitAgentActionRequest, SubmitterIdentity,
         SubmitterKind, TenantPolicyBundleRecord,
     };
+    use exception_intelligence::ExceptionCategory;
     use serde_json::json;
     use std::collections::HashSet;
 
@@ -12016,6 +12989,29 @@ mod tests {
             err.contains("to_addr"),
             "expected to_addr error message, got: {err}"
         );
+    }
+
+    #[test]
+    fn compute_paystack_webhook_signature_is_stable() {
+        let signature = compute_paystack_webhook_signature(
+            "sk_test_demo",
+            br#"{"event":"charge.success","data":{"id":42,"reference":"ref_123"}}"#,
+        )
+        .expect("expected paystack signature to compute");
+        assert_eq!(signature.len(), 128);
+    }
+
+    #[test]
+    fn paystack_event_key_prefers_reference_and_remote_id() {
+        let key = paystack_event_key(
+            "charge.success",
+            Some("42"),
+            Some("ref_123"),
+            &json!({"event":"charge.success"}),
+        );
+        assert!(key.contains("charge_success"));
+        assert!(key.contains("42"));
+        assert!(key.contains("ref_123"));
     }
 
     #[test]
@@ -12293,6 +13289,52 @@ mod tests {
         assert_eq!(
             normalized.normalized_intent_kind,
             "runtime.generate_invoice.v1"
+        );
+    }
+
+    #[test]
+    fn normalize_agent_action_request_accepts_paystack_refund_contract() {
+        let normalized = normalize_agent_action_request(
+            SubmitAgentActionRequest {
+                action_request_id: "act_refund".to_owned(),
+                tenant_id: "tenant_a".to_owned(),
+                agent_id: "agent_1".to_owned(),
+                environment_id: "prod".to_owned(),
+                intent_type: "refund".to_owned(),
+                execution_mode: Some("mode_c_protected_execution".to_owned()),
+                adapter_type: "adapter_paystack".to_owned(),
+                payload: json!({
+                    "payment_reference": "txn_123",
+                    "amount": 2500,
+                    "currency": "NGN",
+                    "reason_code": "customer_request"
+                }),
+                idempotency_key: "idem_refund".to_owned(),
+                requested_scope: vec!["refunds".to_owned()],
+                reason: "customer refund".to_owned(),
+                callback_config: None,
+                submitted_by: "planner".to_owned(),
+            },
+            "tenant_a",
+            &ResolvedAgentIdentity {
+                agent_id: "agent_1".to_owned(),
+                environment_id: "prod".to_owned(),
+                environment_kind: "production".to_owned(),
+                runtime_type: "openai".to_owned(),
+                runtime_identity: "rt_1".to_owned(),
+                status: "active".to_owned(),
+                trust_tier: "high".to_owned(),
+                risk_tier: "medium".to_owned(),
+                owner_team: "ops".to_owned(),
+            },
+        )
+        .expect("expected paystack refund normalization to succeed");
+
+        assert_eq!(normalized.intent_type, AgentIntentType::Refund);
+        assert_eq!(normalized.adapter_type, "adapter_paystack");
+        assert_eq!(
+            normalized.normalized_intent_kind,
+            "paystack.refund.create.v1"
         );
     }
 
@@ -12747,6 +13789,183 @@ mod tests {
     }
 
     #[test]
+    fn repeated_request_exception_draft_uses_safe_idempotency_evidence() {
+        let resolved_agent = ResolvedAgentIdentity {
+            agent_id: "agent_1".to_owned(),
+            environment_id: "prod".to_owned(),
+            environment_kind: "production".to_owned(),
+            runtime_type: "openai".to_owned(),
+            runtime_identity: "rt_1".to_owned(),
+            status: "active".to_owned(),
+            trust_tier: "high".to_owned(),
+            risk_tier: "medium".to_owned(),
+            owner_team: "ops".to_owned(),
+        };
+        let action = normalize_agent_action_request(
+            SubmitAgentActionRequest {
+                action_request_id: "act_repeat_1".to_owned(),
+                tenant_id: "tenant_a".to_owned(),
+                agent_id: "agent_1".to_owned(),
+                environment_id: "prod".to_owned(),
+                intent_type: "transfer".to_owned(),
+                execution_mode: Some("mode_c_protected_execution".to_owned()),
+                adapter_type: "adapter_solana".to_owned(),
+                payload: json!({
+                    "to_addr": "11111111111111111111111111111111",
+                    "amount": 25,
+                    "asset": "SOL"
+                }),
+                idempotency_key: "idem_repeat_1".to_owned(),
+                requested_scope: vec!["payments".to_owned()],
+                reason: "customer payout".to_owned(),
+                callback_config: None,
+                submitted_by: "planner".to_owned(),
+            },
+            "tenant_a",
+            &resolved_agent,
+        )
+        .expect("expected normalized action");
+        let request_id = RequestId::from("req_repeat_1".to_owned());
+        let mut audit = IngressIntakeAuditRecord::new(
+            request_id.to_string(),
+            super::IngressChannel::Api,
+            "/api/agent/action-requests",
+            "POST",
+            1_000,
+        );
+        audit.set_tenant("tenant_a");
+        audit.idempotency_key = Some(action.idempotency_key.clone());
+        audit.mark_rejected(
+            "agent_action_idempotency_pending",
+            &ApiError::conflict("duplicate pending request"),
+            json!({ "stage": "idempotency_prepolicy" }),
+        );
+
+        let draft = build_repeated_request_pattern_exception_draft(
+            &action,
+            &request_id,
+            Some("corr_repeat_1"),
+            &audit,
+            "idempotency_repeated_while_pending",
+            "agent runtime repeated an action request while the original request was still pending",
+        );
+
+        assert_eq!(draft.category, ExceptionCategory::RepeatedRequestPattern);
+        assert_eq!(draft.machine_reason, "idempotency_repeated_while_pending");
+        assert_eq!(draft.evidence.len(), 2);
+        assert_eq!(
+            draft.evidence[0].source_table.as_deref(),
+            Some("ingress_api_agent_action_idempotency")
+        );
+        assert!(draft.evidence[0].payload.get("resource_binding").is_some());
+        assert!(draft.evidence[0].payload.get("amount").is_some());
+        assert!(draft.evidence[0]
+            .payload
+            .get("normalized_payload")
+            .is_none());
+    }
+
+    #[test]
+    fn out_of_policy_exception_draft_captures_policy_trace() {
+        let resolved_agent = ResolvedAgentIdentity {
+            agent_id: "agent_1".to_owned(),
+            environment_id: "prod".to_owned(),
+            environment_kind: "production".to_owned(),
+            runtime_type: "openai".to_owned(),
+            runtime_identity: "rt_1".to_owned(),
+            status: "active".to_owned(),
+            trust_tier: "high".to_owned(),
+            risk_tier: "high".to_owned(),
+            owner_team: "finance".to_owned(),
+        };
+        let action = normalize_agent_action_request(
+            SubmitAgentActionRequest {
+                action_request_id: "act_policy_1".to_owned(),
+                tenant_id: "tenant_a".to_owned(),
+                agent_id: "agent_1".to_owned(),
+                environment_id: "prod".to_owned(),
+                intent_type: "transfer".to_owned(),
+                execution_mode: Some("mode_c_protected_execution".to_owned()),
+                adapter_type: "adapter_solana".to_owned(),
+                payload: json!({
+                    "to_addr": "11111111111111111111111111111111",
+                    "amount": 2500,
+                    "asset": "SOL"
+                }),
+                idempotency_key: "idem_policy_1".to_owned(),
+                requested_scope: vec!["payments".to_owned()],
+                reason: "vendor payout".to_owned(),
+                callback_config: None,
+                submitted_by: "planner".to_owned(),
+            },
+            "tenant_a",
+            &resolved_agent,
+        )
+        .expect("expected normalized action");
+        let request_id = RequestId::from("req_policy_1".to_owned());
+        let mut audit = IngressIntakeAuditRecord::new(
+            request_id.to_string(),
+            super::IngressChannel::Api,
+            "/api/agent/action-requests",
+            "POST",
+            2_000,
+        );
+        audit.set_tenant("tenant_a");
+        audit.validation_result = "policy_denied".to_owned();
+        audit.rejection_reason = Some("deny".to_owned());
+        audit.details_json = json!({
+            "stage": "tenant_policy",
+            "policy_decision": "deny",
+        });
+        let policy_decision = PolicyDecisionExplanation {
+            final_effect: "deny".to_owned(),
+            effective_scope: vec!["payments".to_owned()],
+            obligations: PolicyRuleObligations::default(),
+            matched_rules: vec![super::PolicyRuleMatch {
+                layer: "tenant_bundle".to_owned(),
+                source_id: "bundle_finance".to_owned(),
+                rule_id: "rule_transfer_prod".to_owned(),
+                effect: "deny".to_owned(),
+                description: "transfers are blocked in prod".to_owned(),
+                obligations: PolicyRuleObligations::default(),
+                reduced_scope: Vec::new(),
+            }],
+            decision_trace: vec![super::PolicyDecisionTraceEntry {
+                stage: "tenant_bundle".to_owned(),
+                layer: "tenant_bundle".to_owned(),
+                source_id: "bundle_finance".to_owned(),
+                rule_id: Some("rule_transfer_prod".to_owned()),
+                effect: Some("deny".to_owned()),
+                message: "transfers are blocked in prod".to_owned(),
+            }],
+            published_bundle_id: Some("bundle_finance".to_owned()),
+            published_bundle_version: Some(7),
+            explanation: "transfers are blocked in prod".to_owned(),
+        };
+
+        let draft = build_out_of_policy_exception_draft(
+            &action,
+            &request_id,
+            Some("corr_policy_1"),
+            &audit,
+            &policy_decision,
+        );
+
+        assert_eq!(draft.category, ExceptionCategory::PolicyViolation);
+        assert_eq!(draft.machine_reason, "out_of_policy_attempt");
+        assert_eq!(draft.evidence.len(), 3);
+        assert_eq!(draft.evidence[1].evidence_type, "policy_decision");
+        assert_eq!(
+            draft.evidence[1].payload.get("policy_bundle_id"),
+            Some(&json!("bundle_finance"))
+        );
+        assert_eq!(
+            draft.evidence[1].payload.get("final_effect"),
+            Some(&json!("deny"))
+        );
+    }
+
+    #[test]
     fn shared_agent_execution_metadata_preserves_lineage_fields() {
         let approval = ApprovalRequestRecord {
             approval_request_id: "apr_123".to_owned(),
@@ -12919,6 +14138,85 @@ mod tests {
         assert_eq!(parsed.user_id, "u123");
         assert_eq!(parsed.approval_request_id, "apr_123");
         assert!(matches!(parsed.decision, ApprovalDecisionKind::Approve));
+    }
+
+    #[test]
+    fn build_agent_execution_metadata_carries_paystack_connector_binding() {
+        let resolved_agent = ResolvedAgentIdentity {
+            agent_id: "agent_paystack".to_owned(),
+            environment_id: "prod".to_owned(),
+            environment_kind: "production".to_owned(),
+            runtime_type: "openai".to_owned(),
+            runtime_identity: "rt_paystack".to_owned(),
+            status: "active".to_owned(),
+            trust_tier: "high".to_owned(),
+            risk_tier: "medium".to_owned(),
+            owner_team: "finance".to_owned(),
+        };
+        let submitter = SubmitterIdentity {
+            principal_id: "svc_execution".to_owned(),
+            kind: SubmitterKind::InternalService,
+            auth_scheme: "bearer".to_owned(),
+            resolved_agent: None,
+        };
+        let policy_decision = PolicyDecisionExplanation {
+            final_effect: "allow".to_owned(),
+            effective_scope: vec!["refunds".to_owned()],
+            obligations: PolicyRuleObligations::default(),
+            matched_rules: Vec::new(),
+            decision_trace: Vec::new(),
+            published_bundle_id: Some("bundle_payments".to_owned()),
+            published_bundle_version: Some(3),
+            explanation: "connector-backed refund allowed".to_owned(),
+        };
+
+        let metadata = super::build_agent_execution_metadata(&super::AgentExecutionSubmitContext {
+            tenant_id: "tenant_a",
+            normalized_intent_kind: "paystack.refund.create.v1",
+            normalized_payload: &json!({
+                "payment_reference": "txn_123",
+                "amount": 2500,
+                "currency": "NGN",
+                "connector_binding_id": "paystack_live",
+                "connector_reference": "paystack:merchant:live"
+            }),
+            request_id: RequestId::from("req_paystack".to_owned()),
+            correlation_id: Some("corr_paystack".to_owned()),
+            idempotency_key: "idem_paystack",
+            submitter: &submitter,
+            resolved_agent: &resolved_agent,
+            agent_status: Some("active"),
+            entry_channel: "agent_gateway",
+            action_request_id: "act_paystack",
+            intent_type: "refund",
+            adapter_type: "adapter_paystack",
+            requested_scope: &policy_decision.effective_scope,
+            effective_scope: &policy_decision.effective_scope,
+            reason: "customer refund",
+            submitted_by: "planner",
+            policy_decision: &policy_decision,
+            callback_config: None,
+            metering_scope: None,
+            base_execution_policy: super::ExecutionPolicy::Sponsored,
+            effective_execution_policy: super::ExecutionPolicy::Sponsored,
+            execution_mode: super::AgentExecutionMode::ModeCProtectedExecution,
+            signing_mode: "platform_protected",
+            payer_source: "connector_binding",
+            fee_payer: "merchant",
+            approval: None,
+            grant: None,
+        });
+
+        assert_eq!(metadata.get("connector.outcome"), Some(&"queued".to_owned()));
+        assert_eq!(metadata.get("connector.type"), Some(&"paystack".to_owned()));
+        assert_eq!(
+            metadata.get("connector.binding_id"),
+            Some(&"paystack_live".to_owned())
+        );
+        assert_eq!(
+            metadata.get("connector.reference"),
+            Some(&"paystack:merchant:live".to_owned())
+        );
     }
 
     #[test]

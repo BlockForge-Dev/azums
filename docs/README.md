@@ -9,6 +9,7 @@ This folder contains the full technical documentation set for the Azums durable 
 | `docs/PLATFORM_DOCUMENTATION.md` | Full product + technical master document | Engineering, architecture, technical buyers |
 | `docs/production-gap-closure-checklist.md` | Ordered closure log for metering, billing durability, role bootstrap, and docs/security hardening | Engineering, platform leads |
 | `docs/v1-proof-checklist.md` | Launch-gate proof checklist and scoring sheet for v1 readiness | Engineering, product, platform leads |
+| `docs/architecture/entry-paths.md` | Direct API/webhook and agent gateway positioning over one shared execution model | Engineering, product, technical buyers |
 | `docs/architecture/system-overview.md` | System architecture and service map | Engineering, platform architects |
 | `docs/architecture/component-boundaries.md` | Strict ownership boundaries by layer | Engineering, platform architects |
 | `docs/architecture/data-flow.md` | Inbound, retry, terminal-failure, replay flows | Engineering, operations |

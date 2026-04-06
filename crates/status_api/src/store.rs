@@ -1374,6 +1374,8 @@ mod tests {
                 "expires_at_ms": 45000
             },
             "execution_mode": {
+                "mode": "mode_c_protected_execution",
+                "owner": "azums_protected_execution",
                 "effective_policy": "sponsored",
                 "base_policy": "customer_signed",
                 "signing_mode": "sponsored",
@@ -1381,14 +1383,20 @@ mod tests {
                 "fee_payer": "wallet_1"
             },
             "connector_outcome": {
-                "status": "not_used"
+                "status": "queued",
+                "connector_type": "slack",
+                "binding_id": "binding_slack_1",
+                "reference": "slack_action_123"
             },
             "recon_linkage": {
                 "recon_subject_id": "reconsub_job_v3",
                 "reconciliation_eligible": true,
                 "execution_correlation_id": "corr-3",
                 "adapter_execution_reference": "sig-final",
-                "external_observation_key": "sig-final"
+                "external_observation_key": "sig-final",
+                "connector_type": "slack",
+                "connector_binding_id": "binding_slack_1",
+                "connector_reference": "slack_action_123"
             },
             "occurred_at_ms": 3
         }))
@@ -1414,7 +1422,21 @@ mod tests {
                 .connector_outcome
                 .as_ref()
                 .map(|value| value.status.as_str()),
-            Some("not_used")
+            Some("queued")
+        );
+        assert_eq!(
+            entry
+                .connector_outcome
+                .as_ref()
+                .and_then(|value| value.reference.as_deref()),
+            Some("slack_action_123")
+        );
+        assert_eq!(
+            entry
+                .recon_linkage
+                .as_ref()
+                .and_then(|value| value.connector_reference.as_deref()),
+            Some("slack_action_123")
         );
     }
 }

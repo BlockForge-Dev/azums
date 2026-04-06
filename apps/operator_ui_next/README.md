@@ -54,10 +54,20 @@ Password reset UX toggle:
 
 ## Playground and integration flow
 
+Azums supports two first-class entry paths:
+
+- Direct API / webhook integration
+  - Backend services and event sources call ingress directly through `POST /api/requests` and `POST /webhooks/...`
+- Agent gateway integration
+  - Customer runtimes call `POST /api/agent/gateway/requests`, where the gateway compiles free-form or structured input into the same normalized request path
+
+Both paths land in the same execution truth, receipt, replay, reconciliation, and exception surfaces.
+
 Customer Playground requests post through:
 
 - Browser -> `/api/ui/ingress/requests` (Next proxy route)
 - Next -> `operator_ui` backend
 - `operator_ui` -> ingress API (`/api/requests`) with configured headers/token
 
-Backend services and inbound webhooks use the same ingress contract directly.
+Backend services and inbound webhooks use the direct ingress contract.
+Agent-driven runtimes use the gateway path, but the resulting requests still end up in the same shared core.
