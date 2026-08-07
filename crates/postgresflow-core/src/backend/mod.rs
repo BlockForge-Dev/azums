@@ -132,7 +132,8 @@ pub trait StorageBackend: Send + Sync {
         lease_seconds: i64,
         batch_size: i64,
     ) -> anyhow::Result<Vec<Job>> {
-        self.lease_jobs_batch(queue, worker_id, lease_seconds, batch_size).await
+        self.lease_jobs_batch(queue, worker_id, lease_seconds, batch_size)
+            .await
     }
 
     /// Marks a job attempt as completed (alias for `mark_succeeded`).
@@ -143,7 +144,8 @@ pub trait StorageBackend: Send + Sync {
         worker_id: &str,
         latency_ms: i32,
     ) -> anyhow::Result<()> {
-        self.mark_succeeded(job_id, attempt_id, worker_id, latency_ms).await
+        self.mark_succeeded(job_id, attempt_id, worker_id, latency_ms)
+            .await
     }
 
     /// Reschedules a job for retry (alias for `reschedule_for_retry`).

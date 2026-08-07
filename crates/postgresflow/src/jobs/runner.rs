@@ -63,6 +63,7 @@ impl JobRunner {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn on_failure(
         &self,
         job_id: Uuid,

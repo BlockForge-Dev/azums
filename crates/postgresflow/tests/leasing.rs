@@ -21,22 +21,20 @@ async fn insert_job_with(
 ) -> Uuid {
     let run_at = Utc::now() + ChronoDuration::seconds(run_at_offset_secs);
 
-    let rec = sqlx::query!(
+    sqlx::query_scalar(
         r#"
         INSERT INTO jobs (queue, job_type, payload_json, run_at, status, priority, max_attempts)
         VALUES ($1, $2, '{}'::jsonb, $3, 'queued', $4, 5)
         RETURNING id
         "#,
-        queue,
-        job_type,
-        run_at,
-        priority
     )
+    .bind(queue)
+    .bind(job_type)
+    .bind(run_at)
+    .bind(priority)
     .fetch_one(pool)
     .await
-    .expect("failed to insert job_with");
-
-    rec.id
+    .expect("failed to insert job_with")
 }
 
 async fn get_job_status_and_locked_by(pool: &PgPool, id: Uuid) -> (String, Option<String>) {
@@ -52,7 +50,9 @@ async fn get_job_status_and_locked_by(pool: &PgPool, id: Uuid) -> (String, Optio
 #[tokio::test]
 #[serial] // ✅ critical: no parallel DB interference
 async fn leasing_two_workers_never_claim_same_job() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
     let repo = JobsRepo::new(pool.clone());
 
     let _job_id = insert_job(&pool, "default").await;
@@ -101,7 +101,9 @@ async fn leasing_two_workers_never_claim_same_job() {
 #[tokio::test]
 #[serial]
 async fn lease_expires_then_other_worker_can_claim() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
     let repo = JobsRepo::new(pool.clone());
 
     let job_id = insert_job(&pool, "default").await;
@@ -136,7 +138,9 @@ async fn lease_expires_then_other_worker_can_claim() {
 #[tokio::test]
 #[serial]
 async fn leasing_respects_priority_then_run_at() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
     let repo = JobsRepo::new(pool.clone());
 
     // runnable now, lower priority
@@ -171,7 +175,9 @@ async fn leasing_respects_priority_then_run_at() {
 #[tokio::test]
 #[serial]
 async fn delayed_job_is_not_leased_before_run_at() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
     let repo = JobsRepo::new(pool.clone());
 
     let delayed = insert_job_with(&pool, "default", "delayed", 2, 0).await;
@@ -194,7 +200,9 @@ async fn delayed_job_is_not_leased_before_run_at() {
 #[tokio::test]
 #[serial]
 async fn workers_only_lease_from_their_queue() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
     let repo = JobsRepo::new(pool.clone());
 
     let qa = insert_job_with(&pool, "queue-a", "a1", 0, 0).await;
@@ -218,7 +226,9 @@ async fn workers_only_lease_from_their_queue() {
 #[tokio::test]
 #[serial]
 async fn reap_only_reaps_expired_running_jobs() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
     let repo = JobsRepo::new(pool.clone());
 
     let job_id = insert_job(&pool, "default").await;
@@ -243,7 +253,9 @@ async fn reap_only_reaps_expired_running_jobs() {
 #[tokio::test]
 #[serial]
 async fn batch_leasing_claims_expected_count_without_duplicates() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
     let repo = JobsRepo::new(pool.clone());
 
     for _ in 0..5 {

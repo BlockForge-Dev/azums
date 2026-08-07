@@ -91,7 +91,7 @@ impl EnqueueGuard {
         // Running a query through a transaction requires mutable access to that transaction object, because the transaction’s internal state is being used/advanced
         .await?;
 
-        if count > self.cfg.max_enqueues_per_minute_per_queue as i64 {
+        if count > self.cfg.max_enqueues_per_minute_per_queue {
             // record deny
             let _ = self
                 .decisions

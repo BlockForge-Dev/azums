@@ -151,7 +151,8 @@ impl Job {
     /// assert_eq!(payload.to, "a@b.com");
     /// ```
     pub fn payload_typed<T: serde::de::DeserializeOwned>(&self) -> Result<T, crate::error::Error> {
-        serde_json::from_value(self.payload.clone()).map_err(crate::error::Error::PayloadDeserialization)
+        serde_json::from_value(self.payload.clone())
+            .map_err(crate::error::Error::PayloadDeserialization)
     }
 }
 
@@ -221,10 +222,7 @@ impl JobStatus {
 
 /// Asynchronous job handler closure type alias.
 pub type JobHandler = std::sync::Arc<
-    dyn Fn(
-            Job,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>,
-        > + Send
+    dyn Fn(Job) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>
+        + Send
         + Sync,
 >;

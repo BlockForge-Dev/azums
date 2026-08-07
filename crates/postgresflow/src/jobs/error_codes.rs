@@ -11,9 +11,11 @@ pub enum ErrorCode {
     Unknown,
 }
 
-impl ErrorCode {
-    pub fn from_str(s: &str) -> Self {
-        match s.trim().to_uppercase().as_str() {
+impl std::str::FromStr for ErrorCode {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.trim().to_uppercase().as_str() {
             "TIMEOUT" => Self::Timeout,
             "DB_DEADLOCK" => Self::DbDeadlock,
             "SERIALIZATION" => Self::Serialization,
@@ -22,7 +24,14 @@ impl ErrorCode {
             "BAD_PAYLOAD" => Self::BadPayload,
             "DEPENDENCY_DOWN" => Self::DependencyDown,
             _ => Self::Unknown,
-        }
+        })
+    }
+}
+
+impl ErrorCode {
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Self {
+        s.parse().unwrap_or(Self::Unknown)
     }
 
     pub fn as_str(&self) -> &'static str {

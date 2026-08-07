@@ -10,7 +10,9 @@ use postgresflow::jobs::JobsRepo;
 
 #[tokio::test]
 async fn archives_old_succeeded_jobs_and_prunes_history() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
 
     let jobs = JobsRepo::new(pool.clone());
     let maint = MaintenanceRepo::new(pool.clone());
@@ -21,7 +23,7 @@ async fn archives_old_succeeded_jobs_and_prunes_history() {
 
     // 1) Insert a succeeded job that is definitely old (and still in jobs table)
     let job_id = Uuid::new_v4();
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO jobs (
             id, queue, job_type, payload_json, run_at, status, priority, max_attempts,
@@ -38,17 +40,17 @@ async fn archives_old_succeeded_jobs_and_prunes_history() {
             NULL
         )
         "#,
-        job_id,
-        json!({"a": 1}),
-        old,
     )
+    .bind(job_id)
+    .bind(json!({"a": 1}))
+    .bind(old)
     .execute(&pool)
     .await
     .unwrap();
 
     // 2) Insert an old attempt row (so it qualifies for pruning)
     let attempt_id = Uuid::new_v4();
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO job_attempts (
             id, job_id, attempt_no,
@@ -63,17 +65,17 @@ async fn archives_old_succeeded_jobs_and_prunes_history() {
             123, 'worker-1'
         )
         "#,
-        attempt_id,
-        job_id,
-        old
     )
+    .bind(attempt_id)
+    .bind(job_id)
+    .bind(old)
     .execute(&pool)
     .await
     .unwrap();
 
     // 3) Insert an old policy decision row (so it qualifies for pruning)
     let policy_id = Uuid::new_v4();
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO policy_decisions (
             id, job_id, decision, reason_code, details_json, created_at
@@ -82,11 +84,11 @@ async fn archives_old_succeeded_jobs_and_prunes_history() {
             $1, $2, 'THROTTLED', 'IN_FLIGHT_EXCEEDED', $3::jsonb, $4
         )
         "#,
-        policy_id,
-        job_id,
-        json!({"x": 1}),
-        old
     )
+    .bind(policy_id)
+    .bind(job_id)
+    .bind(json!({"x": 1}))
+    .bind(old)
     .execute(&pool)
     .await
     .unwrap();

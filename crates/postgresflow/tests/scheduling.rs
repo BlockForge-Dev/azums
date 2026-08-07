@@ -7,7 +7,9 @@ use std::time::Duration;
 
 #[tokio::test]
 async fn scheduled_job_is_not_leased_early_and_is_leased_after_run_at() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
     let repo = JobsRepo::new(pool.clone());
 
     // schedule for ~2 seconds later

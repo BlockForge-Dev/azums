@@ -10,26 +10,26 @@ use std::time::Instant;
 use uuid::Uuid;
 
 async fn insert_job(pool: &sqlx::PgPool, queue: &str, job_type: &str, max_attempts: i32) -> Uuid {
-    let rec = sqlx::query!(
+    sqlx::query_scalar(
         r#"
         INSERT INTO jobs (queue, job_type, payload_json, run_at, status, priority, max_attempts)
         VALUES ($1, $2, '{}'::jsonb, now(), 'queued', 0, $3)
         RETURNING id
         "#,
-        queue,
-        job_type,
-        max_attempts
     )
+    .bind(queue)
+    .bind(job_type)
+    .bind(max_attempts)
     .fetch_one(pool)
     .await
-    .expect("insert job failed");
-
-    rec.id
+    .expect("insert job failed")
 }
 
 #[tokio::test]
 async fn exhausted_retries_moves_job_to_dlq_and_preserves_attempts() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
 
     let jobs = JobsRepo::new(pool.clone());
     let attempts = AttemptsRepo::new(pool.clone());
@@ -64,7 +64,8 @@ async fn exhausted_retries_moves_job_to_dlq_and_preserves_attempts() {
         .unwrap();
 
     // Re-lease after reschedule: force it runnable now for test simplicity
-    sqlx::query!("UPDATE jobs SET run_at = now() WHERE id = $1", job_id)
+    sqlx::query("UPDATE jobs SET run_at = now() WHERE id = $1")
+        .bind(job_id)
         .execute(&pool)
         .await
         .unwrap();
@@ -120,7 +121,9 @@ async fn exhausted_retries_moves_job_to_dlq_and_preserves_attempts() {
 
 #[tokio::test]
 async fn non_retryable_goes_to_dlq_immediately() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
 
     let jobs = JobsRepo::new(pool.clone());
     let attempts = AttemptsRepo::new(pool.clone());

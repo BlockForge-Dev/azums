@@ -43,7 +43,10 @@ async fn test_quickstart_in_memory() -> anyhow::Result<()> {
     let flow = quickstart("memory").await?;
 
     let _id = flow
-        .enqueue(Job::new("ephemeral_job", serde_json::json!({"data": "test"})))
+        .enqueue(Job::new(
+            "ephemeral_job",
+            serde_json::json!({"data": "test"}),
+        ))
         .await?;
 
     let executed = Arc::new(std::sync::atomic::AtomicBool::new(false));

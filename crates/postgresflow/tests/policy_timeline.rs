@@ -10,7 +10,9 @@ use postgresflow::jobs::{
 
 #[tokio::test]
 async fn timeline_includes_policy_decision_event() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
 
     let jobs = JobsRepo::new(pool.clone());
     let attempts = AttemptsRepo::new(pool.clone());

@@ -5,8 +5,8 @@
 use chrono::{DateTime, Utc};
 use poem::{FromRequest, Request, RequestBody};
 use postgresflow::{quickstart, QuickstartFlow};
-use postgresflow_core::{NewJob, StorageBackend};
 pub use postgresflow_core::{Job, JobListItem, JobStatus};
+use postgresflow_core::{NewJob, StorageBackend};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
@@ -108,7 +108,10 @@ impl JobQueue {
 }
 
 impl<'a> FromRequest<'a> for JobQueue {
-    fn from_request(req: &'a Request, _body: &mut RequestBody) -> impl std::future::Future<Output = Result<Self, poem::Error>> + Send {
+    fn from_request(
+        req: &'a Request,
+        _body: &mut RequestBody,
+    ) -> impl std::future::Future<Output = Result<Self, poem::Error>> + Send {
         let result = if let Some(jobs) = req.data::<BackgroundJobs>() {
             Ok(jobs.queue())
         } else if let Some(queue) = req.data::<JobQueue>() {

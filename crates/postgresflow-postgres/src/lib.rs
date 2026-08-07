@@ -3,8 +3,8 @@
 //! Production-grade PostgreSQL storage backend implementation for `postgresflow`.
 
 pub use postgresflow_core::{
-    CallRecord, Job, JobHandler, JobListItem, JobStatus, MemoryAttempt, MemoryBackend,
-    MockBackend, NewJob, QueueError, StorageBackend,
+    CallRecord, Job, JobHandler, JobListItem, JobStatus, MemoryAttempt, MemoryBackend, MockBackend,
+    NewJob, QueueError, StorageBackend,
 };
 
 // Re-export backend and database utilities from postgresflow

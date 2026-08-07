@@ -9,23 +9,23 @@ use postgresflow::jobs::{AttemptsRepo, JobsRepo, PolicyDecisionsRepo};
 use uuid::Uuid;
 
 async fn insert_job(pool: &sqlx::PgPool) -> Uuid {
-    let rec = sqlx::query!(
+    sqlx::query_scalar(
         r#"
         INSERT INTO jobs (queue, job_type, payload_json, run_at, status, priority, max_attempts)
         VALUES ('default', 'fail_me', '{}'::jsonb, now(), 'queued', 0, 5)
         RETURNING id
-        "#
+        "#,
     )
     .fetch_one(pool)
     .await
-    .unwrap();
-
-    rec.id
+    .unwrap()
 }
 
 #[tokio::test]
 async fn timeline_includes_suggested_action_for_known_error_codes() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
 
     let jobs = JobsRepo::new(pool.clone());
     let attempts = AttemptsRepo::new(pool.clone());

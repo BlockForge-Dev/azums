@@ -245,12 +245,11 @@ impl StorageBackend for SqliteBackend {
         let mut results = Vec::with_capacity(job_ids.len());
 
         for &job_id in job_ids {
-            let max_attempt: Option<i32> = sqlx::query_scalar(
-                "SELECT MAX(attempt_no) FROM job_attempts WHERE job_id = ?",
-            )
-            .bind(job_id)
-            .fetch_one(&mut *tx)
-            .await?;
+            let max_attempt: Option<i32> =
+                sqlx::query_scalar("SELECT MAX(attempt_no) FROM job_attempts WHERE job_id = ?")
+                    .bind(job_id)
+                    .fetch_one(&mut *tx)
+                    .await?;
 
             let next_attempt_no = max_attempt.unwrap_or(0) + 1;
             let attempt_id = Uuid::new_v4();

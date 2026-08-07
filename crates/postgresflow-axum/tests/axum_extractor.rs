@@ -40,9 +40,7 @@ async fn test_axum_job_queue_extractor() -> anyhow::Result<()> {
         .method("POST")
         .uri("/enqueue")
         .header("content-type", "application/json")
-        .body(axum::body::Body::from(
-            json!({ "foo": "bar" }).to_string(),
-        ))?;
+        .body(axum::body::Body::from(json!({ "foo": "bar" }).to_string()))?;
 
     let response = app.oneshot(req).await?;
     assert_eq!(response.status(), http::StatusCode::OK);

@@ -11,7 +11,7 @@ async fn upsert_policy(
     max_in_flight: i32,
     throttle_delay_ms: i32,
 ) {
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO queue_policies (queue, max_attempts_per_minute, max_in_flight, throttle_delay_ms)
         VALUES ($1, $2, $3, $4)
@@ -20,35 +20,33 @@ async fn upsert_policy(
             max_in_flight = EXCLUDED.max_in_flight,
             throttle_delay_ms = EXCLUDED.throttle_delay_ms
         "#,
-        queue,
-        max_attempts_per_minute,
-        max_in_flight,
-        throttle_delay_ms
     )
+    .bind(queue)
+    .bind(max_attempts_per_minute)
+    .bind(max_in_flight)
+    .bind(throttle_delay_ms)
     .execute(pool)
     .await
     .unwrap();
 }
 
 async fn insert_job(pool: &PgPool, queue: &str, job_type: &str) -> Uuid {
-    let rec = sqlx::query!(
+    sqlx::query_scalar(
         r#"
         INSERT INTO jobs (queue, job_type, payload_json, run_at, status, priority, max_attempts)
         VALUES ($1, $2, '{}'::jsonb, now(), 'queued', 0, 3)
         RETURNING id
         "#,
-        queue,
-        job_type
     )
+    .bind(queue)
+    .bind(job_type)
     .fetch_one(pool)
     .await
-    .unwrap();
-
-    rec.id
+    .unwrap()
 }
 
 async fn mark_running(pool: &PgPool, job_id: Uuid) {
-    sqlx::query!(
+    sqlx::query(
         r#"
         UPDATE jobs
         SET status = 'running',
@@ -57,8 +55,8 @@ async fn mark_running(pool: &PgPool, job_id: Uuid) {
             lock_expires_at = now() + interval '60 seconds'
         WHERE id = $1
         "#,
-        job_id
     )
+    .bind(job_id)
     .execute(pool)
     .await
     .unwrap();
@@ -66,7 +64,9 @@ async fn mark_running(pool: &PgPool, job_id: Uuid) {
 
 #[tokio::test]
 async fn writes_policy_decision_when_in_flight_exceeded() {
-    let pool = common::setup_db().await;
+    let Some(pool) = common::setup_db().await else {
+        return;
+    };
     let jobs = JobsRepo::new(pool.clone());
 
     let queue = "q_policy";
@@ -85,7 +85,7 @@ async fn writes_policy_decision_when_in_flight_exceeded() {
     assert!(leased.is_none());
 
     // verify a policy decision row exists for the queued job
-    let row = sqlx::query!(
+    let row: Option<(String, String)> = sqlx::query_as(
         r#"
         SELECT decision, reason_code
         FROM policy_decisions
@@ -93,15 +93,15 @@ async fn writes_policy_decision_when_in_flight_exceeded() {
         ORDER BY created_at DESC
         LIMIT 1
         "#,
-        queued_id
     )
+    .bind(queued_id)
     .fetch_optional(&pool)
     .await
     .unwrap();
 
-    let row = row.expect("expected policy_decisions row, found none");
-    assert_eq!(row.decision, "THROTTLED");
-    assert_eq!(row.reason_code, "IN_FLIGHT_EXCEEDED");
+    let (decision, reason_code) = row.expect("expected policy_decisions row, found none");
+    assert_eq!(decision, "THROTTLED");
+    assert_eq!(reason_code, "IN_FLIGHT_EXCEEDED");
 
     // also verify job got rescheduled into the future
     let job = jobs.get_job(queued_id).await.unwrap().unwrap();

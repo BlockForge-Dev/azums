@@ -45,23 +45,24 @@ async fn test_payload_typed_and_client_processor() -> anyhow::Result<()> {
     let executed = Arc::new(AtomicBool::new(false));
 
     client
-        .register_processor("send_email", EmailWorker {
-            executed: executed.clone(),
-        })
+        .register_processor(
+            "send_email",
+            EmailWorker {
+                executed: executed.clone(),
+            },
+        )
         .await;
 
     let _id = client.enqueue(job).await?;
     let batch_ids = client
-        .enqueue_batch(vec![
-            NewJob {
-                queue: "default".into(),
-                job_type: "send_email".into(),
-                payload_json: serde_json::json!({"to": "alice@example.com", "subject": "Welcome!"}),
-                run_at: chrono::Utc::now(),
-                priority: 0,
-                max_attempts: 5,
-            },
-        ])
+        .enqueue_batch(vec![NewJob {
+            queue: "default".into(),
+            job_type: "send_email".into(),
+            payload_json: serde_json::json!({"to": "alice@example.com", "subject": "Welcome!"}),
+            run_at: chrono::Utc::now(),
+            priority: 0,
+            max_attempts: 5,
+        }])
         .await?;
 
     assert_eq!(batch_ids.len(), 1);

@@ -8,7 +8,9 @@ use serial_test::serial;
 #[tokio::test]
 #[serial]
 async fn leasing_creates_and_finishes_attempt_row() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
 
     let jobs_repo = JobsRepo::new(pool.clone());
     let attempts_repo = AttemptsRepo::new(pool.clone());
@@ -51,7 +53,9 @@ async fn leasing_creates_and_finishes_attempt_row() {
 #[tokio::test]
 #[serial]
 async fn multiple_attempts_increment_attempt_no() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
 
     let attempts_repo = AttemptsRepo::new(pool.clone());
 
@@ -78,7 +82,9 @@ async fn multiple_attempts_increment_attempt_no() {
 #[tokio::test]
 #[serial]
 async fn finish_failed_sets_error_fields() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
 
     let attempts_repo = AttemptsRepo::new(pool.clone());
 

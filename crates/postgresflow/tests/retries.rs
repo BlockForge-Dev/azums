@@ -9,25 +9,25 @@ use serial_test::serial;
 use uuid::Uuid;
 
 async fn insert_fail_job(pool: &sqlx::PgPool, max_attempts: i32) -> Uuid {
-    let rec = sqlx::query!(
+    sqlx::query_scalar(
         r#"
         INSERT INTO jobs (queue, job_type, payload_json, run_at, status, priority, max_attempts)
         VALUES ('default', 'fail_me', '{}'::jsonb, now(), 'queued', 0, $1)
         RETURNING id
         "#,
-        max_attempts
     )
+    .bind(max_attempts)
     .fetch_one(pool)
     .await
-    .unwrap();
-
-    rec.id
+    .unwrap()
 }
 
 #[tokio::test]
 #[serial]
 async fn retry_schedules_increasing_run_at() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
 
     let jobs = JobsRepo::new(pool.clone());
     let attempts = AttemptsRepo::new(pool.clone());
@@ -118,7 +118,9 @@ async fn retry_schedules_increasing_run_at() {
 #[serial]
 
 async fn non_retryable_goes_to_dlq() {
-    let pool = common::setup_db().await;
+    let Some(pool) = common::setup_db().await else {
+        return;
+    };
 
     let jobs = JobsRepo::new(pool.clone());
     let attempts = AttemptsRepo::new(pool.clone());

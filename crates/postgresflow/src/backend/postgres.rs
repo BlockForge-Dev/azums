@@ -198,7 +198,7 @@ impl StorageBackend for PostgresBackend {
             .maintenance_repo
             .delete_history_for_succeeded_older_than(cutoff, limit)
             .await?;
-        Ok((attempts as u64, decisions as u64))
+        Ok((attempts, decisions))
     }
 
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {

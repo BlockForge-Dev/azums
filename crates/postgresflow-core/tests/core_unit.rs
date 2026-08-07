@@ -108,7 +108,10 @@ async fn test_in_memory_backend_edge_cases() -> anyhow::Result<()> {
 
     let dlq_job = backend.get_job(job_id).await?.unwrap();
     assert_eq!(dlq_job.status, "dlq");
-    assert_eq!(dlq_job.dlq_reason_code.as_deref(), Some("EXCEEDED_MAX_ATTEMPTS"));
+    assert_eq!(
+        dlq_job.dlq_reason_code.as_deref(),
+        Some("EXCEEDED_MAX_ATTEMPTS")
+    );
 
     Ok(())
 }

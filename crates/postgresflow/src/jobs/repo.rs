@@ -926,7 +926,7 @@ impl JobsRepo {
         .await?;
 
         let new_queue = override_queue.unwrap_or(src.queue.as_str()).to_string();
-        let new_run_at = override_run_at.unwrap_or_else(|| Utc::now());
+        let new_run_at = override_run_at.unwrap_or_else(Utc::now);
         let new_dataset_id = Self::dataset_id_for(&new_queue, new_run_at);
         self.ensure_dataset_partition(&new_dataset_id).await?;
 

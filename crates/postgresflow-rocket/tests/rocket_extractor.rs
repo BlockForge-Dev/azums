@@ -1,7 +1,5 @@
 use postgresflow_rocket::{BackgroundJobs, JobQueue};
-use rocket::{
-    http::Status, local::asynchronous::Client, post, routes, serde::json::Json,
-};
+use rocket::{http::Status, local::asynchronous::Client, post, routes, serde::json::Json};
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

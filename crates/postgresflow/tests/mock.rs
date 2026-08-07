@@ -9,7 +9,10 @@ async fn test_mock_backend_call_recording() -> anyhow::Result<()> {
     let flow = QuickstartFlow::new(backend);
 
     let _id = flow
-        .enqueue(Job::new("send_notification", serde_json::json!({"user": "alice"})))
+        .enqueue(Job::new(
+            "send_notification",
+            serde_json::json!({"user": "alice"}),
+        ))
         .await?;
 
     mock.assert_enqueued_job_type("send_notification");

@@ -35,9 +35,8 @@ pub async fn build_debug_view(
     };
 
     let tl = crate::jobs::timeline::build_timeline(jobs, attempts, decisions, job_id).await?;
-    let attempts_json = serde_json::to_value(&tl.as_ref().map(|t| &t.attempts)).unwrap_or_default();
-    let decisions_json =
-        serde_json::to_value(&tl.as_ref().map(|t| &t.story)).unwrap_or_default();
+    let attempts_json = serde_json::to_value(tl.as_ref().map(|t| &t.attempts)).unwrap_or_default();
+    let decisions_json = serde_json::to_value(tl.as_ref().map(|t| &t.story)).unwrap_or_default();
 
     let next_action = match job.status.as_str() {
         "queued" => NextAction::Queued,

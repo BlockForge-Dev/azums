@@ -4,8 +4,10 @@ use std::sync::Arc;
 
 #[tokio::test]
 async fn test_quickstart_flow() {
-    let test_url = std::env::var("TEST_DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@127.0.0.1:5433/postgresflow_test".to_string());
+    let Ok(test_url) = std::env::var("TEST_DATABASE_URL") else {
+        eprintln!("TEST_DATABASE_URL not set; skipping test_quickstart_flow");
+        return;
+    };
 
     let flow = quickstart(&test_url)
         .await

@@ -5,20 +5,20 @@
 //! for the full API stability policy.
 
 pub mod attempts;
+pub mod enqueue_guard;
 pub mod error_codes;
+pub mod ingest_decisions;
 pub mod model;
 pub mod policies;
+pub mod policy_decisions;
 pub mod repo;
 pub mod retry;
 pub mod runner;
-pub mod enqueue_guard;
-pub mod ingest_decisions;
-pub mod policy_decisions;
 
-pub use policies::{PoliciesRepo, QueuePolicy};
-pub use policy_decisions::{PolicyDecisionRow, PolicyDecisionsRepo};
 pub use attempts::AttemptsRepo;
 pub use model::{Job, JobStatus, NewJob};
+pub use policies::{PoliciesRepo, QueuePolicy};
+pub use policy_decisions::{PolicyDecisionRow, PolicyDecisionsRepo};
 pub use repo::JobsRepo;
 
 // ── Unstable modules ──

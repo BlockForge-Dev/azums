@@ -15,7 +15,7 @@ async fn upsert_queue_policy(
     max_in_flight: i32,
     throttle_delay_ms: i32,
 ) {
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO queue_policies (queue, max_attempts_per_minute, max_in_flight, throttle_delay_ms)
         VALUES ($1, $2, $3, $4)
@@ -24,37 +24,37 @@ async fn upsert_queue_policy(
             max_in_flight = EXCLUDED.max_in_flight,
             throttle_delay_ms = EXCLUDED.throttle_delay_ms
         "#,
-        queue,
-        max_attempts_per_minute,
-        max_in_flight,
-        throttle_delay_ms
     )
+    .bind(queue)
+    .bind(max_attempts_per_minute)
+    .bind(max_in_flight)
+    .bind(throttle_delay_ms)
     .execute(pool)
     .await
     .unwrap();
 }
 
 async fn insert_job_direct(pool: &sqlx::PgPool, queue: &str, job_type: &str) -> Uuid {
-    let rec = sqlx::query!(
+    sqlx::query_scalar(
         r#"
         INSERT INTO jobs (queue, job_type, payload_json, run_at, status, priority, max_attempts)
         VALUES ($1, $2, '{}'::jsonb, now(), 'queued', 0, 5)
         RETURNING id
         "#,
-        queue,
-        job_type
     )
+    .bind(queue)
+    .bind(job_type)
     .fetch_one(pool)
     .await
-    .unwrap();
-
-    rec.id
+    .unwrap()
 }
 
 #[tokio::test]
 #[serial]
 async fn throttles_when_in_flight_exceeded() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
 
     let jobs = JobsRepo::new(pool.clone());
     let policies = PolicyDecisionsRepo::new(pool.clone());
@@ -92,7 +92,9 @@ async fn throttles_when_in_flight_exceeded() {
 #[tokio::test]
 #[serial]
 async fn throttles_when_retry_rate_exceeded() {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return;
+    };
 
     let jobs = JobsRepo::new(pool.clone());
     let attempts = AttemptsRepo::new(pool.clone());

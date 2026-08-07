@@ -6,7 +6,9 @@ use common::setup_db;
 
 #[tokio::test]
 async fn worker_crash_mid_job_another_worker_recovers_after_lease_expiry() -> anyhow::Result<()> {
-    let pool = setup_db().await;
+    let Some(pool) = setup_db().await else {
+        return Ok(());
+    };
 
     let jobs = JobsRepo::new(pool.clone());
     let attempts = AttemptsRepo::new(pool.clone());
