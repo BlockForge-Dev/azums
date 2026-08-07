@@ -8,6 +8,24 @@ fn env_bool(key: &str, default: bool) -> bool {
         .unwrap_or(default)
 }
 
+/// Connects to a PostgreSQL database URL and returns a tuned `PgPool`.
+///
+/// Respects environment configuration for pool tuning:
+/// - `PGFLOW_DB_MAX_CONNECTIONS`: Max connection pool size (default: `4`, range `1-32`).
+/// - `PGFLOW_DB_ACQUIRE_TIMEOUT_SECS`: Connection acquire timeout in seconds (default: `10s`).
+/// - `PGFLOW_DISABLE_JIT`: Disables Postgres JIT compilation on new sessions (default: `true`).
+/// - `PGFLOW_DISABLE_SYNC_COMMIT`: Sets `synchronous_commit = OFF` (default: `false`).
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use postgresflow::make_pool;
+///
+/// # async fn doc_test() -> anyhow::Result<()> {
+/// let pool = make_pool("postgres://postgres:postgres@localhost:5432/postgresflow_dev").await?;
+/// # Ok(())
+/// # }
+/// ```
 pub async fn make_pool(database_url: &str) -> anyhow::Result<PgPool> {
     let max_connections = std::env::var("PGFLOW_DB_MAX_CONNECTIONS")
         .ok()
@@ -47,6 +65,19 @@ pub async fn make_pool(database_url: &str) -> anyhow::Result<PgPool> {
     Ok(pool)
 }
 
+/// Executes all embedded SQL schema migrations on the provided database connection pool.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use postgresflow::{make_pool, run_migrations};
+///
+/// # async fn doc_test() -> anyhow::Result<()> {
+/// let pool = make_pool("postgres://localhost/postgresflow_dev").await?;
+/// run_migrations(&pool).await?;
+/// # Ok(())
+/// # }
+/// ```
 pub async fn run_migrations(pool: &PgPool) -> anyhow::Result<()> {
     sqlx::migrate!("./migrations").run(pool).await?;
     Ok(())

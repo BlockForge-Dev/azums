@@ -132,24 +132,24 @@ impl MaintenanceRepo {
             return Ok((0, 0));
         }
 
-        let attempts_deleted = sqlx::query!(
+        let attempts_deleted = sqlx::query(
             r#"
             DELETE FROM job_attempts
             WHERE job_id = ANY($1)
             "#,
-            &job_ids
         )
+        .bind(&job_ids)
         .execute(&mut *tx)
         .await?
         .rows_affected();
 
-        let policy_deleted = sqlx::query!(
+        let policy_deleted = sqlx::query(
             r#"
             DELETE FROM policy_decisions
             WHERE job_id = ANY($1)
             "#,
-            &job_ids
         )
+        .bind(&job_ids)
         .execute(&mut *tx)
         .await?
         .rows_affected();

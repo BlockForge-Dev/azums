@@ -1,0 +1,17 @@
+[book]
+authors = ["PostgresFlow Core Team"]
+language = "en"
+multilingual = false
+src = "src"
+title = "PostgresFlow Guide & Reference"
+
+[output.html]
+git-repository-url = "https://github.com/BlockForge-Dev/postgresflow"
+edit-url-template = "https://github.com/BlockForge-Dev/postgresflow/edit/main/docs/{path}"
+site-url = "/postgresflow/"
+mathjax-support = false
+default-theme = "navy"
+
+[output.html.fold]
+enable = true
+level = 0

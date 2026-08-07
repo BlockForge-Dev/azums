@@ -177,7 +177,7 @@ struct EmailSendPayload {
 }
 
 fn parse_payload<T: for<'de> Deserialize<'de>>(job: &Job) -> Result<T, JobError> {
-    serde_json::from_value(job.payload_json.clone())
+    serde_json::from_value(job.payload.clone())
         .map_err(|e| JobError::new("BAD_PAYLOAD", e.to_string()))
 }
 

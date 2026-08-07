@@ -1,3 +1,111 @@
+# PostgresFlow
+
+[![Crates.io](https://img.shields.io/crates/v/postgresflow.svg)](https://crates.io/crates/postgresflow)
+[![Documentation](https://docs.rs/postgresflow/badge.svg)](https://docs.rs/postgresflow)
+[![License](https://img.shields.io/crates/l/postgresflow.svg)](https://github.com/BlockForge-Dev/postgresflow#license)
+
+A Postgres-backed job queue with transactional leasing, dead-letter queues, automatic retries with exponential backoff, and an optional admin HTTP API. Built with [SQLx](https://github.com/launchbadge/sqlx) and [Tokio](https://tokio.rs/).
+
+## Install
+
+As a library dependency:
+
+```bash
+cargo add postgresflow
+```
+
+As a CLI tool:
+
+```bash
+cargo install postgresflow
+```
+
+## Feature Flags
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `api`   | ✅      | Axum-based admin HTTP API and router (`admin`, `api` modules) |
+| `cli`   | ✅      | `pgflowctl` CLI binary for database management |
+
+To use only the core library (no Axum, no CLI):
+
+```toml
+[dependencies]
+postgresflow = { version = "0.2", default-features = false }
+```
+
+## Quick Start ("Hello, World")
+
+```rust,no_run
+use postgresflow::{quickstart, Job};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let flow = quickstart("postgres://localhost/flow").await?;
+    flow.enqueue(Job::new("greet", serde_json::json!({"name": "World"}))).await?;
+    flow.register_handler("greet", |job| async move {
+        println!("Hello, {}!", job.payload["name"]);
+        Ok(())
+    }).await;
+    flow.run().await?;
+    Ok(())
+}
+```
+
+## Library Usage (Low-Level API)
+
+```rust,no_run
+use postgresflow::{Config, JobsRepo, make_pool};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let cfg = Config::from_env()?;
+    let pool = make_pool(&cfg.database_url).await?;
+    let repo = JobsRepo::new(pool);
+
+    // Enqueue a job
+    let job_id = repo.enqueue_now("default", "email_send", serde_json::json!({"user": 1})).await?;
+    println!("Enqueued job: {job_id}");
+
+    // Enqueue with delay
+    let delayed_id = repo.enqueue_in("default", "report_gen", serde_json::json!({}), 300).await?;
+    println!("Scheduled job in 5min: {delayed_id}");
+
+    Ok(())
+}
+```
+
+## Documentation & Architecture Book
+
+For detailed guides, architecture sequence diagrams, and API references, check out the **[PostgresFlow Book](https://blockforge-dev.github.io/postgresflow/)**.
+
+## Feature Comparison Matrix
+
+Why choose a Postgres-only job queue over traditional message brokers?
+
+| Feature / Aspect | PostgresFlow | Celery (Python) | BullMQ (Node/TS) | Sidekiq (Ruby) | Factotum |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Primary Broker** | **Postgres only** | RabbitMQ / Redis | Redis | Redis | Postgres |
+| **Transactional Enqueue (ACID)** | ✅ **Native** (Same DB transaction) | ❌ Impossible (Dual Write) | ❌ Impossible (Dual Write) | ❌ Impossible (Dual Write) | ✅ Native |
+| **Operational Infrastructure** | **Zero extra servers** | Requires RabbitMQ/Redis | Requires Redis instance/cluster | Requires Redis instance | Postgres |
+| **Concurrency Control** | `FOR UPDATE SKIP LOCKED` | AMQP Ack / Visibility Timeout | Lua Scripts / Visibility | RPOPLPUSH / Lua | Advisory Locks / Polling |
+| **Dead-Letter Queue (DLQ)** | ✅ Built-in | ⚠️ Configurable via DLX | ✅ Built-in | ⚠️ Retry queue / Dead queue | ⚠️ Basic |
+| **Dataset Time Partitioning** | ✅ Automatic time partitions | ❌ None | ❌ None | ❌ None | ❌ None |
+| **Language Support** | Rust (Library & CLI) | Python | Node.js / TypeScript | Ruby | Rust |
+| **Admin Web Console** | ✅ Embedded Axum web UI | ⚠️ Flower (separate tool) | ⚠️ Bull-Board (separate pkg) | ✅ Built-in Web UI | ❌ CLI only |
+| **State Drift Risk** | ❌ **Zero** (Atomically committed) | ⚠️ High (Crash between DB & broker) | ⚠️ High (Crash between DB & broker) | ⚠️ High (Crash between DB & broker) | ❌ Zero |
+
+## License
+
+Licensed under either of:
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
+
+---
+
 ## Step-by-Step Setup (Windows PowerShell)
 
 1. Prerequisites:

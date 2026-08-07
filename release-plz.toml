@@ -1,0 +1,17 @@
+[workspace]
+# Only publish the library crate to crates.io.
+# The worker crate is application-specific and should be forked.
+
+[[package]]
+name = "worker"
+publish = false
+release = false
+changelog_update = false
+
+[[package]]
+name = "postgresflow"
+changelog_path = "CHANGELOG.md"
+git_tag_enable = true
+git_tag_name = "v{{ version }}"
+git_release_enable = true
+git_release_name = "v{{ version }}"

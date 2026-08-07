@@ -1,18 +1,22 @@
 // crates/postgresflow/src/jobs/repo.rs
 
-use crate::api::models::JobListItem;
-use crate::jobs::model::{Job, JobStatus, NewJob};
+use crate::jobs::model::{Job, JobListItem, JobStatus, NewJob};
 use chrono::{DateTime, Utc};
 use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+/// Repository providing atomic database operations for job queue management.
+///
+/// Handles enqueueing, transactional batch leasing (`SKIP LOCKED`), execution completion,
+/// re-scheduling retries, moving jobs to DLQ, and replay.
 #[derive(Clone)]
 pub struct JobsRepo {
     pool: PgPool,
 }
 
 impl JobsRepo {
+    /// Creates a new `JobsRepo` wrapping a SQLx PostgreSQL connection pool.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -62,6 +66,30 @@ impl JobsRepo {
     // Enqueue helpers
     // ----------------------------
 
+    /// Inserts a new job into the queue database.
+    ///
+    /// Automatically routes the job to the appropriate dataset partition based on `run_at`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use postgresflow::{JobsRepo, NewJob, make_pool};
+    /// use chrono::Utc;
+    ///
+    /// # async fn doc_test() -> anyhow::Result<()> {
+    /// let pool = make_pool("postgres://localhost/flow").await?;
+    /// let repo = JobsRepo::new(pool);
+    /// let job_id = repo.enqueue(NewJob {
+    ///     queue: "default".to_string(),
+    ///     job_type: "email_send".to_string(),
+    ///     payload_json: serde_json::json!({"to": "user@example.com"}),
+    ///     run_at: Utc::now(),
+    ///     priority: 0,
+    ///     max_attempts: 5,
+    /// }).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn enqueue(&self, job: NewJob) -> anyhow::Result<Uuid> {
         let dataset_id = Self::dataset_id_for(&job.queue, job.run_at);
         self.ensure_dataset_partition(&dataset_id).await?;
@@ -89,6 +117,20 @@ impl JobsRepo {
         Ok(id)
     }
 
+    /// Enqueues a job for immediate execution (`run_at = Utc::now()`).
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use postgresflow::{JobsRepo, make_pool};
+    ///
+    /// # async fn doc_test() -> anyhow::Result<()> {
+    /// let pool = make_pool("postgres://localhost/flow").await?;
+    /// let repo = JobsRepo::new(pool);
+    /// let id = repo.enqueue_now("default", "send_welcome", serde_json::json!({"id": 123})).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn enqueue_now(
         &self,
         queue: &str,
@@ -106,6 +148,20 @@ impl JobsRepo {
         .await
     }
 
+    /// Schedules a job for future execution delayed by `delay_secs` seconds.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use postgresflow::{JobsRepo, make_pool};
+    ///
+    /// # async fn doc_test() -> anyhow::Result<()> {
+    /// let pool = make_pool("postgres://localhost/flow").await?;
+    /// let repo = JobsRepo::new(pool);
+    /// let id = repo.enqueue_in("default", "send_reminder", serde_json::json!({}), 300).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn enqueue_in(
         &self,
         queue: &str,
@@ -124,6 +180,22 @@ impl JobsRepo {
         .await
     }
 
+    /// Schedules a job to run at a specific UTC timestamp (`run_at`).
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use postgresflow::{JobsRepo, make_pool};
+    /// use chrono::Utc;
+    ///
+    /// # async fn doc_test() -> anyhow::Result<()> {
+    /// let pool = make_pool("postgres://localhost/flow").await?;
+    /// let repo = JobsRepo::new(pool);
+    /// let run_at = Utc::now() + chrono::Duration::hours(1);
+    /// let id = repo.enqueue_at("default", "scheduled_report", serde_json::json!({}), run_at).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn enqueue_at(
         &self,
         queue: &str,
@@ -146,6 +218,7 @@ impl JobsRepo {
     // Reads
     // ----------------------------
 
+    /// Fetches a single [`Job`] record by primary key `job_id`.
     pub async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {
         let job = sqlx::query_as::<_, Job>("SELECT * FROM jobs WHERE id = $1")
             .bind(job_id)
@@ -625,7 +698,7 @@ impl JobsRepo {
     // ----------------------------
 
     pub async fn reap_expired_locks(&self) -> anyhow::Result<u64> {
-        let res = sqlx::query!(
+        let res = sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'queued',
@@ -636,7 +709,7 @@ impl JobsRepo {
             WHERE status = 'running'
               AND lock_expires_at IS NOT NULL
               AND lock_expires_at < now()
-            "#
+            "#,
         )
         .execute(&self.pool)
         .await?;
@@ -712,7 +785,7 @@ impl JobsRepo {
     }
 
     pub async fn mark_succeeded(&self, job_id: Uuid, worker_id: &str) -> anyhow::Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'succeeded',
@@ -723,9 +796,9 @@ impl JobsRepo {
             WHERE id = $1
               AND locked_by = $2
             "#,
-            job_id,
-            worker_id
         )
+        .bind(job_id)
+        .bind(worker_id)
         .execute(&self.pool)
         .await?;
 
@@ -739,7 +812,7 @@ impl JobsRepo {
         last_error_code: Option<&str>,
         last_error_message: Option<&str>,
     ) -> anyhow::Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'queued',
@@ -752,11 +825,11 @@ impl JobsRepo {
                 last_error_message = $4
             WHERE id = $1
             "#,
-            job_id,
-            next_run_at,
-            last_error_code,
-            last_error_message
         )
+        .bind(job_id)
+        .bind(next_run_at)
+        .bind(last_error_code)
+        .bind(last_error_message)
         .execute(&self.pool)
         .await?;
 
@@ -770,7 +843,7 @@ impl JobsRepo {
         last_error_code: Option<&str>,
         last_error_message: Option<&str>,
     ) -> anyhow::Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'failed',
@@ -783,11 +856,11 @@ impl JobsRepo {
             WHERE id = $1
               AND locked_by = $2
             "#,
-            job_id,
-            worker_id,
-            last_error_code,
-            last_error_message
         )
+        .bind(job_id)
+        .bind(worker_id)
+        .bind(last_error_code)
+        .bind(last_error_message)
         .execute(&self.pool)
         .await?;
 
@@ -802,7 +875,7 @@ impl JobsRepo {
         last_error_code: Option<&str>,
         last_error_message: Option<&str>,
     ) -> anyhow::Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'dlq',
@@ -817,12 +890,12 @@ impl JobsRepo {
             WHERE id = $1
               AND locked_by = $2
             "#,
-            job_id,
-            worker_id,
-            reason_code,
-            last_error_code,
-            last_error_message
         )
+        .bind(job_id)
+        .bind(worker_id)
+        .bind(reason_code)
+        .bind(last_error_code)
+        .bind(last_error_message)
         .execute(&self.pool)
         .await?;
 
@@ -879,7 +952,7 @@ impl JobsRepo {
         .bind(new_dataset_id)
         .bind(new_queue)
         .bind(src.job_type)
-        .bind(src.payload_json)
+        .bind(src.payload)
         .bind(new_run_at)
         .bind(src.priority)
         .bind(src.max_attempts)

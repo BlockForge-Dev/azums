@@ -1,9 +1,26 @@
 [package]
 name = "postgresflow"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+rust-version = "1.75"
+description = "Postgres-backed job queue with transactional leasing, DLQ, retries, and an admin API"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/BlockForge-Dev/postgresflow"
+documentation = "https://docs.rs/postgresflow"
+homepage = "https://github.com/BlockForge-Dev/postgresflow"
+readme = "../../README.md"
+keywords = ["postgres", "job-queue", "background-jobs", "task-queue", "sqlx"]
+categories = ["database", "asynchronous"]
+
+[features]
+default = ["postgres", "api", "cli"]
+postgres = []
+api = ["dep:axum"]
+cli = []
 
 [dependencies]
+postgresflow-core = { path = "../postgresflow-core" }
+async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.7", features = [
     "runtime-tokio",
@@ -19,9 +36,11 @@ serde_json = "1"
 anyhow = "1"
 dotenvy = "0.15"
 rand = "0.8"
-axum = "0.7"
 
 uuid = { version = "1", features = ["v4", "serde"] }
+
+# Optional: only needed when `api` feature is enabled
+axum = { version = "0.7", optional = true }
 
 
 [dev-dependencies]
@@ -33,3 +52,8 @@ dotenvy = "0.15"
 [[bin]]
 name = "pgflowctl"
 path = "src/bin/pgflowctl.rs"
+required-features = ["cli"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

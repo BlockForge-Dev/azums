@@ -85,6 +85,12 @@ jobs:
           TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
         run: cargo test --workspace --no-run
 
+      - name: Run postgresflow doc tests
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
+        run: cargo test --doc -p postgresflow
+
       - name: Run postgresflow tests
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test

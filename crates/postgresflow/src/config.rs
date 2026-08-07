@@ -1,12 +1,19 @@
-// Clone: lets you safely duplicate the config
-
+/// Application and worker runtime configuration loaded from environment variables or `.env`.
+///
+/// Supported environment variables:
+/// - `DATABASE_URL`: Postgres database connection string (required).
+/// - `PGFLOW_WORKER_ID`: Unique worker identifier string (default: container hostname or `"worker-1"`).
+/// - `PGFLOW_QUEUE`: Default queue name to poll (default: `"default"`).
+/// - `PGFLOW_LEASE_SECONDS`: Lease lock duration in seconds (default: `10s`).
+/// - `PGFLOW_DEQUEUE_BATCH_SIZE`: Maximum jobs leased per batch query (default: `256`, max `4096`).
+/// - `PGFLOW_REAP_INTERVAL_MS`: Expired lock reaping interval in milliseconds (default: `5000ms`).
+/// - `PGFLOW_VERBOSE_JOB_LOGS`: Enable verbose execution logging (`1`/`true`/`0`/`false`).
+/// - `PGFLOW_ADMIN_ADDR`: Admin HTTP API bind address (e.g., `"0.0.0.0:3003"` or `"off"`).
+/// - `PGFLOW_API_TOKEN`: Optional API key token required in `x-api-key` header for Admin REST endpoints.
+/// - `PGFLOW_MIGRATE_ON_STARTUP`: Run SQL migrations automatically on startup (`1`/`0`).
+/// - `PGFLOW_MAX_PAYLOAD_BYTES`: Maximum allowed job payload size in bytes (default: `262144` / 256KB).
+/// - `PGFLOW_MAX_ENQUEUE_PER_MINUTE`: Maximum enqueues per minute per queue (default: `10000`).
 #[derive(Clone, Debug)]
-
-// Config is a central place for runtime configuration
-
-// It loads values from environment variables
-
-// It gives you a typed, validated struct instead of raw strings everywhere
 pub struct Config {
     pub database_url: String,
     pub worker_id: String,
@@ -23,7 +30,20 @@ pub struct Config {
 }
 
 impl Config {
-    //Result<String, VarError>
+    /// Loads configuration settings from environment variables and `.env`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use postgresflow::Config;
+    ///
+    /// # fn doc_test() -> anyhow::Result<()> {
+    /// std::env::set_var("DATABASE_URL", "postgres://localhost/postgresflow_dev");
+    /// let cfg = Config::from_env()?;
+    /// assert_eq!(cfg.queue, "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn from_env() -> anyhow::Result<Self> {
         dotenvy::dotenv().ok();
 

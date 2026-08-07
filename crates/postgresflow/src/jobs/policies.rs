@@ -40,7 +40,7 @@ impl PoliciesRepo {
         max_in_flight: i32,
         throttle_delay_ms: i32,
     ) -> anyhow::Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO queue_policies(queue, max_attempts_per_minute, max_in_flight, throttle_delay_ms)
             VALUES ($1, $2, $3, $4)
@@ -49,11 +49,11 @@ impl PoliciesRepo {
                 max_in_flight = EXCLUDED.max_in_flight,
                 throttle_delay_ms = EXCLUDED.throttle_delay_ms
             "#,
-            queue,
-            max_attempts_per_minute,
-            max_in_flight,
-            throttle_delay_ms
         )
+        .bind(queue)
+        .bind(max_attempts_per_minute)
+        .bind(max_in_flight)
+        .bind(throttle_delay_ms)
         .execute(&self.pool)
         .await?;
 
