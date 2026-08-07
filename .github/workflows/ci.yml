@@ -7,13 +7,12 @@ on:
     branches: [ main, master ]
 
 jobs:
-  matrix-test:
-    name: Build & Test (${{ matrix.os }} / ${{ matrix.rust }})
-    runs-on: ${{ matrix.os }}
+  linux-test:
+    name: Build & Test (Linux / ${{ matrix.rust }})
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
         rust: [stable, beta, nightly]
     services:
       postgres:
@@ -46,6 +45,39 @@ jobs:
         run: cargo test --workspace
         env:
           TEST_DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/postgresflow_test
+
+      - name: Clippy Lints
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rustfmt Style Check
+        run: cargo fmt --all -- --check
+
+      - name: Workspace API Documentation Check
+        run: cargo doc --workspace --no-deps
+
+  cross-platform-test:
+    name: Build & Test (${{ matrix.os }} / ${{ matrix.rust }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        rust: [stable, beta, nightly]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (${{ matrix.rust }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: clippy, rustfmt
+
+      - name: Workspace Compilation Check
+        run: cargo check --workspace --all-targets
+
+      - name: Workspace Test Suite
+        run: cargo test --workspace
 
       - name: Clippy Lints
         run: cargo clippy --workspace --all-targets -- -D warnings
