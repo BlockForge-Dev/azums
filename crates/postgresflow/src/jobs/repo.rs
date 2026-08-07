@@ -510,7 +510,7 @@ impl JobsRepo {
             FROM jobs
             WHERE queue = $1
               AND status = 'queued'
-              AND run_at <= now() + interval '1 second'
+              AND run_at <= now() + interval '10 seconds'
             ORDER BY run_at ASC, created_at ASC
             LIMIT 1
             "#,
@@ -647,7 +647,7 @@ impl JobsRepo {
                 WHERE dataset_id = $1
                   AND queue = $2
                   AND status = 'queued'
-                  AND run_at <= now() + interval '1 second'
+                  AND run_at <= now() + interval '10 seconds'
                 ORDER BY priority DESC, run_at ASC, created_at ASC
                 FOR UPDATE SKIP LOCKED
                 LIMIT $3
