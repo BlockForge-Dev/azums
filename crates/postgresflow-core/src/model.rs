@@ -132,6 +132,34 @@ impl Job {
     pub fn payload_json(&self) -> &Value {
         &self.payload
     }
+
+    /// Deserializes the JSON payload into a concrete type `T`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use postgresflow_core::{Job, Error};
+    /// use serde::Deserialize;
+    ///
+    /// #[derive(Deserialize, Debug, PartialEq)]
+    /// struct EmailPayload {
+    ///     to: String,
+    /// }
+    ///
+    /// let job = Job::new("email", serde_json::json!({"to": "a@b.com"}));
+    /// let payload: EmailPayload = job.payload_typed().unwrap();
+    /// assert_eq!(payload.to, "a@b.com");
+    /// ```
+    pub fn payload_typed<T: serde::de::DeserializeOwned>(&self) -> Result<T, crate::error::Error> {
+        serde_json::from_value(self.payload.clone()).map_err(crate::error::Error::PayloadDeserialization)
+    }
+}
+
+/// Trait-based job processor interface for structured background workers.
+#[async_trait::async_trait]
+pub trait JobProcessor: Send + Sync {
+    /// Processes a single background job execution attempt.
+    async fn process(&self, job: Job) -> anyhow::Result<()>;
 }
 
 /// Specification for enqueueing a new job into a storage backend.
@@ -190,3 +218,13 @@ impl JobStatus {
         }
     }
 }
+
+/// Asynchronous job handler closure type alias.
+pub type JobHandler = std::sync::Arc<
+    dyn Fn(
+            Job,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>,
+        > + Send
+        + Sync,
+>;

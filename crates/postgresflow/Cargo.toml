@@ -13,18 +13,20 @@ keywords = ["postgres", "job-queue", "background-jobs", "task-queue", "sqlx"]
 categories = ["database", "asynchronous"]
 
 [features]
-default = ["postgres", "api", "cli"]
-postgres = []
+default = ["postgres", "sqlite", "api", "cli"]
+postgres = ["sqlx/postgres"]
+sqlite = ["sqlx/sqlite"]
 api = ["dep:axum"]
 cli = []
 
 [dependencies]
-postgresflow-core = { path = "../postgresflow-core" }
+postgresflow-core = { path = "../postgresflow-core", features = ["sqlx"] }
 async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
-sqlx = { version = "0.7", features = [
+sqlx = { version = "0.7", default-features = false, features = [
     "runtime-tokio",
     "postgres",
+    "sqlite",
     "uuid",
     "chrono",
     "json",
@@ -47,7 +49,11 @@ axum = { version = "0.7", optional = true }
 testcontainers = "0.15"
 serial_test = "3"
 dotenvy = "0.15"
+criterion = { version = "0.5", features = ["async_tokio"] }
 
+[[bench]]
+name = "throughput"
+harness = false
 
 [[bin]]
 name = "pgflowctl"

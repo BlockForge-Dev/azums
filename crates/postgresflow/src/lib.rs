@@ -1,62 +1,84 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 //! # PostgresFlow
 //!
-//! A Postgres-backed job queue with transactional leasing, dead-letter queues,
-//! automatic retries with exponential backoff, time-partitioned tables, and an optional admin HTTP API.
+//! **The lightweight, Postgres-backed job queue for Rust — from embedded to cloud.**
 //!
-//! ## Quick Start
+//! `postgresflow` delivers enterprise background job processing with ACID guarantees,
+//! row-level FOR UPDATE SKIP LOCKED leasing, dead-letter queues (DLQ), exponential backoff retries,
+//! and time-partitioned storage tables.
+//!
+//! ---
+//!
+//! ## Quickstart
 //!
 //! Add `postgresflow` to your `Cargo.toml`:
 //!
 //! ```toml
 //! [dependencies]
 //! postgresflow = "0.2"
+//! tokio = { version = "1", features = ["full"] }
+//! serde = { version = "1", features = ["derive"] }
 //! ```
 //!
-//! Then run zero-config quickstart:
+//! Run zero-config background job processing:
 //!
 //! ```rust,no_run
 //! use postgresflow::{quickstart, Job};
+//! use serde::Deserialize;
+//!
+//! #[derive(Deserialize)]
+//! struct GreetPayload {
+//!     name: String,
+//! }
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
-//!     let flow = quickstart("postgres://localhost/flow").await?;
-//!     flow.enqueue(Job::new("greet", serde_json::json!({"name": "World"}))).await?;
-//!     flow.register_handler("greet", |job| async move {
-//!         println!("Hello, {}!", job.payload["name"]);
+//!     let client = quickstart("memory").await?;
+//!
+//!     client.enqueue(Job::new("greet", serde_json::json!({"name": "World"}))).await?;
+//!
+//!     client.register_handler("greet", |job| async move {
+//!         let payload: GreetPayload = job.payload_typed()?;
+//!         println!("Hello, {}!", payload.name);
 //!         Ok(())
 //!     }).await;
-//!     flow.run().await?;
+//!
+//!     client.run_until_empty().await?;
 //!     Ok(())
 //! }
 //! ```
 //!
-//! ## Core Capabilities
+//! ---
 //!
-//! - **ACID Enqueue**: Enqueue background jobs inside your application's SQL transactions with zero external message broker.
-//! - **Transactional Leasing**: Safe multi-worker concurrency using Postgres `FOR UPDATE SKIP LOCKED`.
-//! - **Time Partitioning**: Bounded table size via automatic monthly dataset partition routing and archiving.
-//! - **Dead-Letter Queue (DLQ)**: Automatic retries with exponential backoff and explicit DLQ routing.
-//! - **Admin Console & REST API**: Built-in visual management dashboard and Prometheus metrics endpoint.
+//! ## Choosing a Backend
 //!
-//! ## Documentation & Book
+//! `postgresflow` supports three storage backends under a unified [`StorageBackend`] interface:
 //!
-//! For complete architecture deep-dives, lifecycle sequence diagrams, and operational guides,
-//! visit the [PostgresFlow Book](https://blockforge-dev.github.io/postgresflow/).
+//! 1. **PostgreSQL** (`postgres://...`):
+//!    - Multi-node Kubernetes clusters, production web applications, distributed workers.
+//!    - Built on `sqlx` and `tokio-postgres` using `FOR UPDATE SKIP LOCKED`.
+//! 2. **SQLite** (`sqlite://jobs.db?mode=rwc`):
+//!    - Embedded CLI applications, desktop apps, single-server web deployments, IoT edge devices.
+//!    - Runs in WAL mode for single-writer concurrency with zero network overhead.
+//! 3. **In-Memory** (`memory`):
+//!    - Ephemeral unit testing, local development, zero disk I/O test pipelines.
 //!
-//! ## Feature Flags
+//! ---
 //!
-//! | Feature | Default | Description |
-//! |---------|---------|-------------|
-//! | `api`   | ✅      | Axum-based admin HTTP API and web UI router |
-//! | `cli`   | ✅      | `pgflowctl` CLI binary |
+//! ## Error Handling
 //!
-//! To use postgresflow as a lightweight library without HTTP server components:
+//! All queue operations return [`Error`] (aliased as [`QueueError`]):
 //!
-//! ```toml
-//! [dependencies]
-//! postgresflow = { version = "0.2", default-features = false }
-//! ```
+//! - Use [`job.payload_typed::<T>()`](postgresflow_core::Job::payload_typed) to automatically parse JSON payloads into strongly-typed structs.
+//! - Unhandled failures automatically trigger retries up to `job.max_attempts` before moving to the Dead-Letter Queue (`status = "dlq"`).
+//!
+//! ---
+//!
+//! ## Deployment
+//!
+//! - **Single-Binary Service**: Use `postgresflow` inside your Axum, Actix, Poem, or Rocket application binary.
+//! - **Separate Worker Nodes**: Run background workers independently using the [`worker`](https://crates.io/crates/worker) crate or `pgflowctl`.
+//! - **Monitoring Dashboard**: Enable the `api` feature to expose an Axum-based web UI console and Prometheus `/metrics` endpoint.
 
 #[cfg(feature = "api")]
 pub mod admin;
@@ -71,7 +93,10 @@ pub mod quickstart;
 
 // ── Convenience re-exports (stable public API) ──
 
+#[cfg(feature = "postgres")]
 pub use backend::PostgresBackend;
+#[cfg(feature = "sqlite")]
+pub use backend::{make_sqlite_pool, SqliteBackend};
 pub use config::Config;
 pub use db::{make_pool, run_migrations};
 pub use jobs::attempts::AttemptsRepo;
@@ -84,5 +109,8 @@ pub use jobs::policy_decisions::{PolicyDecisionRow, PolicyDecisionsRepo};
 pub use jobs::repo::JobsRepo;
 pub use jobs::retry::RetryConfig;
 pub use jobs::runner::JobRunner;
-pub use postgresflow_core::{Job, JobListItem, JobStatus, NewJob, StorageBackend};
-pub use quickstart::{quickstart, QuickstartFlow};
+pub use postgresflow_core::{
+    CallRecord, Error, Job, JobHandler, JobListItem, JobProcessor, JobStatus, MemoryBackend,
+    MockBackend, NewJob, QueueError, StorageBackend,
+};
+pub use quickstart::{quickstart, Client, QuickstartFlow};

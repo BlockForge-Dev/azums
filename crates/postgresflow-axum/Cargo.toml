@@ -1,0 +1,32 @@
+[package]
+name = "postgresflow-axum"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Native Axum extractor and background jobs integration for postgresflow"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/BlockForge-Dev/postgresflow"
+documentation = "https://docs.rs/postgresflow-axum"
+homepage = "https://github.com/BlockForge-Dev/postgresflow"
+readme = "../../README.md"
+keywords = ["axum", "job-queue", "background-jobs", "task-queue", "extractor"]
+categories = ["web-programming::HTTP-server", "asynchronous"]
+
+[dependencies]
+postgresflow = { path = "../postgresflow" }
+postgresflow-core = { path = "../postgresflow-core" }
+
+axum = "0.7"
+axum-core = "0.4"
+async-trait = "0.1"
+
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+anyhow = "1"
+http = "1"
+
+[dev-dependencies]
+tower = { version = "0.4", features = ["util"] }

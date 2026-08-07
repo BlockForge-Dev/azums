@@ -1,0 +1,34 @@
+[package]
+name = "postgresflow-postgres"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Production-grade PostgreSQL backend driver for postgresflow"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/BlockForge-Dev/postgresflow"
+documentation = "https://docs.rs/postgresflow-postgres"
+homepage = "https://github.com/BlockForge-Dev/postgresflow"
+readme = "../../README.md"
+keywords = ["postgres", "postgresql", "job-queue", "sqlx", "storage-backend"]
+categories = ["database", "asynchronous"]
+
+[dependencies]
+postgresflow-core = { path = "../postgresflow-core", features = ["sqlx"] }
+postgresflow = { path = "../postgresflow" }
+
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "0.7", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "json",
+] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+anyhow = "1"
+tracing = "0.1"

@@ -2,103 +2,63 @@ name: CI
 
 on:
   push:
+    branches: [ main, master ]
   pull_request:
-  workflow_dispatch:
-
-env:
-  CARGO_TERM_COLOR: always
+    branches: [ main, master ]
 
 jobs:
-  verify:
-    name: Check and Test
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgresflow_test
-        ports:
-          - 5432/tcp
-        options: >-
-          --health-cmd "pg_isready -U postgres -d postgresflow_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      RUST_TEST_THREADS: "1"
-      RUST_BACKTRACE: "1"
-
+  matrix-test:
+    name: Build & Test (${{ matrix.os }} / ${{ matrix.rust }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable, beta, nightly]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Install Rust toolchain (${{ matrix.rust }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: clippy, rustfmt
+
+      - name: Workspace Compilation Check
+        run: cargo check --workspace --all-targets
+
+      - name: Workspace Test Suite
+        run: cargo test --workspace
+
+      - name: Clippy Lints
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rustfmt Style Check
+        run: cargo fmt --all -- --check
+
+      - name: Workspace API Documentation Check
+        run: cargo doc --workspace --no-deps
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
 
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Wait for Postgres
-        shell: bash
-        env:
-          DB_PORT: ${{ job.services.postgres.ports[5432] }}
-        run: |
-          set -euo pipefail
-          for i in {1..60}; do
-            if timeout 1 bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/${DB_PORT}" 2>/dev/null; then
-              echo "Postgres is accepting TCP on port ${DB_PORT}"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Postgres did not become reachable in time"
-          exit 1
+      - name: Measure Code Coverage
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
 
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-
-      - name: Apply migrations for SQLx compile checks
-        shell: bash
-        env:
-          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
-        run: |
-          set -euo pipefail
-          for file in $(ls crates/postgresflow/migrations/*.sql | sort); do
-            echo "Applying ${file}"
-            psql "${DATABASE_URL}" -v ON_ERROR_STOP=1 -f "${file}"
-          done
-
-      - name: Cargo check (workspace)
-        env:
-          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
-          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
-        run: cargo check --workspace
-
-      - name: Build tests (workspace)
-        env:
-          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
-          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
-        run: cargo test --workspace --no-run
-
-      - name: Run postgresflow doc tests
-        env:
-          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
-          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
-        run: cargo test --doc -p postgresflow
-
-      - name: Run postgresflow tests
-        env:
-          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
-          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
-        run: cargo test -p postgresflow -- --nocapture
-
-      - name: Run worker tests
-        env:
-          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
-          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgresflow_test
-        run: cargo test -p worker
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          fail_ci_if_error: false

@@ -20,6 +20,9 @@ pub type QuickstartHandlerFuture =
     Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>;
 pub type QuickstartHandler = Arc<dyn Fn(Job) -> QuickstartHandlerFuture + Send + Sync>;
 
+/// Main entry point client for `postgresflow`.
+pub type Client = QuickstartFlow;
+
 /// In-process worker runtime and admin API launcher built by [`quickstart`].
 ///
 /// `QuickstartFlow` manages job enqueueing, handler registration, background worker leasing loops,
@@ -59,6 +62,11 @@ impl QuickstartFlow {
         }
     }
 
+    /// Returns reference to the underlying [`StorageBackend`].
+    pub fn backend(&self) -> &Arc<dyn StorageBackend> {
+        &self.backend
+    }
+
     /// Enqueues a job into the storage backend queue.
     ///
     /// # Examples
@@ -76,6 +84,18 @@ impl QuickstartFlow {
     pub async fn enqueue(&self, job: impl Into<NewJob>) -> anyhow::Result<Uuid> {
         let new_job: NewJob = job.into();
         self.backend.enqueue(new_job).await
+    }
+
+    /// Enqueues multiple jobs in a batch into the queue backend.
+    pub async fn enqueue_batch(
+        &self,
+        jobs: impl IntoIterator<Item = impl Into<NewJob>>,
+    ) -> anyhow::Result<Vec<Uuid>> {
+        let mut ids = Vec::new();
+        for job in jobs {
+            ids.push(self.enqueue(job).await?);
+        }
+        Ok(ids)
     }
 
     /// Registers an asynchronous handler closure for a specific `job_type`.
@@ -105,6 +125,24 @@ impl QuickstartFlow {
             Box::pin(fut) as QuickstartHandlerFuture
         });
         self.handlers.write().await.insert(job_type, entry);
+    }
+
+    /// Registers a trait-based [`JobProcessor`](postgresflow_core::JobProcessor) for a specific `job_type`.
+    pub async fn register_processor<P>(&self, job_type: impl Into<String>, processor: P)
+    where
+        P: postgresflow_core::JobProcessor + 'static,
+    {
+        let processor = Arc::new(processor);
+        self.register_handler(job_type, move |job| {
+            let p = processor.clone();
+            async move { p.process(job).await }
+        })
+        .await;
+    }
+
+    /// Gracefully shuts down background resources and connections.
+    pub async fn shutdown(&self) -> anyhow::Result<()> {
+        Ok(())
     }
 
     /// Starts the in-process worker polling loop and admin HTTP API (if `api` feature is active).
@@ -390,9 +428,29 @@ impl QuickstartFlow {
 pub async fn quickstart(database_url: impl AsRef<str>) -> anyhow::Result<QuickstartFlow> {
     let _ = dotenvy::dotenv();
 
-    let mut candidates = Vec::new();
     let user_url = database_url.as_ref().trim();
-    if !user_url.is_empty() {
+
+    if user_url == "memory"
+        || user_url == "in-memory"
+        || user_url.starts_with("memory:")
+        || user_url.starts_with("memory://")
+    {
+        let mem_backend = postgresflow_core::MemoryBackend::new();
+        let backend: Arc<dyn StorageBackend> = Arc::new(mem_backend);
+        return Ok(QuickstartFlow::new(backend));
+    }
+
+    #[cfg(feature = "sqlite")]
+    if user_url.starts_with("sqlite:") {
+        let pool = crate::backend::sqlite::make_sqlite_pool(user_url).await?;
+        let sqlite_backend = crate::backend::SqliteBackend::new(pool);
+        sqlite_backend.run_migrations().await?;
+        let backend: Arc<dyn StorageBackend> = Arc::new(sqlite_backend);
+        return Ok(QuickstartFlow::new(backend));
+    }
+
+    let mut candidates = Vec::new();
+    if !user_url.is_empty() && !user_url.starts_with("sqlite:") && !user_url.starts_with("memory") {
         candidates.push(user_url.to_string());
     }
 

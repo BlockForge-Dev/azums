@@ -1,0 +1,677 @@
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use postgresflow_core::{
+    backend::StorageBackend,
+    model::{Job, JobListItem, NewJob},
+};
+use sqlx::{
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
+    SqlitePool,
+};
+use std::str::FromStr;
+use uuid::Uuid;
+
+/// Constructs a SQLite connection pool tuned for single-writer concurrency (WAL mode, 5s busy timeout).
+pub async fn make_sqlite_pool(database_url: &str) -> anyhow::Result<SqlitePool> {
+    let options = SqliteConnectOptions::from_str(database_url)?
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .busy_timeout(std::time::Duration::from_secs(5))
+        .foreign_keys(true);
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(std::time::Duration::from_secs(5))
+        .connect_with(options)
+        .await?;
+
+    Ok(pool)
+}
+
+/// SQLite implementation of [`StorageBackend`] optimized for embedded, zero-network environments.
+#[derive(Clone)]
+pub struct SqliteBackend {
+    pool: SqlitePool,
+}
+
+impl SqliteBackend {
+    /// Creates a new `SqliteBackend` wrapping a SQLx `SqlitePool`.
+    pub fn new(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+
+    /// Returns reference to the underlying `SqlitePool`.
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+}
+
+#[async_trait]
+impl StorageBackend for SqliteBackend {
+    async fn run_migrations(&self) -> anyhow::Result<()> {
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS jobs (
+                id BLOB PRIMARY KEY,
+                dataset_id TEXT NOT NULL DEFAULT 'default',
+                replay_of_job_id BLOB,
+                queue TEXT NOT NULL DEFAULT 'default',
+                job_type TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                run_at TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'queued',
+                priority INTEGER NOT NULL DEFAULT 0,
+                max_attempts INTEGER NOT NULL DEFAULT 25,
+                locked_at TEXT,
+                locked_by TEXT,
+                lock_expires_at TEXT,
+                dlq_reason_code TEXT,
+                dlq_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_jobs_runnable
+                ON jobs (queue, status, run_at, priority DESC, created_at);
+
+            CREATE TABLE IF NOT EXISTS job_attempts (
+                id BLOB PRIMARY KEY,
+                dataset_id TEXT NOT NULL DEFAULT 'default',
+                job_id BLOB NOT NULL,
+                attempt_no INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'running',
+                worker_id TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                finished_at TEXT,
+                latency_ms INTEGER,
+                error_code TEXT,
+                error_message TEXT,
+                FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS jobs_archive (
+                id BLOB PRIMARY KEY,
+                dataset_id TEXT NOT NULL DEFAULT 'default',
+                replay_of_job_id BLOB,
+                queue TEXT NOT NULL DEFAULT 'default',
+                job_type TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                run_at TEXT NOT NULL,
+                status TEXT NOT NULL,
+                priority INTEGER NOT NULL,
+                max_attempts INTEGER NOT NULL,
+                dlq_reason_code TEXT,
+                dlq_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn health_check(&self) -> anyhow::Result<()> {
+        sqlx::query("SELECT 1").execute(&self.pool).await?;
+        Ok(())
+    }
+
+    async fn enqueue(&self, job: NewJob) -> anyhow::Result<Uuid> {
+        let job_id = Uuid::new_v4();
+        let now = Utc::now();
+
+        sqlx::query(
+            r#"
+            INSERT INTO jobs (
+                id, dataset_id, queue, job_type, payload_json,
+                run_at, status, priority, max_attempts,
+                created_at, updated_at
+            ) VALUES (?, 'default', ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
+            "#,
+        )
+        .bind(job_id)
+        .bind(&job.queue)
+        .bind(&job.job_type)
+        .bind(&job.payload_json)
+        .bind(job.run_at)
+        .bind(job.priority)
+        .bind(job.max_attempts)
+        .bind(now)
+        .bind(now)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(job_id)
+    }
+
+    async fn lease_jobs_batch(
+        &self,
+        queue: &str,
+        worker_id: &str,
+        lease_seconds: i64,
+        batch_size: i64,
+    ) -> anyhow::Result<Vec<Job>> {
+        let mut tx = self.pool.begin().await?;
+        let now = Utc::now();
+
+        let candidates = sqlx::query_as::<_, Job>(
+            r#"
+            SELECT
+                dataset_id, replay_of_job_id, id, queue, job_type,
+                payload_json, run_at, status, priority, max_attempts,
+                locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
+                created_at, updated_at
+            FROM jobs
+            WHERE queue = ? AND status = 'queued' AND run_at <= ?
+            ORDER BY priority DESC, run_at ASC, created_at ASC
+            LIMIT ?
+            "#,
+        )
+        .bind(queue)
+        .bind(now)
+        .bind(batch_size)
+        .fetch_all(&mut *tx)
+        .await?;
+
+        if candidates.is_empty() {
+            tx.commit().await?;
+            return Ok(Vec::new());
+        }
+
+        let lock_expires_at = now + chrono::Duration::seconds(lease_seconds);
+
+        let mut leased_jobs = Vec::with_capacity(candidates.len());
+        for mut job in candidates {
+            sqlx::query(
+                r#"
+                UPDATE jobs
+                SET status = 'running', locked_at = ?, locked_by = ?, lock_expires_at = ?, updated_at = ?
+                WHERE id = ?
+                "#,
+            )
+            .bind(now)
+            .bind(worker_id)
+            .bind(lock_expires_at)
+            .bind(now)
+            .bind(job.id)
+            .execute(&mut *tx)
+            .await?;
+
+            job.status = "running".to_string();
+            job.locked_at = Some(now);
+            job.locked_by = Some(worker_id.to_string());
+            job.lock_expires_at = Some(lock_expires_at);
+            job.updated_at = now;
+
+            leased_jobs.push(job);
+        }
+
+        tx.commit().await?;
+        Ok(leased_jobs)
+    }
+
+    async fn reap_expired_locks(&self) -> anyhow::Result<u64> {
+        let now = Utc::now();
+        let res = sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'queued', locked_at = NULL, locked_by = NULL, lock_expires_at = NULL, updated_at = ?
+            WHERE status = 'running' AND lock_expires_at IS NOT NULL AND lock_expires_at <= ?
+            "#,
+        )
+        .bind(now)
+        .bind(now)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(res.rows_affected())
+    }
+
+    async fn start_attempts_batch(
+        &self,
+        _dataset_ids: &[String],
+        job_ids: &[Uuid],
+        worker_id: &str,
+    ) -> anyhow::Result<Vec<(Uuid, Uuid, i32)>> {
+        if job_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut tx = self.pool.begin().await?;
+        let now = Utc::now();
+        let mut results = Vec::with_capacity(job_ids.len());
+
+        for &job_id in job_ids {
+            let max_attempt: Option<i32> = sqlx::query_scalar(
+                "SELECT MAX(attempt_no) FROM job_attempts WHERE job_id = ?",
+            )
+            .bind(job_id)
+            .fetch_one(&mut *tx)
+            .await?;
+
+            let next_attempt_no = max_attempt.unwrap_or(0) + 1;
+            let attempt_id = Uuid::new_v4();
+
+            sqlx::query(
+                r#"
+                INSERT INTO job_attempts (
+                    id, dataset_id, job_id, attempt_no, status, worker_id, started_at
+                ) VALUES (?, 'default', ?, ?, 'running', ?, ?)
+                "#,
+            )
+            .bind(attempt_id)
+            .bind(job_id)
+            .bind(next_attempt_no)
+            .bind(worker_id)
+            .bind(now)
+            .execute(&mut *tx)
+            .await?;
+
+            results.push((job_id, attempt_id, next_attempt_no));
+        }
+
+        tx.commit().await?;
+        Ok(results)
+    }
+
+    async fn mark_succeeded(
+        &self,
+        job_id: Uuid,
+        attempt_id: Uuid,
+        _worker_id: &str,
+        latency_ms: i32,
+    ) -> anyhow::Result<()> {
+        let mut tx = self.pool.begin().await?;
+        let now = Utc::now();
+
+        sqlx::query(
+            r#"
+            UPDATE job_attempts
+            SET status = 'succeeded', finished_at = ?, latency_ms = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(now)
+        .bind(latency_ms)
+        .bind(attempt_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'succeeded', locked_at = NULL, locked_by = NULL, lock_expires_at = NULL, updated_at = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(now)
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    async fn mark_succeeded_batch(
+        &self,
+        _dataset_id: &str,
+        updates: &[(Uuid, Uuid, i32)],
+        worker_id: &str,
+    ) -> anyhow::Result<()> {
+        for &(job_id, attempt_id, latency_ms) in updates {
+            self.mark_succeeded(job_id, attempt_id, worker_id, latency_ms)
+                .await?;
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn reschedule_for_retry(
+        &self,
+        job_id: Uuid,
+        attempt_id: Uuid,
+        _worker_id: &str,
+        latency_ms: i32,
+        next_run_at: DateTime<Utc>,
+        error_code: &str,
+        error_message: &str,
+        _attempt_no: i32,
+    ) -> anyhow::Result<()> {
+        let mut tx = self.pool.begin().await?;
+        let now = Utc::now();
+
+        sqlx::query(
+            r#"
+            UPDATE job_attempts
+            SET status = 'failed', finished_at = ?, latency_ms = ?, error_code = ?, error_message = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(now)
+        .bind(latency_ms)
+        .bind(error_code)
+        .bind(error_message)
+        .bind(attempt_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'queued', run_at = ?, locked_at = NULL, locked_by = NULL, lock_expires_at = NULL, updated_at = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(next_run_at)
+        .bind(now)
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn mark_dlq(
+        &self,
+        job_id: Uuid,
+        attempt_id: Uuid,
+        _worker_id: &str,
+        latency_ms: i32,
+        reason_code: &str,
+        error_code: &str,
+        error_message: &str,
+        _attempt_no: i32,
+    ) -> anyhow::Result<()> {
+        let mut tx = self.pool.begin().await?;
+        let now = Utc::now();
+
+        sqlx::query(
+            r#"
+            UPDATE job_attempts
+            SET status = 'failed', finished_at = ?, latency_ms = ?, error_code = ?, error_message = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(now)
+        .bind(latency_ms)
+        .bind(error_code)
+        .bind(error_message)
+        .bind(attempt_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'dlq', dlq_reason_code = ?, dlq_at = ?, locked_at = NULL, locked_by = NULL, lock_expires_at = NULL, updated_at = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(reason_code)
+        .bind(now)
+        .bind(now)
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    async fn archive_succeeded_older_than(
+        &self,
+        cutoff: DateTime<Utc>,
+        limit: i64,
+    ) -> anyhow::Result<u64> {
+        let mut tx = self.pool.begin().await?;
+
+        let jobs = sqlx::query_as::<_, Job>(
+            r#"
+            SELECT
+                dataset_id, replay_of_job_id, id, queue, job_type,
+                payload_json, run_at, status, priority, max_attempts,
+                locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
+                created_at, updated_at
+            FROM jobs
+            WHERE status = 'succeeded' AND updated_at < ?
+            LIMIT ?
+            "#,
+        )
+        .bind(cutoff)
+        .bind(limit)
+        .fetch_all(&mut *tx)
+        .await?;
+
+        if jobs.is_empty() {
+            tx.commit().await?;
+            return Ok(0);
+        }
+
+        for j in &jobs {
+            sqlx::query(
+                r#"
+                INSERT INTO jobs_archive (
+                    id, dataset_id, replay_of_job_id, queue, job_type,
+                    payload_json, run_at, status, priority, max_attempts,
+                    dlq_reason_code, dlq_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                "#,
+            )
+            .bind(j.id)
+            .bind(&j.dataset_id)
+            .bind(j.replay_of_job_id)
+            .bind(&j.queue)
+            .bind(&j.job_type)
+            .bind(&j.payload)
+            .bind(j.run_at)
+            .bind(&j.status)
+            .bind(j.priority)
+            .bind(j.max_attempts)
+            .bind(&j.dlq_reason_code)
+            .bind(j.dlq_at)
+            .bind(j.created_at)
+            .bind(j.updated_at)
+            .execute(&mut *tx)
+            .await?;
+
+            sqlx::query("DELETE FROM jobs WHERE id = ?")
+                .bind(j.id)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        let count = jobs.len() as u64;
+        tx.commit().await?;
+        Ok(count)
+    }
+
+    async fn delete_history_for_succeeded_older_than(
+        &self,
+        cutoff: DateTime<Utc>,
+        limit: i64,
+    ) -> anyhow::Result<(u64, u64)> {
+        let res = sqlx::query(
+            r#"
+            DELETE FROM job_attempts
+            WHERE started_at < ? AND job_id IN (
+                SELECT id FROM jobs_archive WHERE updated_at < ? LIMIT ?
+            )
+            "#,
+        )
+        .bind(cutoff)
+        .bind(cutoff)
+        .bind(limit)
+        .execute(&self.pool)
+        .await?;
+
+        Ok((res.rows_affected(), 0))
+    }
+
+    async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {
+        let job = sqlx::query_as::<_, Job>(
+            r#"
+            SELECT
+                dataset_id, replay_of_job_id, id, queue, job_type,
+                payload_json, run_at, status, priority, max_attempts,
+                locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
+                created_at, updated_at
+            FROM jobs WHERE id = ?
+            "#,
+        )
+        .bind(job_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(job)
+    }
+
+    async fn list_jobs(
+        &self,
+        queue: Option<&str>,
+        status: Option<&str>,
+        limit: i64,
+        _cursor_created_at: Option<DateTime<Utc>>,
+        _cursor_id: Option<Uuid>,
+    ) -> anyhow::Result<Vec<JobListItem>> {
+        let limit = limit.clamp(1, 500);
+
+        let rows = match (queue, status) {
+            (Some(q), Some(st)) => {
+                sqlx::query_as::<_, JobListItem>(
+                    r#"
+                    SELECT
+                        id, queue, job_type, status,
+                        run_at, priority, max_attempts,
+                        NULL AS last_error_code, NULL AS last_error_message,
+                        dlq_reason_code, created_at, updated_at
+                    FROM jobs
+                    WHERE queue = ? AND status = ?
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?
+                    "#,
+                )
+                .bind(q)
+                .bind(st)
+                .bind(limit)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            (Some(q), None) => {
+                sqlx::query_as::<_, JobListItem>(
+                    r#"
+                    SELECT
+                        id, queue, job_type, status,
+                        run_at, priority, max_attempts,
+                        NULL AS last_error_code, NULL AS last_error_message,
+                        dlq_reason_code, created_at, updated_at
+                    FROM jobs
+                    WHERE queue = ?
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?
+                    "#,
+                )
+                .bind(q)
+                .bind(limit)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            (None, Some(st)) => {
+                sqlx::query_as::<_, JobListItem>(
+                    r#"
+                    SELECT
+                        id, queue, job_type, status,
+                        run_at, priority, max_attempts,
+                        NULL AS last_error_code, NULL AS last_error_message,
+                        dlq_reason_code, created_at, updated_at
+                    FROM jobs
+                    WHERE status = ?
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?
+                    "#,
+                )
+                .bind(st)
+                .bind(limit)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            (None, None) => {
+                sqlx::query_as::<_, JobListItem>(
+                    r#"
+                    SELECT
+                        id, queue, job_type, status,
+                        run_at, priority, max_attempts,
+                        NULL AS last_error_code, NULL AS last_error_message,
+                        dlq_reason_code, created_at, updated_at
+                    FROM jobs
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?
+                    "#,
+                )
+                .bind(limit)
+                .fetch_all(&self.pool)
+                .await?
+            }
+        };
+
+        Ok(rows)
+    }
+
+    async fn replay_job(
+        &self,
+        job_id: Uuid,
+        override_queue: Option<&str>,
+        override_run_at: Option<DateTime<Utc>>,
+    ) -> anyhow::Result<Uuid> {
+        let mut tx = self.pool.begin().await?;
+
+        let src = sqlx::query_as::<_, Job>(
+            r#"
+            SELECT
+                dataset_id, replay_of_job_id, id, queue, job_type,
+                payload_json, run_at, status, priority, max_attempts,
+                locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
+                created_at, updated_at
+            FROM jobs WHERE id = ?
+            "#,
+        )
+        .bind(job_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let new_id = Uuid::new_v4();
+        let target_queue = override_queue.unwrap_or(&src.queue);
+        let target_run_at = override_run_at.unwrap_or_else(Utc::now);
+        let now = Utc::now();
+
+        sqlx::query(
+            r#"
+            INSERT INTO jobs (
+                id, dataset_id, replay_of_job_id, queue, job_type,
+                payload_json, run_at, status, priority, max_attempts,
+                created_at, updated_at
+            ) VALUES (?, 'default', ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
+            "#,
+        )
+        .bind(new_id)
+        .bind(job_id)
+        .bind(target_queue)
+        .bind(&src.job_type)
+        .bind(&src.payload)
+        .bind(target_run_at)
+        .bind(src.priority)
+        .bind(src.max_attempts)
+        .bind(now)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(new_id)
+    }
+}

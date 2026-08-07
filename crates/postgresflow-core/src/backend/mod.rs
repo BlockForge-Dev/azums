@@ -1,3 +1,9 @@
+pub mod memory;
+pub mod mock;
+
+pub use memory::{MemoryAttempt, MemoryBackend};
+pub use mock::{CallRecord, MockBackend};
+
 use crate::model::{Job, JobListItem, NewJob};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -117,4 +123,78 @@ pub trait StorageBackend: Send + Sync {
         override_queue: Option<&str>,
         override_run_at: Option<DateTime<Utc>>,
     ) -> anyhow::Result<Uuid>;
+
+    /// Dequeues and leases up to `batch_size` runnable jobs (alias for `lease_jobs_batch`).
+    async fn dequeue_and_lease(
+        &self,
+        queue: &str,
+        worker_id: &str,
+        lease_seconds: i64,
+        batch_size: i64,
+    ) -> anyhow::Result<Vec<Job>> {
+        self.lease_jobs_batch(queue, worker_id, lease_seconds, batch_size).await
+    }
+
+    /// Marks a job attempt as completed (alias for `mark_succeeded`).
+    async fn complete_job(
+        &self,
+        job_id: Uuid,
+        attempt_id: Uuid,
+        worker_id: &str,
+        latency_ms: i32,
+    ) -> anyhow::Result<()> {
+        self.mark_succeeded(job_id, attempt_id, worker_id, latency_ms).await
+    }
+
+    /// Reschedules a job for retry (alias for `reschedule_for_retry`).
+    #[allow(clippy::too_many_arguments)]
+    async fn retry_job(
+        &self,
+        job_id: Uuid,
+        attempt_id: Uuid,
+        worker_id: &str,
+        latency_ms: i32,
+        next_run_at: DateTime<Utc>,
+        error_code: &str,
+        error_message: &str,
+        attempt_no: i32,
+    ) -> anyhow::Result<()> {
+        self.reschedule_for_retry(
+            job_id,
+            attempt_id,
+            worker_id,
+            latency_ms,
+            next_run_at,
+            error_code,
+            error_message,
+            attempt_no,
+        )
+        .await
+    }
+
+    /// Moves a job to DLQ on failure (alias for `mark_dlq`).
+    #[allow(clippy::too_many_arguments)]
+    async fn fail_job(
+        &self,
+        job_id: Uuid,
+        attempt_id: Uuid,
+        worker_id: &str,
+        latency_ms: i32,
+        reason_code: &str,
+        error_code: &str,
+        error_message: &str,
+        attempt_no: i32,
+    ) -> anyhow::Result<()> {
+        self.mark_dlq(
+            job_id,
+            attempt_id,
+            worker_id,
+            latency_ms,
+            reason_code,
+            error_code,
+            error_message,
+            attempt_no,
+        )
+        .await
+    }
 }

@@ -1,31 +1,43 @@
-name: Release
+name: Release Automation
 
 on:
   push:
-    branches: [main]
-
-permissions:
-  contents: write
-  pull-requests: write
+    tags:
+      - 'v*'
 
 jobs:
-  release-plz:
-    name: Release-plz
+  publish:
+    name: Publish Crates to Crates.io
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - name: Cargo Login
+        run: cargo login ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Run release-plz
-        uses: MarcoIeni/release-plz-action@v0.5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Publish postgresflow-core
+        run: cargo publish -p postgresflow-core
+
+      - name: Publish postgresflow-postgres
+        run: cargo publish -p postgresflow-postgres
+
+      - name: Publish postgresflow
+        run: cargo publish -p postgresflow
+
+      - name: Publish postgresflow-axum
+        run: cargo publish -p postgresflow-axum
+
+      - name: Publish postgresflow-actix
+        run: cargo publish -p postgresflow-actix
+
+      - name: Publish postgresflow-poem
+        run: cargo publish -p postgresflow-poem
+
+      - name: Publish postgresflow-rocket
+        run: cargo publish -p postgresflow-rocket
+
+      - name: Publish worker
+        run: cargo publish -p worker
