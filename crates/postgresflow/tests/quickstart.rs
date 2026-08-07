@@ -2,16 +2,17 @@ use postgresflow::{quickstart, Job};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+/// Tests the full quickstart flow: enqueue → register_handler → run_until_empty.
+///
+/// Uses the in-memory backend so this test works on all platforms without
+/// requiring a running PostgreSQL instance.  Postgres-specific behaviour
+/// (leasing, retries, DLQ, partitioning) is exercised by the other
+/// integration tests that go through `setup_db()`.
 #[tokio::test]
 async fn test_quickstart_flow() {
-    let Ok(test_url) = std::env::var("TEST_DATABASE_URL") else {
-        eprintln!("TEST_DATABASE_URL not set; skipping test_quickstart_flow");
-        return;
-    };
-
-    let flow = quickstart(&test_url)
+    let flow = quickstart("memory")
         .await
-        .expect("quickstart should connect and run migrations");
+        .expect("quickstart(memory) should succeed");
 
     let processed = Arc::new(AtomicBool::new(false));
     let processed_clone = processed.clone();

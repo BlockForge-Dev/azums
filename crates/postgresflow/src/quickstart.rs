@@ -205,7 +205,6 @@ impl QuickstartFlow {
     pub async fn run_until_empty(&self) -> anyhow::Result<usize> {
         self.ensure_admin_api();
         let mut total_processed = 0;
-        let mut consecutive_empty = 0;
 
         loop {
             let batch = self
@@ -214,15 +213,9 @@ impl QuickstartFlow {
                 .await?;
 
             if batch.is_empty() {
-                consecutive_empty += 1;
-                if consecutive_empty >= 5 {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                continue;
+                break;
             }
 
-            consecutive_empty = 0;
             let count = batch.len();
             self.process_batch(batch).await?;
             total_processed += count;
