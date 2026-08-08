@@ -51,8 +51,15 @@
         }
 
         header p {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             color: var(--text-muted);
+        }
+
+        .timestamp-bar {
+            margin-top: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: #60a5fa;
         }
 
         .badge-bar {
@@ -91,7 +98,7 @@
         .card h2 {
             font-size: 1.3rem;
             font-weight: 700;
-            margin-bottom: 1rem;
+            margin-bottom: 0.25rem;
             display: flex;
             align-items: center;
             gap: 0.5rem;
@@ -99,6 +106,12 @@
 
         .card h2 span {
             color: var(--accent-green);
+        }
+
+        .benchmark-desc {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 1.25rem;
         }
 
         canvas {
@@ -149,6 +162,7 @@
     <header>
         <h1>⚡ Azums Benchmark Dashboard</h1>
         <p>Real-time, zero-regression performance metrics comparing azums against industry alternatives.</p>
+        <div class="timestamp-bar">Last updated: <span id="lastUpdated">loading...</span></div>
         <div class="badge-bar">
             <span class="badge">Fastest Rust Job Queue</span>
             <span class="badge">LISTEN/NOTIFY Instant Wake-up</span>
@@ -159,26 +173,31 @@
     <div class="grid">
         <div class="card">
             <h2><span>01.</span> Enqueue Throughput (Jobs / Sec)</h2>
+            <p class="benchmark-desc">Measures atomic single-job insertion speed across memory, Redis, SQLite, and PostgreSQL storage engines.</p>
             <canvas id="enqueueChart"></canvas>
         </div>
 
         <div class="card">
             <h2><span>02.</span> Wake-Up Latency (Lower is Better)</h2>
+            <p class="benchmark-desc">Elapsed milliseconds between job enqueue and idle worker wake-up via LISTEN/NOTIFY and PubSub.</p>
             <canvas id="latencyChart"></canvas>
         </div>
 
         <div class="card">
             <h2><span>03.</span> Multi-Worker Concurrent Leasing</h2>
+            <p class="benchmark-desc">Throughput scaling under lock contention when multiple worker tasks concurrently lease job batches.</p>
             <canvas id="workersChart"></canvas>
         </div>
 
         <div class="card">
             <h2><span>04.</span> Stream Pub/Sub & Replay Rate</h2>
+            <p class="benchmark-desc">High-speed event publishing, consumer group offset reading, and sequence ACK throughput.</p>
             <canvas id="streamsChart"></canvas>
         </div>
 
         <div class="card full-width">
             <h2><span>05.</span> Competitor Comparison Summary</h2>
+            <p class="benchmark-desc">Head-to-head comparison of throughput, CPU usage, and latency across queue architectures.</p>
             <table>
                 <thead>
                     <tr>
@@ -247,63 +266,101 @@
             }
         };
 
-        // Chart 1: Enqueue Throughput
-        new Chart(document.getElementById('enqueueChart'), {
-            type: 'bar',
-            data: {
+        let enqueueChart, latencyChart, workersChart, streamsChart;
+
+        function initCharts(data) {
+            document.getElementById('lastUpdated').textContent = data.last_updated || new Date().toISOString();
+
+            // Chart 1: Enqueue Throughput
+            enqueueChart = new Chart(document.getElementById('enqueueChart'), {
+                type: 'bar',
+                data: {
+                    labels: data.enqueue.labels,
+                    datasets: [{
+                        label: 'Enqueue Ops / Sec',
+                        data: data.enqueue.data,
+                        backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#60a5fa', '#ef4444']
+                    }]
+                },
+                options: chartOptions
+            });
+
+            // Chart 2: Wake-Up Latency
+            latencyChart = new Chart(document.getElementById('latencyChart'), {
+                type: 'bar',
+                data: {
+                    labels: data.latency.labels,
+                    datasets: [{
+                        label: 'Wake-Up Latency (ms)',
+                        data: data.latency.data,
+                        backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#ef4444']
+                    }]
+                },
+                options: chartOptions
+            });
+
+            // Chart 3: Multi-Worker Concurrent Leasing
+            workersChart = new Chart(document.getElementById('workersChart'), {
+                type: 'line',
+                data: {
+                    labels: data.workers.labels,
+                    datasets: [{
+                        label: 'azums Leased Jobs / Sec',
+                        data: data.workers.data,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        fill: true
+                    }]
+                },
+                options: chartOptions
+            });
+
+            // Chart 4: Stream Pub/Sub
+            streamsChart = new Chart(document.getElementById('streamsChart'), {
+                type: 'bar',
+                data: {
+                    labels: data.streams.labels,
+                    datasets: [{
+                        label: 'Events / Sec',
+                        data: data.streams.data,
+                        backgroundColor: '#8b5cf6'
+                    }]
+                },
+                options: chartOptions
+            });
+        }
+
+        // Default fallback data if data.json is missing or fetched locally
+        const defaultData = {
+            last_updated: new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC',
+            enqueue: {
                 labels: ['azums (Memory)', 'azums (Redis)', 'azums (SQLite)', 'azums (Postgres)', 'Raw SQL Polling'],
-                datasets: [{
-                    label: 'Enqueue Ops / Sec',
-                    data: [380000, 145000, 92000, 42000, 8500],
-                    backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#60a5fa', '#ef4444']
-                }]
+                data: [380000, 145000, 92000, 42000, 8500]
             },
-            options: chartOptions
-        });
-
-        // Chart 2: Wake-Up Latency
-        new Chart(document.getElementById('latencyChart'), {
-            type: 'bar',
-            data: {
+            latency: {
                 labels: ['azums (LISTEN/NOTIFY)', 'azums (Redis PubSub)', 'azums (Memory Bcast)', '500ms Polling Loop'],
-                datasets: [{
-                    label: 'Wake-Up Latency (ms)',
-                    data: [1.2, 0.8, 0.08, 500.0],
-                    backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#ef4444']
-                }]
+                data: [1.2, 0.8, 0.08, 500.0]
             },
-            options: chartOptions
-        });
-
-        // Chart 3: Multi-Worker Concurrent Leasing
-        new Chart(document.getElementById('workersChart'), {
-            type: 'line',
-            data: {
+            workers: {
                 labels: ['1 Worker', '4 Workers', '8 Workers', '16 Workers'],
-                datasets: [{
-                    label: 'azums Leased Jobs / Sec',
-                    data: [42000, 168000, 310000, 580000],
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                    fill: true
-                }]
+                data: [42000, 168000, 310000, 580000]
             },
-            options: chartOptions
-        });
-
-        // Chart 4: Stream Pub/Sub
-        new Chart(document.getElementById('streamsChart'), {
-            type: 'bar',
-            data: {
+            streams: {
                 labels: ['Stream Publish', 'Stream Read', 'Group Ack'],
-                datasets: [{
-                    label: 'Events / Sec',
-                    data: [210000, 450000, 390000],
-                    backgroundColor: '#8b5cf6'
-                }]
-            },
-            options: chartOptions
-        });
+                data: [210000, 450000, 390000]
+            }
+        };
+
+        fetch('./data.json')
+            .then(response => {
+                if (!response.ok) throw new Error('data.json not found');
+                return response.json();
+            })
+            .then(data => initCharts(data))
+            .catch(err => {
+                console.warn('Could not load data.json, falling back to embedded defaults:', err);
+                initCharts(defaultData);
+            });
     </script>
 </body>
 </html>

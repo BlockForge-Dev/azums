@@ -58,6 +58,10 @@ jobs:
         run: |
           mkdir -p target/dashboard
           cp -r docs/benchmarks/* target/dashboard/
+          NOW=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          if [ -f target/dashboard/data.json ]; then
+            sed -i "s/\"last_updated\": \".*\"/\"last_updated\": \"$NOW\"/" target/dashboard/data.json
+          fi
           cp -r target/criterion target/dashboard/criterion || true
 
       - name: Deploy to GitHub Pages
