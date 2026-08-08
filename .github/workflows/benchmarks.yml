@@ -1,9 +1,11 @@
 name: Benchmarks & Performance Dashboard
 
 on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * 0'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -61,8 +63,6 @@ jobs:
         run: |
           mkdir -p target/dashboard
           cp -r docs/benchmarks/* target/dashboard/
-          chmod +x scripts/generate_benchmark_json.sh
-          ./scripts/generate_benchmark_json.sh target/dashboard/data.json target/criterion
           cp -r target/criterion target/dashboard/criterion || true
 
       - name: Deploy to GitHub Pages
