@@ -3,6 +3,7 @@
 //! Zero-dependency core traits, models, and [`QueueError`] for `azums`.
 
 #![deny(unsafe_code)]
+#![allow(clippy::double_must_use)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "alloc")]

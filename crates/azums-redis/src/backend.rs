@@ -437,7 +437,7 @@ impl StorageBackend for RedisBackend {
             }
         }
 
-        items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        items.sort_by_key(|a| std::cmp::Reverse(a.created_at));
         items.truncate(limit.clamp(1, 500) as usize);
         Ok(items)
     }

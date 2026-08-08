@@ -1,4 +1,5 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![allow(clippy::double_must_use)]
 //! # Azums
 //!
 //! **High-performance job queue & streaming engine for Rust — from embedded to cloud.**
