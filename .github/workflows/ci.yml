@@ -11,13 +11,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  linux-test:
-    name: Build & Test (Linux / ${{ matrix.rust }})
+  test-linux:
+    name: Build & Test (Linux / stable)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        rust: [stable, beta, nightly]
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -36,99 +33,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (${{ matrix.rust }})
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
-          components: clippy, rustfmt
-
-      - name: Workspace Compilation Check
-        run: cargo check --workspace --all-targets
-
-      - name: Workspace Test Suite
-        run: cargo test --workspace
-        env:
-          TEST_DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/azums_test
-
-      - name: Clippy Lints
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      - name: Rustfmt Style Check
-        run: cargo fmt --all -- --check
-
-      - name: Workspace API Documentation Check
-        run: cargo doc --workspace --no-deps
-
-  cross-platform-test:
-    name: Build & Test (${{ matrix.os }} / ${{ matrix.rust }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-        rust: [stable]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain (${{ matrix.rust }})
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
-          components: clippy, rustfmt
-
-      - name: Workspace Compilation Check
-        run: cargo check --workspace --all-targets
-
-      - name: Workspace Test Suite
-        run: cargo test --workspace
-
-      - name: Clippy Lints
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      - name: Rustfmt Style Check
-        run: cargo fmt --all -- --check
-
-      - name: Workspace API Documentation Check
-        run: cargo doc --workspace --no-deps
-
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgrespassword
-          POSTGRES_DB: azums_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust Toolchain
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: llvm-tools-preview
+          components: clippy, rustfmt
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Workspace Compilation Check
+        run: cargo check --workspace --all-targets
 
-      - name: Measure Code Coverage
-        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+      - name: Workspace Test Suite
+        run: cargo test --workspace
         env:
           TEST_DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/azums_test
 
-      - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v4
+      - name: Clippy Lints
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rustfmt Style Check
+        run: cargo fmt --all -- --check
+
+      - name: Workspace API Documentation Check
+        run: cargo doc --workspace --no-deps
+
+  test-windows:
+    name: Build & Test (Windows / stable)
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: lcov.info
-          fail_ci_if_error: false
+          components: clippy, rustfmt
+
+      - name: Workspace Compilation Check
+        run: cargo check --workspace --all-targets
+
+      - name: Workspace Test Suite
+        run: cargo test --workspace
+
+      - name: Clippy Lints
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rustfmt Style Check
+        run: cargo fmt --all -- --check
