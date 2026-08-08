@@ -352,8 +352,28 @@ impl QuickstartFlow {
 
             let start = std::time::Instant::now();
             let res_outcome = match handler_opt.as_ref() {
-                Some(handler) => (handler)(job.clone()).await,
-                None => Err(anyhow::anyhow!("no handler registered for job_type={}", job.job_type)),
+                Some(handler) => {
+                    let handler_clone = handler.clone();
+                    let job_clone = job.clone();
+                    let task_res =
+                        tokio::task::spawn(async move { (handler_clone)(job_clone).await }).await;
+                    match task_res {
+                        Ok(res) => res,
+                        Err(join_err) => {
+                            if join_err.is_panic() {
+                                let panic_msg =
+                                    azums_core::format_panic_message(join_err.into_panic());
+                                Err(anyhow::anyhow!("PANIC: {}", panic_msg))
+                            } else {
+                                Err(anyhow::anyhow!("task join error: {}", join_err))
+                            }
+                        }
+                    }
+                }
+                None => Err(anyhow::anyhow!(
+                    "no handler registered for job_type={}",
+                    job.job_type
+                )),
             };
 
             // Stop heartbeat task
@@ -367,21 +387,42 @@ impl QuickstartFlow {
                         .await?;
                 }
                 Err(err) => {
-                    let err_code = if handler_opt.is_some() {
-                        "HANDLER_ERROR"
+                    let err_str = err.to_string();
+                    let is_panic = err_str.starts_with("PANIC: ");
+                    let (err_code, err_msg) = if is_panic {
+                        ("PANIC", err_str.trim_start_matches("PANIC: "))
+                    } else if handler_opt.is_some() {
+                        ("HANDLER_ERROR", err_str.as_str())
                     } else {
-                        "UNKNOWN_JOB_TYPE"
+                        ("UNKNOWN_JOB_TYPE", err_str.as_str())
                     };
-                    self.handle_failure(
-                        job.id,
-                        attempt_id,
-                        latency_ms,
-                        err_code,
-                        &err.to_string(),
-                        attempt_no,
-                        job.max_attempts,
-                    )
-                    .await?;
+
+                    if is_panic {
+                        // Immediately route panicked job to DLQ
+                        self.backend
+                            .mark_dlq(
+                                job.id,
+                                attempt_id,
+                                &self.worker_id,
+                                latency_ms,
+                                "PANIC",
+                                err_code,
+                                err_msg,
+                                attempt_no,
+                            )
+                            .await?;
+                    } else {
+                        self.handle_failure(
+                            job.id,
+                            attempt_id,
+                            latency_ms,
+                            err_code,
+                            err_msg,
+                            attempt_no,
+                            job.max_attempts,
+                        )
+                        .await?;
+                    }
                 }
             }
         }

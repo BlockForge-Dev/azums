@@ -217,41 +217,64 @@ async fn main() -> anyhow::Result<()> {
                     .remove(&job.id)
                     .ok_or_else(|| anyhow::anyhow!("missing started attempt for job {}", job.id))?;
 
+                let job_id = job.id;
+                let max_attempts = job.max_attempts;
+
                 join_set.spawn(async move {
                     let start = Instant::now();
 
                     if verbose_job_logs_for_task {
                         println!(
                             "[{}] leased job id={} type={} attempt_no={}",
-                            worker_id_for_task, job.id, job.job_type, attempt_no
+                            worker_id_for_task, job_id, job.job_type, attempt_no
                         );
                     }
 
-                    let result: Result<(), JobError> = match registry.handler_for(&job.job_type) {
-                        Some(entry) => entry.run(&job, &ctx).await,
-                        None => Err(JobError::new(
-                            "UNKNOWN_JOB_TYPE",
-                            format!("no handler for job_type={}", job.job_type),
-                        )),
-                    };
+                    let task_res = tokio::task::spawn(async move {
+                        match registry.handler_for(&job.job_type) {
+                            Some(entry) => entry.run(&job, &ctx).await,
+                            None => Err(JobError::new(
+                                "UNKNOWN_JOB_TYPE",
+                                format!("no handler for job_type={}", job.job_type),
+                            )),
+                        }
+                    })
+                    .await;
 
                     let latency_ms = start.elapsed().as_millis() as i32;
-                    let outcome = match result {
-                        Ok(()) => JobExecutionOutcome::Succeeded {
-                            job_id: job.id,
+                    let outcome = match task_res {
+                        Ok(Ok(())) => JobExecutionOutcome::Succeeded {
+                            job_id,
                             attempt_id,
                             attempt_no,
                             latency_ms,
                         },
-                        Err(err) => JobExecutionOutcome::Failed {
-                            job_id: job.id,
+                        Ok(Err(err)) => JobExecutionOutcome::Failed {
+                            job_id,
                             attempt_id,
                             attempt_no,
-                            max_attempts: job.max_attempts,
+                            max_attempts,
                             latency_ms,
                             error_code: err.code.to_string(),
                             error_message: err.message,
                         },
+                        Err(join_err) => {
+                            let panic_msg = if join_err.is_panic() {
+                                azums_core::format_panic_message(join_err.into_panic())
+                            } else {
+                                format!("task join error: {join_err}")
+                            };
+                            eprintln!("[{worker_id_for_task}] job {job_id} panicked: {panic_msg}");
+                            JobExecutionOutcome::Failed {
+                                job_id,
+                                attempt_id,
+                                attempt_no,
+                                max_attempts: 0, // Force straight to DLQ for panicked jobs
+                                latency_ms,
+                                error_code: "PANIC".to_string(),
+                                error_message: panic_msg,
+                            }
+                        }
                     };
 
                     Ok::<JobExecutionOutcome, anyhow::Error>(outcome)

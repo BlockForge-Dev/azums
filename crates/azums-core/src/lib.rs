@@ -22,3 +22,14 @@ pub use model::{
     ConsumerGroupStatus, Event, Job, JobHandler, JobListItem, JobProcessor, JobStatus, NewEvent,
     NewJob, QueueConfig, QueueOrdering,
 };
+
+/// Helper function to extract a human-readable panic message string from a panic payload.
+pub fn format_panic_message(err: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = err.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "job handler panicked with unknown payload".to_string()
+    }
+}
