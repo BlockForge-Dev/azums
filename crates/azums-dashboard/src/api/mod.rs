@@ -28,6 +28,7 @@ pub struct ApiState {
     pub policy_decisions: PolicyDecisionsRepo,
     pub ingest_decisions: IngestDecisionsRepo,
     pub metrics: MetricsRepo,
+    pub maintenance: Option<azums::MaintenanceRepo>,
     pub enqueue_guard: EnqueueGuard,
     pub api_token: Option<String>,
 }
@@ -67,6 +68,7 @@ pub fn router(state: ApiState) -> Router {
         .route("/ingest/decisions", get(list_ingest_decisions))
         .route("/metrics", get(metrics))
         .route("/metrics/prom", get(metrics_prom))
+        .route("/maintenance/status", get(maintenance_status))
         .layer(middleware::from_fn_with_state(
             state.api_token.clone(),
             require_api_key,
@@ -784,4 +786,26 @@ pub async fn explain_job(Path(id): Path<Uuid>, State(state): State<ApiState>) ->
 
 pub async fn health() -> impl IntoResponse {
     (StatusCode::OK, "ok")
+}
+
+pub async fn maintenance_status(State(state): State<ApiState>) -> impl IntoResponse {
+    if let Some(maint) = &state.maintenance {
+        match maint.get_maintenance_status().await {
+            Ok(tables) => (StatusCode::OK, Json(tables)).into_response(),
+            Err(err) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": err.to_string() })),
+            )
+                .into_response(),
+        }
+    } else {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "healthy",
+                "tables": []
+            })),
+        )
+            .into_response()
+    }
 }

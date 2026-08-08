@@ -1,6 +1,6 @@
 # Admin API & Web UI
 
-PostgresFlow comes with an embedded, zero-dependency Axum REST API and visual web console accessible at `http://localhost:3003/`.
+`azums` comes with an embedded, zero-dependency Axum REST API and visual web console accessible at `http://localhost:3003/`.
 
 ## Web Console Features
 
@@ -11,6 +11,7 @@ Accessing `GET /` in your browser opens the built-in HTML/JS administration dash
 - **Job List & Filter**: Search and inspect jobs by queue, status (`queued`, `running`, `succeeded`, `failed`, `dlq`), and pagination cursor.
 - **DLQ Inspector**: Filter and view jobs currently in Dead-Letter Queue.
 - **Job Timeline & Replay**: Inspect full execution history of individual jobs and trigger atomic job replays (`POST /jobs/:id/replay`).
+- **Database Maintenance**: View dead tuple counts (`n_dead_tup`), live tuple counts, and last `VACUUM ANALYZE` execution timestamps (`GET /maintenance/status`).
 
 ## REST API Endpoints
 
@@ -26,7 +27,18 @@ Accessing `GET /` in your browser opens the built-in HTML/JS administration dash
 | `GET` | `/dlq` | List jobs currently in Dead-Letter Queue |
 | `GET` | `/metrics` | JSON snapshot of queue depths and throughput rates |
 | `GET` | `/metrics/prom` | Native Prometheus text metrics format |
+| `GET` | `/maintenance/status` | Dead tuple statistics, live tuples, and last vacuum timestamps per table |
+
+## Application Maintenance API
+
+Applications can also manually trigger storage backend maintenance on demand:
+
+```rust
+// Run VACUUM ANALYZE (Postgres) or PRAGMA incremental_vacuum (SQLite)
+client.perform_maintenance().await?;
+```
 
 ## Security & Authentication
 
-Authentication can be enforced by setting the `PGFLOW_API_TOKEN` environment variable. When set, all requests to administrative endpoints must supply the secret token via `x-api-key` or `Authorization: Bearer <token>`.
+Authentication can be enforced by setting the `AZUMS_API_TOKEN` environment variable. When set, all requests to administrative endpoints must supply the secret token via `x-api-key` or `Authorization: Bearer <token>`.
+

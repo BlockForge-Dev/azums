@@ -155,6 +155,11 @@ impl QuickstartFlow {
         Ok(())
     }
 
+    /// Performs database maintenance operations (such as PostgreSQL `VACUUM ANALYZE` or SQLite `PRAGMA incremental_vacuum`).
+    pub async fn perform_maintenance(&self) -> anyhow::Result<()> {
+        self.backend.perform_maintenance().await
+    }
+
     /// Starts the in-process worker polling loop and admin HTTP API (if `api` feature is active).
     ///
     /// Runs continuously processing jobs until application termination.
@@ -174,13 +179,20 @@ impl QuickstartFlow {
         use tokio_stream::StreamExt;
 
         let mut last_reap_at = std::time::Instant::now();
+        let mut last_maint_at = std::time::Instant::now();
         let reap_interval = std::time::Duration::from_secs(5);
+        let maint_interval = std::time::Duration::from_secs(300);
         let mut stream = self.backend.subscribe(&self.queue).await.ok();
 
         loop {
             if last_reap_at.elapsed() >= reap_interval {
                 let _ = self.backend.reap_expired_locks().await;
                 last_reap_at = std::time::Instant::now();
+            }
+
+            if last_maint_at.elapsed() >= maint_interval {
+                let _ = self.backend.perform_maintenance().await;
+                last_maint_at = std::time::Instant::now();
             }
 
             let q_config = self.get_queue_config(&self.queue).await;

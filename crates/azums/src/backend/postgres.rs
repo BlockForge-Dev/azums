@@ -56,6 +56,11 @@ impl PostgresBackend {
     pub fn stream_repo(&self) -> &StreamRepo {
         &self.stream_repo
     }
+
+    /// Returns reference to the underlying `MaintenanceRepo`.
+    pub fn maintenance_repo(&self) -> &MaintenanceRepo {
+        &self.maintenance_repo
+    }
 }
 
 #[async_trait]
@@ -258,6 +263,10 @@ impl StorageBackend for PostgresBackend {
         self.jobs_repo
             .replay_job(job_id, override_queue, override_run_at)
             .await
+    }
+
+    async fn perform_maintenance(&self) -> anyhow::Result<()> {
+        self.maintenance_repo.vacuum_analyze().await
     }
 }
 

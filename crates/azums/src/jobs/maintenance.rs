@@ -157,6 +157,57 @@ impl MaintenanceRepo {
         tx.commit().await?;
         Ok((attempts_deleted, policy_deleted))
     }
+
+    /// Executes VACUUM ANALYZE on core job queue tables outside active transactions.
+    pub async fn vacuum_analyze(&self) -> anyhow::Result<()> {
+        let tables = [
+            "jobs",
+            "job_attempts",
+            "stream_events",
+            "policy_decisions",
+            "jobs_archive",
+        ];
+        for table in tables {
+            let sql = format!("VACUUM ANALYZE {table}");
+            let _ = sqlx::query(&sql).execute(&self.pool).await;
+        }
+        Ok(())
+    }
+
+    /// Queries `pg_stat_user_tables` for dead tuple counts, live tuple counts, and vacuum timestamps.
+    pub async fn get_maintenance_status(&self) -> anyhow::Result<Vec<TableMaintenanceInfo>> {
+        let rows = sqlx::query_as::<_, TableMaintenanceInfo>(
+            r#"
+            SELECT
+              relname AS table_name,
+              COALESCE(n_dead_tup, 0) AS dead_tuples,
+              COALESCE(n_live_tup, 0) AS live_tuples,
+              last_vacuum,
+              last_autovacuum,
+              last_analyze,
+              last_autoanalyze
+            FROM pg_stat_user_tables
+            WHERE relname IN ('jobs', 'job_attempts', 'stream_events', 'policy_decisions', 'jobs_archive')
+            ORDER BY relname ASC
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows)
+    }
+}
+
+/// Statistics and vacuum status metadata for a database table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct TableMaintenanceInfo {
+    pub table_name: String,
+    pub dead_tuples: i64,
+    pub live_tuples: i64,
+    pub last_vacuum: Option<DateTime<Utc>>,
+    pub last_autovacuum: Option<DateTime<Utc>>,
+    pub last_analyze: Option<DateTime<Utc>>,
+    pub last_autoanalyze: Option<DateTime<Utc>>,
 }
 
 /// Convenience: compute cutoff like "now - N days"

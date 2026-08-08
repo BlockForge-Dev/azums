@@ -452,6 +452,10 @@ impl StorageBackend for MemoryBackend {
         Ok((count, 0))
     }
 
+    async fn perform_maintenance(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {
         let state = self.state.read().unwrap();
         let job = state

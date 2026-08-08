@@ -407,6 +407,11 @@ impl StorageBackend for RedisBackend {
         Ok((0, 0))
     }
 
+    async fn perform_maintenance(&self) -> anyhow::Result<()> {
+        let _ = self.reap_expired_locks().await;
+        Ok(())
+    }
+
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {
         let mut conn = self.conn_mgr.clone();
         let json_str: Option<String> = conn.hget("azums:jobs", job_id.to_string()).await?;

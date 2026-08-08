@@ -107,7 +107,7 @@ pub use db::{make_pool, run_migrations};
 pub use jobs::attempts::AttemptsRepo;
 pub use jobs::enqueue_guard::{EnqueueGuard, EnqueueGuardConfig};
 pub use jobs::ingest_decisions::IngestDecisionsRepo;
-pub use jobs::maintenance::MaintenanceRepo;
+pub use jobs::maintenance::{MaintenanceRepo, TableMaintenanceInfo};
 pub use jobs::metrics::MetricsRepo;
 pub use jobs::policies::{PoliciesRepo, QueuePolicy};
 pub use jobs::policy_decisions::{PolicyDecisionRow, PolicyDecisionsRepo};

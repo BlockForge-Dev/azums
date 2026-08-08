@@ -91,6 +91,7 @@ pub enum CallRecord {
         cutoff: DateTime<Utc>,
         limit: i64,
     },
+    PerformMaintenance,
     GetJob(Uuid),
     ListJobs {
         queue: Option<String>,
@@ -413,6 +414,11 @@ impl StorageBackend for MockBackend {
         self.inner
             .delete_history_for_succeeded_older_than(cutoff, limit)
             .await
+    }
+
+    async fn perform_maintenance(&self) -> anyhow::Result<()> {
+        self.calls.lock().unwrap().push(CallRecord::PerformMaintenance);
+        self.inner.perform_maintenance().await
     }
 
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {

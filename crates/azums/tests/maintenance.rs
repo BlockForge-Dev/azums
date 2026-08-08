@@ -158,3 +158,33 @@ async fn archives_old_succeeded_jobs_and_prunes_history() {
         .unwrap();
     assert_eq!(archived_count, 1);
 }
+
+#[tokio::test]
+async fn test_quickstart_perform_maintenance_memory() -> anyhow::Result<()> {
+    let flow = azums::quickstart("memory").await?;
+    flow.perform_maintenance().await?;
+    Ok(())
+}
+
+#[tokio::test]
+#[cfg(feature = "sqlite")]
+async fn test_sqlite_perform_maintenance_and_incremental_vacuum() -> anyhow::Result<()> {
+    use azums::Job;
+
+    let flow = azums::quickstart("sqlite::memory:").await?.with_queue("maint_test");
+    flow.register_handler("dummy", |_j| async move { Ok(()) }).await;
+
+    // Enqueue 200 jobs to trigger automatic incremental vacuum threshold
+    for i in 0..200 {
+        flow.enqueue(Job::new("dummy", json!({ "i": i })).queue("maint_test"))
+            .await?;
+    }
+
+    let processed = flow.run_until_empty().await?;
+    assert_eq!(processed, 200);
+
+    // Call explicit maintenance
+    flow.perform_maintenance().await?;
+
+    Ok(())
+}

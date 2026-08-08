@@ -131,6 +131,11 @@ pub trait StorageBackend: Send + Sync {
         limit: i64,
     ) -> anyhow::Result<(u64, u64)>;
 
+    /// Performs database maintenance (e.g., VACUUM ANALYZE in Postgres, PRAGMA incremental_vacuum in SQLite).
+    async fn perform_maintenance(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     /// Fetches a single job record by ID.
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>>;
 

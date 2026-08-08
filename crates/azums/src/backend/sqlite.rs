@@ -39,15 +39,24 @@ pub struct SqliteBackend {
     pool: SqlitePool,
     notifiers: Arc<RwLock<HashMap<String, tokio::sync::broadcast::Sender<()>>>>,
     stream_notifiers: Arc<RwLock<HashMap<String, tokio::sync::broadcast::Sender<()>>>>,
+    dequeue_count: Arc<std::sync::atomic::AtomicU64>,
+    incremental_vacuum_n: u64,
 }
 
 impl SqliteBackend {
     /// Creates a new `SqliteBackend` wrapping a SQLx `SqlitePool`.
     pub fn new(pool: SqlitePool) -> Self {
+        Self::with_vacuum_n(pool, 100)
+    }
+
+    /// Creates a new `SqliteBackend` with a custom incremental vacuum threshold N.
+    pub fn with_vacuum_n(pool: SqlitePool, incremental_vacuum_n: u64) -> Self {
         Self {
             pool,
             notifiers: Arc::new(RwLock::new(HashMap::new())),
             stream_notifiers: Arc::new(RwLock::new(HashMap::new())),
+            dequeue_count: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            incremental_vacuum_n: incremental_vacuum_n.max(1),
         }
     }
 
@@ -78,6 +87,10 @@ impl StorageBackend for SqliteBackend {
     }
 
     async fn run_migrations(&self) -> anyhow::Result<()> {
+        sqlx::query("PRAGMA auto_vacuum = INCREMENTAL;")
+            .execute(&self.pool)
+            .await?;
+
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS jobs (
@@ -311,7 +324,32 @@ impl StorageBackend for SqliteBackend {
         }
 
         tx.commit().await?;
+
+        if !leased_jobs.is_empty() {
+            let prev = self
+                .dequeue_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if (prev + 1) % self.incremental_vacuum_n == 0 {
+                let pool = self.pool.clone();
+                tokio::spawn(async move {
+                    let _ = sqlx::query("PRAGMA incremental_vacuum")
+                        .execute(&pool)
+                        .await;
+                });
+            }
+        }
+
         Ok(leased_jobs)
+    }
+
+    async fn perform_maintenance(&self) -> anyhow::Result<()> {
+        let _ = sqlx::query("PRAGMA incremental_vacuum")
+            .execute(&self.pool)
+            .await;
+        let _ = sqlx::query("PRAGMA optimize")
+            .execute(&self.pool)
+            .await;
+        Ok(())
     }
 
     async fn reap_expired_locks(&self) -> anyhow::Result<u64> {

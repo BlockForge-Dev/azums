@@ -27,6 +27,8 @@ pub struct Config {
     pub migrate_on_startup: bool,
     pub max_payload_bytes: usize,
     pub max_enqueues_per_minute_per_queue: i64,
+    pub maintenance_interval_secs: u64,
+    pub sqlite_incremental_vacuum_n: u64,
 }
 
 impl Config {
@@ -91,6 +93,22 @@ impl Config {
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(10_000);
 
+        let maintenance_interval_secs = env_or_fallback(
+            "AZUMS_MAINTENANCE_INTERVAL_SECS",
+            "MAINTENANCE_INTERVAL_SECS",
+        )
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(300)
+        .clamp(10, 86400);
+
+        let sqlite_incremental_vacuum_n = env_or_fallback(
+            "AZUMS_SQLITE_INCREMENTAL_VACUUM_N",
+            "SQLITE_INCREMENTAL_VACUUM_N",
+        )
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100)
+        .clamp(1, 100_000);
+
         Ok(Self {
             database_url,
             worker_id,
@@ -104,6 +122,8 @@ impl Config {
             migrate_on_startup,
             max_payload_bytes,
             max_enqueues_per_minute_per_queue,
+            maintenance_interval_secs,
+            sqlite_incremental_vacuum_n,
         })
     }
 
