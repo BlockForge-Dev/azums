@@ -53,6 +53,38 @@ async fn main() -> anyhow::Result<()> {
 
 ---
 
+## 🆚 Why azums over other job queues?
+
+| Feature / Queue | **azums** | BullMQ (Node) | Celery (Python) | Sidekiq (Ruby) | Factotum (Rust) |
+|---|---|---|---|---|---|
+| **Language** | Rust 🦀 | Node.js | Python | Ruby | Rust |
+| **Backend Portability** | ✅ Single API for Postgres, SQLite, Redis, In-Memory | ❌ Redis only | ✅ Redis, RabbitMQ, etc. | ❌ Redis only | ❌ Postgres only |
+| **Instant Wake‑up** | ✅ `LISTEN/NOTIFY`, Redis PubSub, zero polling | ✅ Redis PubSub | ✅ Broker‑dependent | ✅ Redis PubSub | ❌ Polling only |
+| **Framework Integrations** | ✅ Axum, Actix, Poem, Rocket (native extractors) | ❌ None built‑in | ✅ Flask, Django, FastAPI | ❌ None | ❌ None |
+| **Event Streams (Redis‑style)** | ✅ Durable stream logs with consumer groups & offsets | ✅ Native Redis Streams | ❌ Requires Celery Beat | ❌ No native streams | ❌ None |
+| **Dead‑Letter Queue (DLQ)** | ✅ Automatic with retry exhaustion, reason codes, and replay | ✅ | ✅ | ✅ | ✅ |
+| **Transactional Enqueue** | ✅ Enqueue inside DB transaction with zero dual‑write risk | ❌ Separate store | ❌ | ❌ | ❌ (to some extent) |
+| **Embedded / Edge Support** | ✅ SQLite & in‑memory backends for single‑binary deployment | ❌ Requires Redis process | ❌ | ❌ | ❌ |
+| **Idle CPU Usage** | **0.0%** | Low | Medium | Low | High (polling) |
+| **Max Throughput (enqueue)** | **380,000 jobs/sec** (in‑memory) | ~5,000–10,000/sec | ~2,000–5,000/sec | ~5,000–10,000/sec | ~8,500/sec |
+| **Licensing** | MIT / Apache 2.0 | MIT | BSD | LGPL / Pro | MIT |
+| **Open Source Dashboard** | 🚧 Coming as separate crate | ✅ Built‑in | ✅ Flower | ✅ Sidekiq UI | ❌ None |
+| **Managed Cloud Offering** | 🚧 Beta planned | ✅ (via Redis Enterprise) | ✅ (Celery Cloud) | ✅ (Sidekiq Pro) | ❌ |
+
+### 🔑 Key Differentiators
+
+- **One library, any database.** Your code looks identical whether you use Postgres, SQLite, or Redis. No lock‑in.
+- **Zero‑cost idle.** Unlike polling‑based Rust queues, `azums` workers consume no CPU when the queue is empty—saving battery and server costs.
+- **Natively embedded.** Run a full job queue inside your CLI tool, desktop app, or IoT device with SQLite. No external services required.
+- **Streams without a broker.** Durable, replayable event streams are built into the database backend—just like Redis Streams, but your existing database handles it.
+- **First‑class Rust web framework support.** Drop `azums-axum` into your project and inject a `JobQueue` directly into route handlers—something no other Rust queue offers.
+
+---
+
+**🔗 See the [Live Benchmarks Dashboard](https://blockforge-dev.github.io/azums/) for reproducible, up‑to‑date performance numbers.**
+
+---
+
 ## 🏗️ Storage Backend Compatibility
 
 Swap storage backends effortlessly with zero application code changes:
