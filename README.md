@@ -50,15 +50,16 @@ async fn main() -> anyhow::Result<()> {
 
 ---
 
-## 🏗️ Storage Backend Flexibility
+## 🏗️ Storage Backend Compatibility
 
 Swap storage backends effortlessly with zero application code changes:
 
-| Backend | Connection URL | Ideal Use Case |
-|---|---|---|
-| **PostgreSQL** | `postgres://user:pass@localhost/db` | Multi-node Kubernetes microservices & production DBs |
-| **SQLite** | `sqlite://jobs.db?mode=rwc` | Single-binary web apps, desktop tools, IoT edge devices |
-| **In-Memory** | `memory` | Fast unit tests, CI test pipelines, zero disk I/O |
+| Backend | Connection URL | Feature Flag | Ideal Use Case |
+|---|---|---|---|
+| **PostgreSQL** | `postgres://user:pass@localhost/db` | `postgres` (default) | Multi-node Kubernetes microservices & production DBs |
+| **SQLite** | `sqlite://jobs.db?mode=rwc` | `sqlite` (default) | Single-binary web apps, desktop tools, IoT edge devices |
+| **Redis** | `redis://127.0.0.1:6379` | `redis` (default) | Ultra-low latency memory queue & native streams |
+| **In-Memory** | `memory` | Core | Fast unit tests, CI test pipelines, zero disk I/O |
 
 ---
 
@@ -105,8 +106,16 @@ cargo bench -p azums
 
 ---
 
+## 💬 Community & Support
+
+- **[GitHub Discussions](https://github.com/BlockForge-Dev/azums/discussions)**: Have questions, feature requests, or architecture ideas? Join our GitHub Discussions.
+- **[Issue Tracker](https://github.com/BlockForge-Dev/azums/issues)**: Found a bug or issue? Report it on our GitHub Issues tracker.
+
+---
+
 ## 🤝 Contributing & License
 
 Contributions are welcome! Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md).
 
 Licensed under either of [Apache License, Version 2.0](./LICENSE-APACHE) or [MIT License](./LICENSE-MIT) at your option.
+

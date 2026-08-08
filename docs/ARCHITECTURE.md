@@ -1,17 +1,18 @@
-# PostgresFlow Architecture
+# Azums Architecture
 
 ## Scope
-PostgresFlow is a Postgres-backed job queue with:
+Azums is a multi-backend job queue with:
 
 - durable enqueue
 - worker leasing with lock expiry
 - retries and DLQ routing
-- admin/inspection API
 - queue policy and ingest guardrails
 
-The current workspace has two crates:
+The current workspace includes:
 
-- `crates/postgresflow`: shared library + admin API + repositories
+- `crates/azums`: shared core library + CLI tool (`azumsctl`)
+- `crates/azums-core`: zero-dependency traits and storage interfaces
+- `crates/azums-dashboard`: optional web administration dashboard
 - `crates/worker`: worker runtime (poll, execute handler, record outcome)
 
 ## High-Level Design

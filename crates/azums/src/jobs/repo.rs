@@ -1,4 +1,4 @@
-// crates/postgresflow/src/jobs/repo.rs
+// crates/azums/src/jobs/repo.rs
 
 use crate::jobs::model::{Job, JobListItem, JobStatus, NewJob};
 use chrono::{DateTime, Utc};

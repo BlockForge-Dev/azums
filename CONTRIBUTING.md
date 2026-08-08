@@ -1,14 +1,14 @@
-# Contributing to PostgresFlow
+# Contributing to Azums
 
-Thank you for considering contributing to `postgresflow`! We welcome bug reports, feature proposals, documentation improvements, and pull requests.
+Thank you for considering contributing to `azums`! We welcome bug reports, feature proposals, documentation improvements, and pull requests.
 
 ## 🛠️ Development Setup
 
 Ensure you have Rust 1.75+ installed. Clone the repository and run workspace checks:
 
 ```bash
-git clone https://github.com/BlockForge-Dev/postgresflow.git
-cd postgresflow
+git clone https://github.com/BlockForge-Dev/azums.git
+cd azums
 
 # Run workspace compilation checks
 cargo check --workspace
@@ -40,4 +40,5 @@ just test
 3. Update `CHANGELOG.md` under `[Unreleased]` with a brief description.
 4. Open a Pull Request on GitHub.
 
-Thank you for helping make `postgresflow` the gold standard for Rust job queues!
+Thank you for helping make `azums` the gold standard for Rust job queues!
+

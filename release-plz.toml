@@ -9,7 +9,7 @@ release = false
 changelog_update = false
 
 [[package]]
-name = "postgresflow"
+name = "azums"
 changelog_path = "CHANGELOG.md"
 git_tag_enable = true
 git_tag_name = "v{{ version }}"

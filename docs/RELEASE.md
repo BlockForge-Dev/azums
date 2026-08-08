@@ -7,7 +7,7 @@ Use semantic versioning:
 - PATCH: fixes and small improvements
 
 Current package versions are declared in:
-- `crates/postgresflow/Cargo.toml`
+- `crates/azums/Cargo.toml`
 - `crates/worker/Cargo.toml`
 
 ## Automated Releases (release-plz)
@@ -39,14 +39,14 @@ This project uses [release-plz](https://release-plz.ieni.dev/) for automated rel
 If the CI pipeline is unavailable:
 
 ```bash
-# 1. Bump version in crates/postgresflow/Cargo.toml
+# 1. Bump version in crates/azums/Cargo.toml
 # 2. Update CHANGELOG.md
 # 3. Commit and tag
 git tag -a v0.2.0 -m "Release v0.2.0"
 git push origin v0.2.0
 
 # 4. Publish
-cargo publish -p postgresflow
+cargo publish -p azums
 ```
 
 ## Pre-Release Checklist
@@ -59,13 +59,13 @@ cargo publish -p postgresflow
 - [ ] CHANGELOG.md updated
 - [ ] migrations reviewed for rollout safety
 - [ ] benchmark notes captured for significant performance-impacting changes
-- [ ] `cargo publish --dry-run -p postgresflow` passes
+- [ ] `cargo publish --dry-run -p azums` passes
 
 ## Published Crates
 
 | Crate | Published | Notes |
 |-------|-----------|-------|
-| `postgresflow` | ✅ crates.io | Core library + optional API + CLI |
+| `azums` | ✅ crates.io | Core library + CLI |
 | `worker` | ❌ not published | Application-specific, meant to be forked |
 
 ## Post-Release Verification
@@ -74,18 +74,16 @@ After a crates.io publish:
 
 ```bash
 # Verify install works
-cargo install postgresflow
+cargo install azums
 
 # Verify dependency usage in a fresh project
-cargo init /tmp/pgflow-test
-cd /tmp/pgflow-test
-cargo add postgresflow
+cargo init /tmp/azums-test
+cd /tmp/azums-test
+cargo add azums
 cargo check
 ```
 
 Then deploy to target environment and validate:
-- `/health` returns `ok`
-- `/metrics` reports expected queue snapshot
 - enqueue + process + timeline flow works
 - Monitor retry/DLQ rates for regressions.
 
@@ -95,4 +93,4 @@ If release causes regressions:
 2. Roll back application image/version.
 3. If migration is incompatible, apply explicit down/repair plan before traffic restoration.
 4. Capture incident summary and add follow-up actions.
-5. If a crates.io publish was bad, yank the version: `cargo yank --version 0.x.y postgresflow`
+5. If a crates.io publish was bad, yank the version: `cargo yank --version 0.x.y azums`

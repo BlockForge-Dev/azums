@@ -106,8 +106,6 @@ async fn main() -> anyhow::Result<()> {
         worker_id: cfg.worker_id.clone(),
     };
 
-
-
     // ---- Maintenance task ----
     let maintenance_handle = {
         let maintenance = maintenance_repo.clone();

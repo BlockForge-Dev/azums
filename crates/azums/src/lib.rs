@@ -51,18 +51,16 @@
 //!
 //! ---
 //!
-//! ## Choosing a Backend
+//! ## Storage Backend Compatibility
 //!
-//! `azums` supports three storage backends under a unified [`StorageBackend`] interface:
+//! `azums` supports four storage backends under a unified [`StorageBackend`] interface:
 //!
-//! 1. **PostgreSQL** (`postgres://...`):
-//!    - Multi-node Kubernetes clusters, production web applications, distributed workers.
-//!    - Built on `sqlx` and `tokio-postgres` using `FOR UPDATE SKIP LOCKED`.
-//! 2. **SQLite** (`sqlite://jobs.db?mode=rwc`):
-//!    - Embedded CLI applications, desktop apps, single-server web deployments, IoT edge devices.
-//!    - Runs in WAL mode for single-writer concurrency with zero network overhead.
-//! 3. **In-Memory** (`memory`):
-//!    - Ephemeral unit testing, local development, zero disk I/O test pipelines.
+//! | Backend | Connection URL | Feature Flag | Ideal Use Case |
+//! |---|---|---|---|
+//! | **PostgreSQL** | `postgres://user:pass@localhost/db` | `postgres` (default) | Multi-node Kubernetes microservices & production DBs |
+//! | **SQLite** | `sqlite://jobs.db?mode=rwc` | `sqlite` (default) | Single-binary web apps, desktop tools, IoT edge devices |
+//! | **Redis** | `redis://127.0.0.1:6379` | `redis` (default) | Ultra-low latency memory queue & native streams |
+//! | **In-Memory** | `memory` | Core | Fast unit tests, CI test pipelines, zero disk I/O |
 //!
 //! ---
 //!
