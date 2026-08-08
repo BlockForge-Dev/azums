@@ -1,14 +1,13 @@
 [book]
-authors = ["PostgresFlow Core Team"]
+authors = ["Azums Core Team"]
 language = "en"
-multilingual = false
 src = "src"
-title = "PostgresFlow Guide & Reference"
+title = "Azums Guide & Reference"
 
 [output.html]
-git-repository-url = "https://github.com/BlockForge-Dev/postgresflow"
-edit-url-template = "https://github.com/BlockForge-Dev/postgresflow/edit/main/docs/{path}"
-site-url = "/postgresflow/"
+git-repository-url = "https://github.com/BlockForge-Dev/azums"
+edit-url-template = "https://github.com/BlockForge-Dev/azums/edit/main/docs/{path}"
+site-url = "/azums/"
 mathjax-support = false
 default-theme = "navy"
 

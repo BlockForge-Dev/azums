@@ -1,14 +1,14 @@
-use postgresflow::api;
-use postgresflow::config;
-use postgresflow::db;
+use azums::api;
+use azums::config;
+use azums::db;
 
-use postgresflow::jobs::enqueue_guard::{EnqueueGuard, EnqueueGuardConfig};
-use postgresflow::jobs::ingest_decisions::IngestDecisionsRepo;
-use postgresflow::jobs::maintenance::{cutoff_days, MaintenanceRepo};
-use postgresflow::jobs::metrics::MetricsRepo;
-use postgresflow::jobs::retry::RetryConfig;
-use postgresflow::jobs::runner::JobRunner;
-use postgresflow::jobs::{AttemptsRepo, JobsRepo, PolicyDecisionsRepo};
+use azums::jobs::enqueue_guard::{EnqueueGuard, EnqueueGuardConfig};
+use azums::jobs::ingest_decisions::IngestDecisionsRepo;
+use azums::jobs::maintenance::{cutoff_days, MaintenanceRepo};
+use azums::jobs::metrics::MetricsRepo;
+use azums::jobs::retry::RetryConfig;
+use azums::jobs::runner::JobRunner;
+use azums::jobs::{AttemptsRepo, JobsRepo, PolicyDecisionsRepo};
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -174,7 +174,10 @@ async fn main() -> anyhow::Result<()> {
     let worker_verbose_job_logs = verbose_job_logs;
 
     let worker_handle = tokio::spawn(async move {
+        use tokio_stream::StreamExt;
+
         let mut last_reap_at = Instant::now() - worker_reap_interval;
+        let mut stream = jobs_repo.subscribe(&worker_queue).await.ok();
 
         loop {
             // reclaim jobs from dead workers on a fixed interval to avoid hot-loop write load.
@@ -191,7 +194,14 @@ async fn main() -> anyhow::Result<()> {
                 .await?;
 
             if batch.is_empty() {
-                tokio::time::sleep(Duration::from_millis(250)).await;
+                if let Some(s) = stream.as_mut() {
+                    tokio::select! {
+                        _ = s.next() => {},
+                        _ = tokio::time::sleep(worker_reap_interval) => {},
+                    }
+                } else {
+                    tokio::time::sleep(Duration::from_millis(250)).await;
+                }
                 continue;
             }
 

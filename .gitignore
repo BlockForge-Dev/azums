@@ -3,4 +3,7 @@
 *.db
 *.db-shm
 *.db-wal
+desktop.ini
+/docs/book
+
 

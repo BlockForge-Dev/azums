@@ -4,29 +4,29 @@ services:
     command:
       - postgres
       - -c
-      - synchronous_commit=${PGFLOW_PG_SYNC_COMMIT:-on}
+      - synchronous_commit=${AZUMS_PG_SYNC_COMMIT:-on}
       - -c
-      - fsync=${PGFLOW_PG_FSYNC:-on}
+      - fsync=${AZUMS_PG_FSYNC:-on}
       - -c
-      - full_page_writes=${PGFLOW_PG_FULL_PAGE_WRITES:-on}
+      - full_page_writes=${AZUMS_PG_FULL_PAGE_WRITES:-on}
       - -c
-      - wal_compression=${PGFLOW_PG_WAL_COMPRESSION:-on}
+      - wal_compression=${AZUMS_PG_WAL_COMPRESSION:-on}
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgresflow_dev
+      POSTGRES_DB: azums_dev
     ports:
       - "5433:5432"
     volumes:
-      - pgflow_db:/var/lib/postgresql/data
+      - azums_db:/var/lib/postgresql/data
       - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgresflow_dev"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d azums_dev"]
       interval: 3s
       timeout: 3s
       retries: 30
 
-  pgflow:
+  azums:
     build:
       context: .
       dockerfile: Dockerfile
@@ -34,22 +34,22 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/postgresflow_dev
-      PGFLOW_WORKER_ID: ${PGFLOW_WORKER_ID:-worker-1}
-      PGFLOW_QUEUE: ${PGFLOW_QUEUE:-default}
-      PGFLOW_LEASE_SECONDS: ${PGFLOW_LEASE_SECONDS:-10}
-      PGFLOW_DEQUEUE_BATCH_SIZE: ${PGFLOW_DEQUEUE_BATCH_SIZE:-512}
-      PGFLOW_REAP_INTERVAL_MS: ${PGFLOW_REAP_INTERVAL_MS:-5000}
-      PGFLOW_VERBOSE_JOB_LOGS: ${PGFLOW_VERBOSE_JOB_LOGS:-0}
-      PGFLOW_ADMIN_ADDR: ${PGFLOW_ADMIN_ADDR:-0.0.0.0:3003}
-      PGFLOW_MIGRATE_ON_STARTUP: ${PGFLOW_MIGRATE_ON_STARTUP:-1}
-      PGFLOW_API_TOKEN: ${PGFLOW_API_TOKEN:-}
-      PGFLOW_MAX_PAYLOAD_BYTES: ${PGFLOW_MAX_PAYLOAD_BYTES:-262144}
-      PGFLOW_MAX_ENQUEUE_PER_MINUTE: ${PGFLOW_MAX_ENQUEUE_PER_MINUTE:-10000}
-      PGFLOW_DB_MAX_CONNECTIONS: ${PGFLOW_DB_MAX_CONNECTIONS:-4}
-      PGFLOW_DB_ACQUIRE_TIMEOUT_SECS: ${PGFLOW_DB_ACQUIRE_TIMEOUT_SECS:-10}
-      PGFLOW_DISABLE_SYNC_COMMIT: ${PGFLOW_DISABLE_SYNC_COMMIT:-0}
-      PGFLOW_DISABLE_JIT: ${PGFLOW_DISABLE_JIT:-1}
+      DATABASE_URL: postgres://postgres:postgres@db:5432/azums_dev
+      AZUMS_WORKER_ID: ${AZUMS_WORKER_ID:-worker-1}
+      AZUMS_QUEUE: ${AZUMS_QUEUE:-default}
+      AZUMS_LEASE_SECONDS: ${AZUMS_LEASE_SECONDS:-10}
+      AZUMS_DEQUEUE_BATCH_SIZE: ${AZUMS_DEQUEUE_BATCH_SIZE:-512}
+      AZUMS_REAP_INTERVAL_MS: ${AZUMS_REAP_INTERVAL_MS:-5000}
+      AZUMS_VERBOSE_JOB_LOGS: ${AZUMS_VERBOSE_JOB_LOGS:-0}
+      AZUMS_ADMIN_ADDR: ${AZUMS_ADMIN_ADDR:-0.0.0.0:3003}
+      AZUMS_MIGRATE_ON_STARTUP: ${AZUMS_MIGRATE_ON_STARTUP:-1}
+      AZUMS_API_TOKEN: ${AZUMS_API_TOKEN:-}
+      AZUMS_MAX_PAYLOAD_BYTES: ${AZUMS_MAX_PAYLOAD_BYTES:-262144}
+      AZUMS_MAX_ENQUEUE_PER_MINUTE: ${AZUMS_MAX_ENQUEUE_PER_MINUTE:-10000}
+      AZUMS_DB_MAX_CONNECTIONS: ${AZUMS_DB_MAX_CONNECTIONS:-4}
+      AZUMS_DB_ACQUIRE_TIMEOUT_SECS: ${AZUMS_DB_ACQUIRE_TIMEOUT_SECS:-10}
+      AZUMS_DISABLE_SYNC_COMMIT: ${AZUMS_DISABLE_SYNC_COMMIT:-0}
+      AZUMS_DISABLE_JIT: ${AZUMS_DISABLE_JIT:-1}
     ports:
       - "3003:3003"
     command: ["/app/worker"]
@@ -64,24 +64,24 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/postgresflow_dev
-      PGFLOW_WORKER_ID: ${PGFLOW_WORKER_ID:-}
-      PGFLOW_QUEUE: ${PGFLOW_QUEUE:-default}
-      PGFLOW_LEASE_SECONDS: ${PGFLOW_LEASE_SECONDS:-10}
-      PGFLOW_DEQUEUE_BATCH_SIZE: ${PGFLOW_DEQUEUE_BATCH_SIZE:-512}
-      PGFLOW_REAP_INTERVAL_MS: ${PGFLOW_REAP_INTERVAL_MS:-5000}
-      PGFLOW_VERBOSE_JOB_LOGS: ${PGFLOW_VERBOSE_JOB_LOGS:-0}
-      PGFLOW_ADMIN_ADDR: off
-      PGFLOW_MIGRATE_ON_STARTUP: 0
-      PGFLOW_API_TOKEN: ${PGFLOW_API_TOKEN:-}
-      PGFLOW_MAX_PAYLOAD_BYTES: ${PGFLOW_MAX_PAYLOAD_BYTES:-262144}
-      PGFLOW_MAX_ENQUEUE_PER_MINUTE: ${PGFLOW_MAX_ENQUEUE_PER_MINUTE:-10000}
-      PGFLOW_DB_MAX_CONNECTIONS: ${PGFLOW_DB_MAX_CONNECTIONS:-4}
-      PGFLOW_DB_ACQUIRE_TIMEOUT_SECS: ${PGFLOW_DB_ACQUIRE_TIMEOUT_SECS:-10}
-      PGFLOW_DISABLE_SYNC_COMMIT: ${PGFLOW_DISABLE_SYNC_COMMIT:-0}
-      PGFLOW_DISABLE_JIT: ${PGFLOW_DISABLE_JIT:-1}
+      DATABASE_URL: postgres://postgres:postgres@db:5432/azums_dev
+      AZUMS_WORKER_ID: ${AZUMS_WORKER_ID:-}
+      AZUMS_QUEUE: ${AZUMS_QUEUE:-default}
+      AZUMS_LEASE_SECONDS: ${AZUMS_LEASE_SECONDS:-10}
+      AZUMS_DEQUEUE_BATCH_SIZE: ${AZUMS_DEQUEUE_BATCH_SIZE:-512}
+      AZUMS_REAP_INTERVAL_MS: ${AZUMS_REAP_INTERVAL_MS:-5000}
+      AZUMS_VERBOSE_JOB_LOGS: ${AZUMS_VERBOSE_JOB_LOGS:-0}
+      AZUMS_ADMIN_ADDR: off
+      AZUMS_MIGRATE_ON_STARTUP: 0
+      AZUMS_API_TOKEN: ${AZUMS_API_TOKEN:-}
+      AZUMS_MAX_PAYLOAD_BYTES: ${AZUMS_MAX_PAYLOAD_BYTES:-262144}
+      AZUMS_MAX_ENQUEUE_PER_MINUTE: ${AZUMS_MAX_ENQUEUE_PER_MINUTE:-10000}
+      AZUMS_DB_MAX_CONNECTIONS: ${AZUMS_DB_MAX_CONNECTIONS:-4}
+      AZUMS_DB_ACQUIRE_TIMEOUT_SECS: ${AZUMS_DB_ACQUIRE_TIMEOUT_SECS:-10}
+      AZUMS_DISABLE_SYNC_COMMIT: ${AZUMS_DISABLE_SYNC_COMMIT:-0}
+      AZUMS_DISABLE_JIT: ${AZUMS_DISABLE_JIT:-1}
     command: ["/app/worker"]
     restart: unless-stopped
 
 volumes:
-  pgflow_db:
+  azums_db:

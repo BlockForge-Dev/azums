@@ -1,12 +1,13 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/postgresflow",
+    "crates/azums",
     "crates/worker",
-    "crates/postgresflow-core",
-    "crates/postgresflow-postgres",
-    "crates/postgresflow-axum",
-    "crates/postgresflow-actix",
-    "crates/postgresflow-poem",
-    "crates/postgresflow-rocket",
+    "crates/azums-core",
+    "crates/azums-postgres",
+    "crates/azums-axum",
+    "crates/azums-actix",
+    "crates/azums-poem",
+    "crates/azums-rocket",
+    "crates/azums-redis",
 ]

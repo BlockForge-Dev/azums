@@ -16,9 +16,9 @@ COPY . .
 # If you use sqlx::query! macros, this avoids needing a DB at build-time
 ENV SQLX_OFFLINE=true
 
-# Build worker + pgflowctl (we'll include both in the image)
+# Build worker + azumsctl (we'll include both in the image)
 RUN cargo build -p worker --bin worker --release
-RUN cargo build -p postgresflow --bin pgflowctl --release
+RUN cargo build -p azums --bin azumsctl --release
 
 # ---- runtime ----
 FROM debian:bookworm-slim
@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/target/release/worker ./worker
-COPY --from=build /app/target/release/pgflowctl ./pgflowctl
+COPY --from=build /app/target/release/azumsctl ./azumsctl
 
 EXPOSE 3003
 

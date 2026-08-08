@@ -1,4 +1,4 @@
-use postgresflow::jobs::Job;
+use azums::jobs::Job;
 use serde::Deserialize;
 use sqlx::PgPool;
 use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};

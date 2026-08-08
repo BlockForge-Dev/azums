@@ -6,9 +6,10 @@ publish = false
 
 
 [dependencies]
-postgresflow = { path = "../postgresflow" }
-postgresflow-core = { path = "../postgresflow-core" }
+azums = { path = "../azums" }
+azums-core = { path = "../azums-core" }
 tokio = { version = "1", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 anyhow = "1"
 axum = "0.7"
 serde = { version = "1", features = ["derive"] }

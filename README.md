@@ -1,23 +1,24 @@
-# PostgresFlow 🦀⚡
+# Azums 🦀⚡
 
-[![Crates.io](https://img.shields.io/crates/v/postgresflow.svg)](https://crates.io/crates/postgresflow)
-[![Docs.rs](https://docs.rs/postgresflow/badge.svg)](https://docs.rs/postgresflow)
-[![CI Status](https://github.com/BlockForge-Dev/postgresflow/workflows/CI/badge.svg)](https://github.com/BlockForge-Dev/postgresflow/actions)
-[![License](https://img.shields.io/crates/l/postgresflow.svg)](https://github.com/BlockForge-Dev/postgresflow#license)
+[![Crates.io](https://img.shields.io/crates/v/azums.svg)](https://crates.io/crates/azums)
+[![Docs.rs](https://docs.rs/azums/badge.svg)](https://docs.rs/azums)
+[![Fastest Rust Job Queue](https://img.shields.io/badge/Performance-Fastest_Rust_Job_Queue-brightgreen)](docs/PERFORMANCE_TUNING.md)
+[![CI Status](https://github.com/BlockForge-Dev/azums/workflows/CI/badge.svg)](https://github.com/BlockForge-Dev/azums/actions)
+[![License](https://img.shields.io/crates/l/azums.svg)](https://github.com/BlockForge-Dev/azums#license)
 
-> **The lightweight, Postgres-backed job queue for Rust — from embedded to cloud.**
+> **High-performance job queue & streaming engine for Rust — from embedded to cloud.**
 
-`postgresflow` is an enterprise-grade, transactional background job queue designed for Rust web applications, CLI tools, and microservices. Built on top of PostgreSQL, SQLite, and In-Memory storage backends with native extractors for **Axum**, **Actix Web**, **Poem**, and **Rocket**.
+`azums` is an enterprise-grade, transactional background job queue and streaming framework designed for Rust web applications, CLI tools, AI agents, and microservices. Built on top of PostgreSQL, SQLite, and In-Memory storage backends with native extractors for **Axum**, **Actix Web**, **Poem**, and **Rocket**.
 
 ---
 
 ## ⚡ Quickstart ("Hello, World!")
 
-Add `postgresflow` to your `Cargo.toml`:
+Add `azums` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-postgresflow = "0.2"
+azums = "0.2"
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"
 ```
@@ -25,7 +26,7 @@ serde_json = "1"
 Enqueue and process background jobs in under 2 minutes:
 
 ```rust
-use postgresflow::{quickstart, Job};
+use azums::{quickstart, Job};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -63,7 +64,7 @@ Swap storage backends effortlessly with zero application code changes:
 
 ## 🌐 Native Web Framework Extractors
 
-`postgresflow` provides native request extractors for every popular Rust web framework:
+`azums` provides native request extractors for every popular Rust web framework:
 
 ```rust
 // Axum route handler with JobQueue extractor
@@ -73,20 +74,20 @@ async fn create_user(queue: JobQueue, Json(payload): Json<UserPayload>) -> impl 
 }
 ```
 
-- [`postgresflow-axum`](https://crates.io/crates/postgresflow-axum) (Axum 0.7)
-- [`postgresflow-actix`](https://crates.io/crates/postgresflow-actix) (Actix Web 4)
-- [`postgresflow-poem`](https://crates.io/crates/postgresflow-poem) (Poem 3)
-- [`postgresflow-rocket`](https://crates.io/crates/postgresflow-rocket) (Rocket 0.5)
+- [`azums-axum`](https://crates.io/crates/azums-axum) (Axum 0.7)
+- [`azums-actix`](https://crates.io/crates/azums-actix) (Actix Web 4)
+- [`azums-poem`](https://crates.io/crates/azums-poem) (Poem 3)
+- [`azums-rocket`](https://crates.io/crates/azums-rocket) (Rocket 0.5)
 
 ---
 
 ## ⚡ Performance & Micro-Benchmarks
 
-`postgresflow` is built for maximum throughput with minimal overhead. Run Criterion benchmarks locally:
+`azums` is built for maximum throughput with minimal overhead. Run Criterion benchmarks locally:
 
 ```bash
 # Run Criterion micro-benchmarks
-cargo bench -p postgresflow
+cargo bench -p azums
 ```
 
 | Benchmark Target | Operation | Throughput / Speed |
@@ -98,8 +99,9 @@ cargo bench -p postgresflow
 
 ## 📚 Documentation & Book
 
-- **[Docs.rs API Guide](https://docs.rs/postgresflow)**: Comprehensive module documentation & inline examples.
-- **[PostgresFlow Architecture Book](https://blockforge-dev.github.io/postgresflow/)**: Architecture deep-dives, FOR UPDATE SKIP LOCKED leasing, DLQ sequence diagrams, and table partitioning.
+- **[Docs.rs API Guide](https://docs.rs/azums)**: Comprehensive module documentation & inline examples.
+- **[Azums Low-Level Design (LLD + DSA)](./docs/architecture/LLD.md)**: Deep-dive architecture specs, data structures, and algorithm complexity.
+- **[Azums Architecture Book](https://blockforge-dev.github.io/azums/)**: FOR UPDATE SKIP LOCKED leasing, DLQ sequence diagrams, and table partitioning.
 
 ---
 

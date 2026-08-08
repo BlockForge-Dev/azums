@@ -1,0 +1,45 @@
+[package]
+name = "azums-core"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Zero-dependency core traits, models, and QueueError for azums"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/BlockForge-Dev/azums"
+documentation = "https://docs.rs/azums-core"
+homepage = "https://github.com/BlockForge-Dev/azums"
+readme = "../../README.md"
+keywords = ["job-queue", "background-jobs", "task-queue", "storage-backend", "no-std"]
+categories = ["asynchronous", "no-std"]
+
+[features]
+default = ["std"]
+std = ["serde/std", "chrono/std", "uuid/std", "thiserror/std"]
+alloc = ["serde/alloc"]
+sqlx = ["dep:sqlx"]
+
+[dependencies]
+async-trait = "0.1"
+thiserror = "2"
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
+uuid = { version = "1", default-features = false, features = ["v4", "serde"] }
+anyhow = "1"
+futures-core = "0.3"
+tokio = { version = "1", features = ["sync"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+# Optional: sqlx FromRow derives for SQL-based backends
+sqlx = { version = "0.7", optional = true, features = [
+    "runtime-tokio",
+    "postgres",
+    "sqlite",
+    "uuid",
+    "chrono",
+    "json",
+] }
+
+[dev-dependencies]
+proptest = "1"
+tokio = { version = "1", features = ["full"] }

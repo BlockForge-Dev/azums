@@ -1,0 +1,67 @@
+name: Benchmarks & Performance Dashboard
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  benchmark:
+    name: Run Criterion Benchmarks
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgresflow_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run Criterion Benchmarks
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgresflow_dev
+          REDIS_URL: redis://127.0.0.1:6379
+        run: |
+          cargo bench --benches --all-features
+
+      - name: Prepare Dashboard Artifact
+        run: |
+          mkdir -p target/dashboard
+          cp -r docs/benchmarks/* target/dashboard/
+          cp -r target/criterion target/dashboard/criterion || true
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/dashboard
+          publish_branch: gh-pages
