@@ -5,7 +5,8 @@ use tokio::runtime::Runtime;
 fn bench_redis_enqueue_and_stream(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
 
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     c.bench_function("redis_enqueue_100_jobs", |b| {
         b.to_async(&rt).iter(|| async {

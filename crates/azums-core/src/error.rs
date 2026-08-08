@@ -1,7 +1,7 @@
 use thiserror::Error;
 use uuid::Uuid;
 
-/// Primary error enum for `postgresflow` job queue operations.
+/// Primary error enum for `azums` job queue operations.
 #[derive(Error, Debug)]
 pub enum Error {
     /// Storage backend error wrapper.

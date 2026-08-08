@@ -104,7 +104,9 @@ impl StorageBackend for RedisBackend {
         let json_str = serde_json::to_string(&job_entity)?;
         let mut conn = self.conn_mgr.clone();
 
-        let _: () = conn.hset("azums:jobs", job_id.to_string(), json_str).await?;
+        let _: () = conn
+            .hset("azums:jobs", job_id.to_string(), json_str)
+            .await?;
         let queue_key = format!("azums:queue:{}", job.queue);
         let _: () = conn.rpush(queue_key, job_id.to_string()).await?;
 
@@ -129,9 +131,9 @@ impl StorageBackend for RedisBackend {
         };
 
         let bcast_stream = BroadcastStream::new(rx).filter_map(|res| res.ok());
-        let interval_stream = tokio_stream::wrappers::IntervalStream::new(
-            tokio::time::interval(std::time::Duration::from_millis(100)),
-        )
+        let interval_stream = tokio_stream::wrappers::IntervalStream::new(tokio::time::interval(
+            std::time::Duration::from_millis(100),
+        ))
         .map(|_| ());
 
         let merged = bcast_stream.merge(interval_stream);
@@ -203,7 +205,8 @@ impl StorageBackend for RedisBackend {
 
             let job_ids: Vec<String> = conn.lrange(&proc_key, 0, -1).await.unwrap_or_default();
             for jid in job_ids {
-                if let Ok(Some(json)) = conn.hget::<_, _, Option<String>>("azums:jobs", &jid).await {
+                if let Ok(Some(json)) = conn.hget::<_, _, Option<String>>("azums:jobs", &jid).await
+                {
                     if let Ok(mut job) = serde_json::from_str::<Job>(&json) {
                         if let Some(exp) = job.lock_expires_at {
                             if exp <= now {
@@ -214,7 +217,10 @@ impl StorageBackend for RedisBackend {
                                 job.updated_at = now;
 
                                 if let Ok(updated_json) = serde_json::to_string(&job) {
-                                    let _: () = conn.hset("azums:jobs", &jid, updated_json).await.unwrap_or(());
+                                    let _: () = conn
+                                        .hset("azums:jobs", &jid, updated_json)
+                                        .await
+                                        .unwrap_or(());
                                     let _: () = conn.lrem(&proc_key, 1, &jid).await.unwrap_or(());
                                     let _: () = conn.rpush(&queue_key, &jid).await.unwrap_or(());
                                     reaped += 1;
@@ -258,7 +264,10 @@ impl StorageBackend for RedisBackend {
         let mut conn = self.conn_mgr.clone();
         let job_id_str = job_id.to_string();
 
-        if let Ok(Some(json)) = conn.hget::<_, _, Option<String>>("azums:jobs", &job_id_str).await {
+        if let Ok(Some(json)) = conn
+            .hget::<_, _, Option<String>>("azums:jobs", &job_id_str)
+            .await
+        {
             if let Ok(mut job) = serde_json::from_str::<Job>(&json) {
                 job.status = JobStatus::Succeeded.as_str().to_string();
                 job.updated_at = Utc::now();
@@ -300,7 +309,10 @@ impl StorageBackend for RedisBackend {
         let mut conn = self.conn_mgr.clone();
         let job_id_str = job_id.to_string();
 
-        if let Ok(Some(json)) = conn.hget::<_, _, Option<String>>("azums:jobs", &job_id_str).await {
+        if let Ok(Some(json)) = conn
+            .hget::<_, _, Option<String>>("azums:jobs", &job_id_str)
+            .await
+        {
             if let Ok(mut job) = serde_json::from_str::<Job>(&json) {
                 job.status = JobStatus::Queued.as_str().to_string();
                 job.run_at = next_run_at;
@@ -337,7 +349,10 @@ impl StorageBackend for RedisBackend {
         let mut conn = self.conn_mgr.clone();
         let job_id_str = job_id.to_string();
 
-        if let Ok(Some(json)) = conn.hget::<_, _, Option<String>>("azums:jobs", &job_id_str).await {
+        if let Ok(Some(json)) = conn
+            .hget::<_, _, Option<String>>("azums:jobs", &job_id_str)
+            .await
+        {
             if let Ok(mut job) = serde_json::from_str::<Job>(&json) {
                 job.status = JobStatus::Dlq.as_str().to_string();
                 job.dlq_reason_code = Some(reason_code.to_string());
@@ -467,7 +482,9 @@ impl StorageBackend for RedisBackend {
         };
 
         let updated_json = serde_json::to_string(&new_job)?;
-        let _: () = conn.hset("azums:jobs", new_id.to_string(), updated_json).await?;
+        let _: () = conn
+            .hset("azums:jobs", new_id.to_string(), updated_json)
+            .await?;
 
         let queue_key = format!("azums:queue:{}", target_queue);
         let _: () = conn.rpush(queue_key, new_id.to_string()).await?;
@@ -522,9 +539,9 @@ impl StreamBackend for RedisBackend {
         };
 
         let bcast_stream = BroadcastStream::new(rx).filter_map(|res| res.ok());
-        let interval_stream = tokio_stream::wrappers::IntervalStream::new(
-            tokio::time::interval(std::time::Duration::from_millis(100)),
-        )
+        let interval_stream = tokio_stream::wrappers::IntervalStream::new(tokio::time::interval(
+            std::time::Duration::from_millis(100),
+        ))
         .map(|_| ());
 
         let merged = bcast_stream.merge(interval_stream);
@@ -544,7 +561,9 @@ impl StreamBackend for RedisBackend {
 
         let _: () = conn.hset(&key, consumer_group, new_seq).await?;
         let timestamp_key = format!("azums:stream_offsets_time:{}", stream);
-        let _: () = conn.hset(timestamp_key, consumer_group, now.to_rfc3339()).await?;
+        let _: () = conn
+            .hset(timestamp_key, consumer_group, now.to_rfc3339())
+            .await?;
 
         Ok(())
     }
@@ -576,10 +595,7 @@ impl StreamBackend for RedisBackend {
         Ok(result)
     }
 
-    async fn consumer_group_info(
-        &self,
-        stream: &str,
-    ) -> anyhow::Result<Vec<ConsumerGroupStatus>> {
+    async fn consumer_group_info(&self, stream: &str) -> anyhow::Result<Vec<ConsumerGroupStatus>> {
         let mut conn = self.conn_mgr.clone();
         let key = format!("azums:stream_offsets:{}", stream);
         let map: HashMap<String, i64> = conn.hgetall(&key).await.unwrap_or_default();

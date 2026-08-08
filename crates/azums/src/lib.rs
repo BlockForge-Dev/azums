@@ -99,13 +99,12 @@ pub use azums_core::{
     JobStatus, MemoryBackend, MockBackend, NewEvent, NewJob, NotificationStream, QueueError,
     StorageBackend, StreamBackend,
 };
-pub use stream_handle::StreamHandle;
 #[cfg(feature = "postgres")]
 pub use backend::PostgresBackend;
-#[cfg(feature = "sqlite")]
-pub use backend::{make_sqlite_pool, SqliteBackend};
 #[cfg(feature = "redis")]
 pub use backend::RedisBackend;
+#[cfg(feature = "sqlite")]
+pub use backend::{make_sqlite_pool, SqliteBackend};
 pub use config::Config;
 pub use db::{make_pool, run_migrations};
 pub use jobs::attempts::AttemptsRepo;
@@ -119,3 +118,4 @@ pub use jobs::repo::JobsRepo;
 pub use jobs::retry::RetryConfig;
 pub use jobs::runner::JobRunner;
 pub use quickstart::{quickstart, Client, QuickstartFlow};
+pub use stream_handle::StreamHandle;

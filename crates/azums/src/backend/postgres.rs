@@ -1,8 +1,8 @@
+use async_trait::async_trait;
 use azums_core::{
     backend::{NotificationStream, StorageBackend, StreamBackend},
     model::{ConsumerGroupStatus, Event, Job, JobListItem, NewEvent, NewJob},
 };
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;

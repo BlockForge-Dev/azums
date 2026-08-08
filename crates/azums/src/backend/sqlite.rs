@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use azums_core::{
     backend::{NotificationStream, StorageBackend, StreamBackend},
     model::{ConsumerGroupStatus, Event, Job, JobListItem, NewEvent, NewJob},
 };
+use chrono::{DateTime, Utc};
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
     SqlitePool,
@@ -209,9 +209,9 @@ impl StorageBackend for SqliteBackend {
         };
 
         let bcast_stream = BroadcastStream::new(rx).filter_map(|res| res.ok());
-        let interval_stream = tokio_stream::wrappers::IntervalStream::new(
-            tokio::time::interval(std::time::Duration::from_millis(100)),
-        )
+        let interval_stream = tokio_stream::wrappers::IntervalStream::new(tokio::time::interval(
+            std::time::Duration::from_millis(100),
+        ))
         .map(|_| ());
 
         let merged = bcast_stream.merge(interval_stream);
@@ -787,9 +787,9 @@ impl StreamBackend for SqliteBackend {
         };
 
         let bcast_stream = BroadcastStream::new(rx).filter_map(|res| res.ok());
-        let interval_stream = tokio_stream::wrappers::IntervalStream::new(
-            tokio::time::interval(std::time::Duration::from_millis(100)),
-        )
+        let interval_stream = tokio_stream::wrappers::IntervalStream::new(tokio::time::interval(
+            std::time::Duration::from_millis(100),
+        ))
         .map(|_| ());
 
         let merged = bcast_stream.merge(interval_stream);
@@ -841,10 +841,7 @@ impl StreamBackend for SqliteBackend {
         Ok(events)
     }
 
-    async fn consumer_group_info(
-        &self,
-        stream: &str,
-    ) -> anyhow::Result<Vec<ConsumerGroupStatus>> {
+    async fn consumer_group_info(&self, stream: &str) -> anyhow::Result<Vec<ConsumerGroupStatus>> {
         let info = sqlx::query_as::<_, ConsumerGroupStatus>(
             r#"
             SELECT consumer_group, stream_name, last_acked_seq, updated_at

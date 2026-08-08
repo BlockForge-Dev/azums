@@ -3,7 +3,8 @@ use serde_json::json;
 
 #[tokio::test]
 async fn test_redis_backend_job_lifecycle_and_stream() -> anyhow::Result<()> {
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     let client = match quickstart(&redis_url).await {
         Ok(c) => c,

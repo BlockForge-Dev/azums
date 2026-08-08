@@ -31,7 +31,11 @@ fn bench_wake_up_latency(c: &mut Criterion) {
             let stop_clone = stop.clone();
 
             let handle = tokio::spawn(async move {
-                let mut stream = worker_flow_clone.backend().subscribe("default").await.unwrap();
+                let mut stream = worker_flow_clone
+                    .backend()
+                    .subscribe("default")
+                    .await
+                    .unwrap();
                 use tokio_stream::StreamExt;
                 while !stop_clone.load(Ordering::Relaxed) {
                     let batch = worker_flow_clone

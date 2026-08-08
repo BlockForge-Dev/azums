@@ -13,8 +13,8 @@ keywords = ["poem", "job-queue", "background-jobs", "extractor"]
 categories = ["web-programming::HTTP-server", "asynchronous"]
 
 [dependencies]
-azums = { path = "../azums" }
-azums-core = { path = "../azums-core" }
+azums = { version = "0.2.0", path = "../azums" }
+azums-core = { version = "0.2.0", path = "../azums-core" }
 
 poem = "3"
 async-trait = "0.1"

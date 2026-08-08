@@ -13,7 +13,7 @@ keywords = ["redis", "job-queue", "background-jobs", "task-queue", "storage-back
 categories = ["database", "asynchronous"]
 
 [dependencies]
-azums-core = { path = "../azums-core" }
+azums-core = { version = "0.2.0", path = "../azums-core" }
 async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }

@@ -492,10 +492,12 @@ pub async fn quickstart(database_url: impl AsRef<str>) -> anyhow::Result<Quickst
     }
 
     let defaults = [
+        "postgres://postgres:postgres@127.0.0.1:5433/azums_dev",
+        "postgres://postgres:postgres@127.0.0.1:5432/azums_dev",
+        "postgres://postgres:postgres@localhost:5433/azums_dev",
+        "postgres://postgres:postgres@localhost:5432/azums_dev",
         "postgres://postgres:postgres@127.0.0.1:5433/postgresflow_dev",
         "postgres://postgres:postgres@127.0.0.1:5432/postgresflow_dev",
-        "postgres://postgres:postgres@localhost:5433/postgresflow_dev",
-        "postgres://postgres:postgres@localhost:5432/postgresflow_dev",
         "postgres://postgres:postgres@127.0.0.1:5432/postgres",
         "postgres://postgres:root@127.0.0.1:5432/postgres",
         "postgres://postgres:admin@127.0.0.1:5432/postgres",

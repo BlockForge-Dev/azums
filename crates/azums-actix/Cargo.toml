@@ -13,8 +13,8 @@ keywords = ["actix", "actix-web", "job-queue", "background-jobs", "extractor"]
 categories = ["web-programming::HTTP-server", "asynchronous"]
 
 [dependencies]
-azums = { path = "../azums" }
-azums-core = { path = "../azums-core" }
+azums = { version = "0.2.0", path = "../azums" }
+azums-core = { version = "0.2.0", path = "../azums-core" }
 
 actix-web = "4"
 futures-util = "0.3"

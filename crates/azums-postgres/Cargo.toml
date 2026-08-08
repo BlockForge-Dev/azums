@@ -13,8 +13,8 @@ keywords = ["postgres", "postgresql", "job-queue", "sqlx", "storage-backend"]
 categories = ["database", "asynchronous"]
 
 [dependencies]
-azums-core = { path = "../azums-core", features = ["sqlx"] }
-azums = { path = "../azums" }
+azums-core = { version = "0.2.0", path = "../azums-core", features = ["sqlx"] }
+azums = { version = "0.2.0", path = "../azums" }
 
 async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }

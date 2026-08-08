@@ -2,10 +2,10 @@
 //!
 //! Native Rocket request guard (`JobQueue`) and state service integration (`BackgroundJobs`) for `azums`.
 
-use chrono::{DateTime, Utc};
 use azums::{quickstart, QuickstartFlow};
 pub use azums_core::{Job, JobListItem, JobStatus};
 use azums_core::{NewJob, StorageBackend};
+use chrono::{DateTime, Utc};
 use rocket::request::{FromRequest, Outcome, Request};
 use serde_json::Value;
 use std::sync::Arc;

@@ -15,9 +15,7 @@ fn bench_concurrent_leasing(c: &mut Criterion) {
 
                 // Enqueue 1,000 jobs
                 for i in 0..1000 {
-                    let _ = flow
-                        .enqueue(Job::new("work_unit", json!({"i": i})))
-                        .await;
+                    let _ = flow.enqueue(Job::new("work_unit", json!({"i": i}))).await;
                 }
 
                 let mut handles = Vec::new();

@@ -9,8 +9,13 @@ async fn test_in_memory_stream_10k_events_publish_read_ack_replay() -> anyhow::R
     let count = 10_000;
 
     for i in 1..=count {
-        let seq = stream.publish("order_created", json!({ "index": i })).await?;
-        assert_eq!(seq, i as i64, "Sequence number should be 1-based strictly increasing");
+        let seq = stream
+            .publish("order_created", json!({ "index": i }))
+            .await?;
+        assert_eq!(
+            seq, i as i64,
+            "Sequence number should be 1-based strictly increasing"
+        );
     }
 
     // Read all events in batches of 1000

@@ -1,7 +1,7 @@
 //! Job queue core: models, repository, retry logic, and execution runner.
 //!
 //! This module contains both stable and unstable sub-modules.
-//! See [`STABILITY.md`](https://github.com/BlockForge-Dev/postgresflow/blob/main/STABILITY.md)
+//! See [`STABILITY.md`](https://github.com/BlockForge-Dev/azums/blob/main/STABILITY.md)
 //! for the full API stability policy.
 
 pub mod attempts;

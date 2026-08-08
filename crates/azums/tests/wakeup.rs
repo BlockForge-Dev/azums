@@ -9,12 +9,8 @@ async fn test_instant_wakeup_event_driven() -> anyhow::Result<()> {
     let flow = Arc::new(quickstart("memory").await?);
     let (tx, rx) = tokio::sync::oneshot::channel::<Instant>();
 
-    flow.register_handler("instant_job", move |_job| {
-        async move {
-            Ok(())
-        }
-    })
-    .await;
+    flow.register_handler("instant_job", move |_job| async move { Ok(()) })
+        .await;
 
     let worker_flow = flow.clone();
     let worker_handle = tokio::spawn(async move {
@@ -43,7 +39,8 @@ async fn test_instant_wakeup_event_driven() -> anyhow::Result<()> {
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
     let enqueued_at = Instant::now();
-    flow.enqueue(Job::new("instant_job", json!({"test": "value"}))).await?;
+    flow.enqueue(Job::new("instant_job", json!({"test": "value"})))
+        .await?;
 
     let received_at = rx.await?;
     let wake_latency = received_at.duration_since(enqueued_at);
@@ -56,16 +53,17 @@ async fn test_instant_wakeup_event_driven() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_sqlite_instant_wakeup() -> anyhow::Result<()> {
-    let temp_db = format!("sqlite://file:test_wakeup_{}?mode=memory&cache=shared", uuid::Uuid::new_v4());
+    let temp_db = format!(
+        "sqlite://file:test_wakeup_{}?mode=memory&cache=shared",
+        uuid::Uuid::new_v4()
+    );
     let flow = Arc::new(quickstart(&temp_db).await?);
 
     let enqueued_at = Instant::now();
     flow.enqueue(Job::new("sqlite_wakeup", json!({}))).await?;
 
-    flow.register_handler("sqlite_wakeup", |_job| async move {
-        Ok(())
-    })
-    .await;
+    flow.register_handler("sqlite_wakeup", |_job| async move { Ok(()) })
+        .await;
 
     let count = flow.run_until_empty().await?;
     assert_eq!(count, 1);

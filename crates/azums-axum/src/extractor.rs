@@ -41,7 +41,7 @@ impl JobQueue {
         &self.0
     }
 
-    /// Enqueues a [`NewJob`] or [`Job`](postgresflow_core::Job) into the queue.
+    /// Enqueues a [`NewJob`] or [`Job`](azums_core::Job) into the queue.
     pub async fn enqueue(&self, job: impl Into<NewJob>) -> anyhow::Result<Uuid> {
         let new_job: NewJob = job.into();
         self.0.enqueue(new_job).await
