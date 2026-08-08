@@ -55,6 +55,14 @@ name = "throughput"
 harness = false
 
 [[bench]]
+name = "enqueue"
+harness = false
+
+[[bench]]
+name = "dequeue"
+harness = false
+
+[[bench]]
 name = "wake_up_latency"
 harness = false
 
