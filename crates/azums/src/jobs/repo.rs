@@ -13,12 +13,24 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct JobsRepo {
     pool: PgPool,
+    database_url: Option<String>,
 }
 
 impl JobsRepo {
     /// Creates a new `JobsRepo` wrapping a SQLx PostgreSQL connection pool.
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            database_url: None,
+        }
+    }
+
+    /// Creates a new `JobsRepo` with a dedicated `database_url` for unpooled `LISTEN` connections.
+    pub fn new_with_url(pool: PgPool, database_url: impl Into<String>) -> Self {
+        Self {
+            pool,
+            database_url: Some(database_url.into()),
+        }
     }
 
     fn sanitize_dataset_queue(queue: &str) -> String {
@@ -1087,7 +1099,11 @@ impl JobsRepo {
         use tokio_stream::StreamExt;
 
         let channel = Self::notify_channel_name(queue);
-        let mut listener = PgListener::connect_with(&self.pool).await?;
+        let mut listener = if let Some(url) = &self.database_url {
+            PgListener::connect(url).await?
+        } else {
+            PgListener::connect_with(&self.pool).await?
+        };
         listener.listen(&channel).await?;
 
         let stream = listener

@@ -122,14 +122,30 @@ impl StorageBackend for RedisBackend {
         use tokio_stream::wrappers::BroadcastStream;
         use tokio_stream::StreamExt;
 
-        let rx = {
+        let channel = format!("azums:notify:{queue}");
+        let client_clone = self.client.clone();
+        let tx_clone = {
             let mut notifiers = self.notifiers.write().unwrap();
-            let tx = notifiers
+            notifiers
                 .entry(queue.to_string())
-                .or_insert_with(|| tokio::sync::broadcast::channel(128).0);
-            tx.subscribe()
+                .or_insert_with(|| tokio::sync::broadcast::channel(128).0)
+                .clone()
         };
 
+        let tx_spawn = tx_clone.clone();
+        // Spawn a dedicated, unpooled PubSub socket listener
+        tokio::spawn(async move {
+            if let Ok(mut pubsub) = client_clone.get_async_pubsub().await {
+                if pubsub.subscribe(&channel).await.is_ok() {
+                    let mut stream = pubsub.into_on_message();
+                    while stream.next().await.is_some() {
+                        let _ = tx_spawn.send(());
+                    }
+                }
+            }
+        });
+
+        let rx = tx_clone.subscribe();
         let bcast_stream = BroadcastStream::new(rx).filter_map(|res| res.ok());
         let interval_stream = tokio_stream::wrappers::IntervalStream::new(tokio::time::interval(
             std::time::Duration::from_millis(100),

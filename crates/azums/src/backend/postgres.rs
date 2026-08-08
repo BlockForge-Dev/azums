@@ -37,6 +37,18 @@ impl PostgresBackend {
         }
     }
 
+    /// Creates a new `PostgresBackend` with a pool and database connection URL for dedicated `LISTEN` sockets.
+    pub fn new_with_url(pool: PgPool, database_url: impl Into<String>) -> Self {
+        let url_str = database_url.into();
+        Self {
+            jobs_repo: JobsRepo::new_with_url(pool.clone(), url_str),
+            attempts_repo: AttemptsRepo::new(pool.clone()),
+            maintenance_repo: MaintenanceRepo::new(pool.clone()),
+            stream_repo: StreamRepo::new(pool.clone()),
+            pool,
+        }
+    }
+
     /// Returns reference to the underlying SQLx `PgPool`.
     pub fn pool(&self) -> &PgPool {
         &self.pool

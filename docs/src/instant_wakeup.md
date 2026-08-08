@@ -40,3 +40,16 @@ loop {
     }
 }
 ```
+
+---
+
+## 3. Connection Pool Isolation
+
+To prevent `LISTEN/NOTIFY` (PostgreSQL) and `PubSub` (Redis) subscriptions from consuming query pool connection slots, `azums` maintains strict internal connection pool isolation:
+
+- **Single Configuration String**: Users supply a single `DATABASE_URL` or Redis URL without complex multi-pool tuning.
+- **Dedicated Unpooled Sockets**:
+  - In **PostgreSQL**, `PgListener::connect(&database_url)` opens a dedicated, unpooled TCP socket for `LISTEN` events, leaving `sqlx::PgPool` 100% available for query execution (`enqueue`, `lease_jobs_batch`, `mark_succeeded`).
+  - In **Redis**, `client.get_async_pubsub()` connects a dedicated PubSub socket, ensuring `ConnectionManager` command throughput remains uninhibited under heavy load.
+- **Zero Pool Starvation**: Workers can subscribe to multiple queues even with a minimal query connection pool size (e.g. `AZUMS_DB_MAX_CONNECTIONS=1`) without starving application queries.
+

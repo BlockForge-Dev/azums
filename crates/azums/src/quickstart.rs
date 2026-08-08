@@ -555,7 +555,7 @@ pub async fn quickstart(database_url: impl AsRef<str>) -> anyhow::Result<Quickst
         match opts.connect(candidate).await {
             Ok(pool) => {
                 if sqlx::query("SELECT 1").execute(&pool).await.is_ok() {
-                    pool_opt = Some(pool);
+                    pool_opt = Some((candidate.clone(), pool));
                     break;
                 }
             }
@@ -565,7 +565,7 @@ pub async fn quickstart(database_url: impl AsRef<str>) -> anyhow::Result<Quickst
         }
     }
 
-    let pool = match pool_opt {
+    let (connected_url, pool) = match pool_opt {
         Some(p) => p,
         None => {
             return Err(anyhow::anyhow!(
@@ -576,7 +576,7 @@ pub async fn quickstart(database_url: impl AsRef<str>) -> anyhow::Result<Quickst
         }
     };
 
-    let pg_backend = PostgresBackend::new(pool);
+    let pg_backend = PostgresBackend::new_with_url(pool, connected_url);
     pg_backend.run_migrations().await?;
 
     let backend: Arc<dyn StorageBackend> = Arc::new(pg_backend.clone());
