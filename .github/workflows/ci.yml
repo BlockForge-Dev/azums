@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main, master ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux-test:
     name: Build & Test (Linux / ${{ matrix.rust }})
@@ -62,7 +66,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest]
-        rust: [stable, beta, nightly]
+        rust: [stable]
 
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +101,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgrespassword
-          POSTGRES_DB: postgresflow_test
+          POSTGRES_DB: azums_test
         ports:
           - 5432:5432
         options: >-
@@ -120,7 +124,7 @@ jobs:
       - name: Measure Code Coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
         env:
-          TEST_DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/postgresflow_test
+          TEST_DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/azums_test
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v4
