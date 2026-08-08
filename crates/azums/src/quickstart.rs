@@ -23,12 +23,14 @@ pub type Client = QuickstartFlow;
 ///
 /// `QuickstartFlow` manages job enqueueing, handler registration, background worker leasing loops,
 /// and the optional Axum admin web console through an abstract [`StorageBackend`].
+#[derive(Clone)]
 pub struct QuickstartFlow {
     backend: Arc<dyn StorageBackend>,
     handlers: Arc<RwLock<HashMap<String, QuickstartHandler>>>,
     queue_configs: Arc<RwLock<HashMap<String, azums_core::QueueConfig>>>,
     queue: String,
     worker_id: String,
+    lease_seconds: i64,
     retry_cfg: RetryConfig,
 }
 
@@ -38,6 +40,10 @@ impl QuickstartFlow {
         let queue = std::env::var("AZUMS_QUEUE").unwrap_or_else(|_| "default".to_string());
         let worker_id =
             std::env::var("AZUMS_WORKER_ID").unwrap_or_else(|_| "quickstart-worker".to_string());
+        let lease_seconds = std::env::var("AZUMS_LEASE_SECONDS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(10);
 
         Self {
             backend,
@@ -45,6 +51,7 @@ impl QuickstartFlow {
             queue_configs: Arc::new(RwLock::new(HashMap::new())),
             queue,
             worker_id,
+            lease_seconds,
             retry_cfg: RetryConfig::default(),
         }
     }
@@ -52,6 +59,18 @@ impl QuickstartFlow {
     /// Sets the target queue name for this [`QuickstartFlow`] worker.
     pub fn with_queue(mut self, queue: impl Into<String>) -> Self {
         self.queue = queue.into();
+        self
+    }
+
+    /// Sets the unique worker ID string for this [`QuickstartFlow`].
+    pub fn with_worker_id(mut self, worker_id: impl Into<String>) -> Self {
+        self.worker_id = worker_id.into();
+        self
+    }
+
+    /// Sets the lease lock duration in seconds for leased jobs.
+    pub fn with_lease_seconds(mut self, lease_seconds: i64) -> Self {
+        self.lease_seconds = lease_seconds.max(1);
         self
     }
 
@@ -176,6 +195,15 @@ impl QuickstartFlow {
     /// # }
     /// ```
     pub async fn run(&self) -> anyhow::Result<()> {
+        let token = tokio_util::sync::CancellationToken::new();
+        self.run_with_shutdown(token).await
+    }
+
+    /// Starts the in-process worker polling loop with a `CancellationToken` for graceful shutdown.
+    pub async fn run_with_shutdown(
+        &self,
+        shutdown_token: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<()> {
         use tokio_stream::StreamExt;
 
         let mut last_reap_at = std::time::Instant::now();
@@ -185,6 +213,10 @@ impl QuickstartFlow {
         let mut stream = self.backend.subscribe(&self.queue).await.ok();
 
         loop {
+            if shutdown_token.is_cancelled() {
+                break;
+            }
+
             if last_reap_at.elapsed() >= reap_interval {
                 let _ = self.backend.reap_expired_locks().await;
                 last_reap_at = std::time::Instant::now();
@@ -201,7 +233,7 @@ impl QuickstartFlow {
                 .lease_jobs_batch_with_ordering(
                     &self.queue,
                     &self.worker_id,
-                    10,
+                    self.lease_seconds,
                     32,
                     q_config.ordering,
                 )
@@ -210,17 +242,23 @@ impl QuickstartFlow {
             if batch.is_empty() {
                 if let Some(s) = stream.as_mut() {
                     tokio::select! {
+                        _ = shutdown_token.cancelled() => break,
                         _ = s.next() => {},
                         _ = tokio::time::sleep(reap_interval) => {},
                     }
                 } else {
-                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    tokio::select! {
+                        _ = shutdown_token.cancelled() => break,
+                        _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {},
+                    }
                 }
                 continue;
             }
 
             self.process_batch(batch).await?;
         }
+
+        Ok(())
     }
 
     /// Runs worker polling loops until all currently queued jobs have been processed, returning total count.
@@ -249,7 +287,7 @@ impl QuickstartFlow {
                 .lease_jobs_batch_with_ordering(
                     &self.queue,
                     &self.worker_id,
-                    10,
+                    self.lease_seconds,
                     32,
                     q_config.ordering,
                 )
@@ -292,40 +330,54 @@ impl QuickstartFlow {
                 guard.get(&job.job_type).cloned()
             };
 
-            let start = std::time::Instant::now();
-            match handler_opt {
-                Some(handler) => {
-                    let res = (handler)(job.clone()).await;
-                    let latency_ms = start.elapsed().as_millis() as i32;
+            // Spawn background heartbeat task to extend lease for long-running jobs
+            let (heartbeat_tx, mut heartbeat_rx) = tokio::sync::oneshot::channel::<()>();
+            let backend_clone = self.backend.clone();
+            let job_id = job.id;
+            let worker_id_clone = self.worker_id.clone();
+            let lease_secs = self.lease_seconds;
 
-                    match res {
-                        Ok(()) => {
-                            self.backend
-                                .mark_succeeded(job.id, attempt_id, &self.worker_id, latency_ms)
-                                .await?;
-                        }
-                        Err(err) => {
-                            self.handle_failure(
-                                job.id,
-                                attempt_id,
-                                latency_ms,
-                                "HANDLER_ERROR",
-                                &err.to_string(),
-                                attempt_no,
-                                job.max_attempts,
-                            )
-                            .await?;
+            let _hb_handle = tokio::spawn(async move {
+                let interval_duration =
+                    std::time::Duration::from_secs((lease_secs as u64 / 2).max(1));
+                loop {
+                    tokio::select! {
+                        _ = &mut heartbeat_rx => break,
+                        _ = tokio::time::sleep(interval_duration) => {
+                            let _ = backend_clone.extend_lease(job_id, &worker_id_clone, lease_secs).await;
                         }
                     }
                 }
-                None => {
-                    let latency_ms = start.elapsed().as_millis() as i32;
+            });
+
+            let start = std::time::Instant::now();
+            let res_outcome = match handler_opt.as_ref() {
+                Some(handler) => (handler)(job.clone()).await,
+                None => Err(anyhow::anyhow!("no handler registered for job_type={}", job.job_type)),
+            };
+
+            // Stop heartbeat task
+            let _ = heartbeat_tx.send(());
+
+            let latency_ms = start.elapsed().as_millis() as i32;
+            match res_outcome {
+                Ok(()) => {
+                    self.backend
+                        .mark_succeeded(job.id, attempt_id, &self.worker_id, latency_ms)
+                        .await?;
+                }
+                Err(err) => {
+                    let err_code = if handler_opt.is_some() {
+                        "HANDLER_ERROR"
+                    } else {
+                        "UNKNOWN_JOB_TYPE"
+                    };
                     self.handle_failure(
                         job.id,
                         attempt_id,
                         latency_ms,
-                        "UNKNOWN_JOB_TYPE",
-                        &format!("no handler registered for job_type={}", job.job_type),
+                        err_code,
+                        &err.to_string(),
                         attempt_no,
                         job.max_attempts,
                     )

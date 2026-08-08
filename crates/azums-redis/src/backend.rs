@@ -412,6 +412,33 @@ impl StorageBackend for RedisBackend {
         Ok(())
     }
 
+    async fn extend_lease(
+        &self,
+        job_id: Uuid,
+        worker_id: &str,
+        lease_seconds: i64,
+    ) -> anyhow::Result<bool> {
+        let mut conn = self.conn_mgr.clone();
+        let job_key = job_id.to_string();
+        let json_str: Option<String> = conn.hget("azums:jobs", &job_key).await?;
+
+        if let Some(json) = json_str {
+            if let Ok(mut job) = serde_json::from_str::<Job>(&json) {
+                if job.status == "running" && job.locked_by.as_deref() == Some(worker_id) {
+                    let now = Utc::now();
+                    job.lock_expires_at = Some(now + chrono::Duration::seconds(lease_seconds));
+                    job.updated_at = now;
+
+                    let updated_json = serde_json::to_string(&job)?;
+                    let _: () = conn.hset("azums:jobs", &job_key, updated_json).await?;
+                    return Ok(true);
+                }
+            }
+        }
+
+        Ok(false)
+    }
+
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {
         let mut conn = self.conn_mgr.clone();
         let json_str: Option<String> = conn.hget("azums:jobs", job_id.to_string()).await?;

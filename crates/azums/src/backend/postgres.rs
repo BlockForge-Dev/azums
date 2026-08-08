@@ -268,6 +268,17 @@ impl StorageBackend for PostgresBackend {
     async fn perform_maintenance(&self) -> anyhow::Result<()> {
         self.maintenance_repo.vacuum_analyze().await
     }
+
+    async fn extend_lease(
+        &self,
+        job_id: Uuid,
+        worker_id: &str,
+        lease_seconds: i64,
+    ) -> anyhow::Result<bool> {
+        self.jobs_repo
+            .extend_lease(job_id, worker_id, lease_seconds)
+            .await
+    }
 }
 
 #[async_trait]

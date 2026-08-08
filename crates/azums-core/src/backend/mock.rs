@@ -92,6 +92,11 @@ pub enum CallRecord {
         limit: i64,
     },
     PerformMaintenance,
+    ExtendLease {
+        job_id: Uuid,
+        worker_id: String,
+        lease_seconds: i64,
+    },
     GetJob(Uuid),
     ListJobs {
         queue: Option<String>,
@@ -419,6 +424,20 @@ impl StorageBackend for MockBackend {
     async fn perform_maintenance(&self) -> anyhow::Result<()> {
         self.calls.lock().unwrap().push(CallRecord::PerformMaintenance);
         self.inner.perform_maintenance().await
+    }
+
+    async fn extend_lease(
+        &self,
+        job_id: Uuid,
+        worker_id: &str,
+        lease_seconds: i64,
+    ) -> anyhow::Result<bool> {
+        self.calls.lock().unwrap().push(CallRecord::ExtendLease {
+            job_id,
+            worker_id: worker_id.to_string(),
+            lease_seconds,
+        });
+        self.inner.extend_lease(job_id, worker_id, lease_seconds).await
     }
 
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {

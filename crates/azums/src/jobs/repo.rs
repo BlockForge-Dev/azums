@@ -238,6 +238,30 @@ impl JobsRepo {
         Ok(job)
     }
 
+    /// Extends the lock expiration timestamp for a running job.
+    pub async fn extend_lease(
+        &self,
+        job_id: Uuid,
+        worker_id: &str,
+        lease_seconds: i64,
+    ) -> anyhow::Result<bool> {
+        let res = sqlx::query(
+            r#"
+            UPDATE jobs
+            SET lock_expires_at = now() + ($3::int * interval '1 second'),
+                updated_at = now()
+            WHERE id = $1 AND locked_by = $2 AND status = 'running'
+            "#,
+        )
+        .bind(job_id)
+        .bind(worker_id)
+        .bind(lease_seconds)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(res.rows_affected() > 0)
+    }
+
     // ----------------------------
     // List / DLQ views (Admin API support)
     // ----------------------------

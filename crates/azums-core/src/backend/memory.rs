@@ -456,6 +456,24 @@ impl StorageBackend for MemoryBackend {
         Ok(())
     }
 
+    async fn extend_lease(
+        &self,
+        job_id: Uuid,
+        worker_id: &str,
+        lease_seconds: i64,
+    ) -> anyhow::Result<bool> {
+        let mut state = self.state.write().unwrap();
+        if let Some(job) = state.jobs.get_mut(&job_id) {
+            if job.status == "running" && job.locked_by.as_deref() == Some(worker_id) {
+                let now = Utc::now();
+                job.lock_expires_at = Some(now + chrono::Duration::seconds(lease_seconds));
+                job.updated_at = now;
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {
         let state = self.state.read().unwrap();
         let job = state

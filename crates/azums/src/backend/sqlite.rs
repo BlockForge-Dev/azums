@@ -352,6 +352,31 @@ impl StorageBackend for SqliteBackend {
         Ok(())
     }
 
+    async fn extend_lease(
+        &self,
+        job_id: Uuid,
+        worker_id: &str,
+        lease_seconds: i64,
+    ) -> anyhow::Result<bool> {
+        let now = Utc::now();
+        let lock_expires_at = now + chrono::Duration::seconds(lease_seconds);
+        let res = sqlx::query(
+            r#"
+            UPDATE jobs
+            SET lock_expires_at = ?, updated_at = ?
+            WHERE id = ? AND locked_by = ? AND status = 'running'
+            "#,
+        )
+        .bind(lock_expires_at)
+        .bind(now)
+        .bind(job_id)
+        .bind(worker_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(res.rows_affected() > 0)
+    }
+
     async fn reap_expired_locks(&self) -> anyhow::Result<u64> {
         let now = Utc::now();
         let res = sqlx::query(

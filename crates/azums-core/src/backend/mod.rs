@@ -136,6 +136,17 @@ pub trait StorageBackend: Send + Sync {
         Ok(())
     }
 
+    /// Extends the lease lock expiration for an in-flight running job.
+    /// Returns `true` if the lease was extended, `false` if the job lock was lost or reaped.
+    async fn extend_lease(
+        &self,
+        _job_id: Uuid,
+        _worker_id: &str,
+        _lease_seconds: i64,
+    ) -> anyhow::Result<bool> {
+        Ok(true)
+    }
+
     /// Fetches a single job record by ID.
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>>;
 
