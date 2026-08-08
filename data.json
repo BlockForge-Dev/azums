@@ -1,8 +1,8 @@
 {
-  "last_updated": "2026-08-08 09:56:17 UTC",
+  "last_updated": "2026-08-08 12:57:39 UTC",
   "enqueue": {
     "labels": ["azums (Memory)", "azums (Redis)", "azums (SQLite)", "azums (Postgres)", "Raw SQL Polling"],
-    "data": [476086, 1703, 92000, 674, 8500]
+    "data": [566242, 2768, 92000, 474, 8500]
   },
   "latency": {
     "labels": ["azums (LISTEN/NOTIFY)", "azums (Redis PubSub)", "azums (Memory Bcast)", "500ms Polling Loop"],
