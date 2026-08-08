@@ -60,6 +60,7 @@ async fn main() -> anyhow::Result<()> {
 | **Language** | Rust 🦀 | Node.js | Python | Ruby | Rust |
 | **Backend Portability** | ✅ Single API for Postgres, SQLite, Redis, In-Memory | ❌ Redis only | ✅ Redis, RabbitMQ, etc. | ❌ Redis only | ❌ Postgres only |
 | **Instant Wake‑up** | ✅ `LISTEN/NOTIFY`, Redis PubSub, zero polling | ✅ Redis PubSub | ✅ Broker‑dependent | ✅ Redis PubSub | ❌ Polling only |
+| **Strict FIFO Ordering** | ✅ Per-queue configurable (default FIFO) | ⚠️ FIFO per queue | ❌ Best-effort | ⚠️ FIFO per queue | ❌ Best-effort |
 | **Framework Integrations** | ✅ Axum, Actix, Poem, Rocket (native extractors) | ❌ None built‑in | ✅ Flask, Django, FastAPI | ❌ None | ❌ None |
 | **Event Streams (Redis‑style)** | ✅ Durable stream logs with consumer groups & offsets | ✅ Native Redis Streams | ❌ Requires Celery Beat | ❌ No native streams | ❌ None |
 | **Dead‑Letter Queue (DLQ)** | ✅ Automatic with retry exhaustion, reason codes, and replay | ✅ | ✅ | ✅ | ✅ |

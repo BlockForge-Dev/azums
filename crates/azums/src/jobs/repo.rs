@@ -493,11 +493,29 @@ impl JobsRepo {
         lease_seconds: i64,
         batch_size: i64,
     ) -> anyhow::Result<Vec<Job>> {
+        self.lease_jobs_batch_with_ordering(
+            queue,
+            worker_id,
+            lease_seconds,
+            batch_size,
+            azums_core::QueueOrdering::Fifo,
+        )
+        .await
+    }
+
+    /// Lease up to `batch_size` runnable jobs for this worker using specified [`azums_core::QueueOrdering`].
+    pub async fn lease_jobs_batch_with_ordering(
+        &self,
+        queue: &str,
+        worker_id: &str,
+        lease_seconds: i64,
+        batch_size: i64,
+        ordering: azums_core::QueueOrdering,
+    ) -> anyhow::Result<Vec<Job>> {
         let batch_size = batch_size.clamp(1, 4096);
         let mut tx = self.pool.begin().await?;
 
         // 0) Load queue policy (defaults: basically unlimited)
-        // schema assumed: queue_policies(queue PK, max_attempts_per_minute, max_in_flight, throttle_delay_ms)
         let policy = sqlx::query_as::<_, (i32, i32, i32)>(
             r#"
             SELECT max_attempts_per_minute, max_in_flight, throttle_delay_ms
@@ -541,7 +559,6 @@ impl JobsRepo {
                 max_in_flight = p_max_in_flight;
                 throttle_delay_ms = p_throttle_delay_ms;
 
-                // In-flight count for this queue
                 in_flight = sqlx::query_scalar(
                     r#"
                 SELECT COUNT(*)
@@ -553,7 +570,6 @@ impl JobsRepo {
                 .fetch_one(&mut *tx)
                 .await?;
 
-                // Attempts started in last 60 seconds for this queue
                 attempts_last_min = sqlx::query_scalar(
                     r#"
                 SELECT COUNT(*)
@@ -579,23 +595,40 @@ impl JobsRepo {
             };
 
         if let Some(reason_code) = throttle_reason {
-            let candidate_id = sqlx::query_scalar::<_, Uuid>(
-                r#"
-                SELECT id
-                FROM jobs
-                WHERE dataset_id = $1
-                  AND queue = $2
-                  AND status = 'queued'
-                  AND run_at <= now()
-                ORDER BY priority DESC, run_at ASC, created_at ASC
-                FOR UPDATE SKIP LOCKED
-                LIMIT 1
-                "#,
-            )
-            .bind(&dataset_id)
-            .bind(queue)
-            .fetch_optional(&mut *tx)
-            .await?;
+            let candidate_id_query = match ordering {
+                azums_core::QueueOrdering::Fifo => {
+                    r#"
+                    SELECT id
+                    FROM jobs
+                    WHERE dataset_id = $1
+                      AND queue = $2
+                      AND status = 'queued'
+                      AND run_at <= now()
+                    ORDER BY priority DESC, run_at ASC, created_at ASC, id ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1
+                    "#
+                }
+                azums_core::QueueOrdering::Fastest => {
+                    r#"
+                    SELECT id
+                    FROM jobs
+                    WHERE dataset_id = $1
+                      AND queue = $2
+                      AND status = 'queued'
+                      AND run_at <= now()
+                    ORDER BY priority DESC, run_at ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1
+                    "#
+                }
+            };
+
+            let candidate_id = sqlx::query_scalar::<_, Uuid>(candidate_id_query)
+                .bind(&dataset_id)
+                .bind(queue)
+                .fetch_optional(&mut *tx)
+                .await?;
 
             if let Some(job_id) = candidate_id {
                 let details = match reason_code {
@@ -649,43 +682,85 @@ impl JobsRepo {
             return Ok(Vec::new());
         }
 
-        // 3) Lease a batch in one round-trip.
-        let leased = sqlx::query_as::<_, Job>(
-            r#"
-            WITH candidates AS (
-                SELECT id
-                FROM jobs
-                WHERE dataset_id = $1
-                  AND queue = $2
-                  AND status = 'queued'
-                  AND run_at <= now()
-                ORDER BY priority DESC, run_at ASC, created_at ASC
-                FOR UPDATE SKIP LOCKED
-                LIMIT $3
-            ),
-            leased AS (
-                UPDATE jobs j
-                SET status = 'running',
-                    locked_by = $4,
-                    locked_at = now(),
-                    lock_expires_at = now() + ($5::int * interval '1 second'),
-                    updated_at = now()
-                FROM candidates c
-                WHERE j.id = c.id
-                RETURNING j.*
-            )
-            SELECT *
-            FROM leased
-            ORDER BY priority DESC, run_at ASC, created_at ASC
-            "#,
-        )
-        .bind(&dataset_id)
-        .bind(queue)
-        .bind(batch_size)
-        .bind(worker_id)
-        .bind(lease_seconds)
-        .fetch_all(&mut *tx)
-        .await?;
+        // 3) Lease a batch in one round-trip according to QueueOrdering.
+        let leased = match ordering {
+            azums_core::QueueOrdering::Fifo => {
+                sqlx::query_as::<_, Job>(
+                    r#"
+                    WITH candidates AS (
+                        SELECT id
+                        FROM jobs
+                        WHERE dataset_id = $1
+                          AND queue = $2
+                          AND status = 'queued'
+                          AND run_at <= now()
+                        ORDER BY priority DESC, run_at ASC, created_at ASC, id ASC
+                        FOR UPDATE SKIP LOCKED
+                        LIMIT $3
+                    ),
+                    leased AS (
+                        UPDATE jobs j
+                        SET status = 'running',
+                            locked_by = $4,
+                            locked_at = now(),
+                            lock_expires_at = now() + ($5::int * interval '1 second'),
+                            updated_at = now()
+                        FROM candidates c
+                        WHERE j.id = c.id
+                        RETURNING j.*
+                    )
+                    SELECT *
+                    FROM leased
+                    ORDER BY priority DESC, run_at ASC, created_at ASC, id ASC
+                    "#,
+                )
+                .bind(&dataset_id)
+                .bind(queue)
+                .bind(batch_size)
+                .bind(worker_id)
+                .bind(lease_seconds)
+                .fetch_all(&mut *tx)
+                .await?
+            }
+            azums_core::QueueOrdering::Fastest => {
+                sqlx::query_as::<_, Job>(
+                    r#"
+                    WITH candidates AS (
+                        SELECT id
+                        FROM jobs
+                        WHERE dataset_id = $1
+                          AND queue = $2
+                          AND status = 'queued'
+                          AND run_at <= now()
+                        ORDER BY priority DESC, run_at ASC
+                        FOR UPDATE SKIP LOCKED
+                        LIMIT $3
+                    ),
+                    leased AS (
+                        UPDATE jobs j
+                        SET status = 'running',
+                            locked_by = $4,
+                            locked_at = now(),
+                            lock_expires_at = now() + ($5::int * interval '1 second'),
+                            updated_at = now()
+                        FROM candidates c
+                        WHERE j.id = c.id
+                        RETURNING j.*
+                    )
+                    SELECT *
+                    FROM leased
+                    ORDER BY priority DESC, run_at ASC
+                    "#,
+                )
+                .bind(&dataset_id)
+                .bind(queue)
+                .bind(batch_size)
+                .bind(worker_id)
+                .bind(lease_seconds)
+                .fetch_all(&mut *tx)
+                .await?
+            }
+        };
 
         tx.commit().await?;
         Ok(leased)

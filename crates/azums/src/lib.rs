@@ -93,8 +93,8 @@ pub mod stream_handle;
 
 pub use azums_core::{
     CallRecord, ConsumerGroupStatus, Error, Event, Job, JobHandler, JobListItem, JobProcessor,
-    JobStatus, MemoryBackend, MockBackend, NewEvent, NewJob, NotificationStream, QueueError,
-    StorageBackend, StreamBackend,
+    JobStatus, MemoryBackend, MockBackend, NewEvent, NewJob, NotificationStream, QueueConfig,
+    QueueError, QueueOrdering, StorageBackend, StreamBackend,
 };
 #[cfg(feature = "postgres")]
 pub use backend::PostgresBackend;

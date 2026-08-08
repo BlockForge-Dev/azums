@@ -3,6 +3,41 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+/// Per-queue job execution ordering policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum QueueOrdering {
+    /// Process jobs in exact First-In, First-Out order by creation time (`created_at ASC`).
+    Fifo,
+    /// Process jobs as fast as possible without strict creation order guarantees.
+    Fastest,
+}
+
+impl Default for QueueOrdering {
+    fn default() -> Self {
+        Self::Fifo
+    }
+}
+
+/// Configuration options for a job queue.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueueConfig {
+    pub ordering: QueueOrdering,
+}
+
+impl Default for QueueConfig {
+    fn default() -> Self {
+        Self {
+            ordering: QueueOrdering::Fifo,
+        }
+    }
+}
+
+impl QueueConfig {
+    pub fn new(ordering: QueueOrdering) -> Self {
+        Self { ordering }
+    }
+}
+
 /// Lightweight job summary model returned when listing jobs in Admin UI or APIs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]

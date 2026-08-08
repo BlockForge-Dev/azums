@@ -26,6 +26,7 @@ pub type Client = QuickstartFlow;
 pub struct QuickstartFlow {
     backend: Arc<dyn StorageBackend>,
     handlers: Arc<RwLock<HashMap<String, QuickstartHandler>>>,
+    queue_configs: Arc<RwLock<HashMap<String, azums_core::QueueConfig>>>,
     queue: String,
     worker_id: String,
     retry_cfg: RetryConfig,
@@ -41,10 +42,29 @@ impl QuickstartFlow {
         Self {
             backend,
             handlers: Arc::new(RwLock::new(HashMap::new())),
+            queue_configs: Arc::new(RwLock::new(HashMap::new())),
             queue,
             worker_id,
             retry_cfg: RetryConfig::default(),
         }
+    }
+
+    /// Sets the target queue name for this [`QuickstartFlow`] worker.
+    pub fn with_queue(mut self, queue: impl Into<String>) -> Self {
+        self.queue = queue.into();
+        self
+    }
+
+    /// Configures queue options (such as [`QueueOrdering`](azums_core::QueueOrdering)) for a specified queue.
+    pub async fn configure_queue(&self, queue: impl Into<String>, config: azums_core::QueueConfig) {
+        let mut configs = self.queue_configs.write().await;
+        configs.insert(queue.into(), config);
+    }
+
+    /// Returns the active [`QueueConfig`](azums_core::QueueConfig) for a specified queue (defaults to FIFO).
+    pub async fn get_queue_config(&self, queue: &str) -> azums_core::QueueConfig {
+        let configs = self.queue_configs.read().await;
+        configs.get(queue).cloned().unwrap_or_default()
     }
 
     /// Returns reference to the underlying [`StorageBackend`].
@@ -163,9 +183,16 @@ impl QuickstartFlow {
                 last_reap_at = std::time::Instant::now();
             }
 
+            let q_config = self.get_queue_config(&self.queue).await;
             let batch = self
                 .backend
-                .lease_jobs_batch(&self.queue, &self.worker_id, 10, 32)
+                .lease_jobs_batch_with_ordering(
+                    &self.queue,
+                    &self.worker_id,
+                    10,
+                    32,
+                    q_config.ordering,
+                )
                 .await?;
 
             if batch.is_empty() {
@@ -204,9 +231,16 @@ impl QuickstartFlow {
         let mut total_processed = 0;
 
         loop {
+            let q_config = self.get_queue_config(&self.queue).await;
             let batch = self
                 .backend
-                .lease_jobs_batch(&self.queue, &self.worker_id, 10, 32)
+                .lease_jobs_batch_with_ordering(
+                    &self.queue,
+                    &self.worker_id,
+                    10,
+                    32,
+                    q_config.ordering,
+                )
                 .await?;
 
             if batch.is_empty() {

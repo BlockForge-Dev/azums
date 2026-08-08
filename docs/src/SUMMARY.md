@@ -12,6 +12,7 @@
 - [Low-Level Design & DSA](LLD.md)
 - [Job Lifecycle](job_lifecycle.md)
 - [Transactional Leasing & SKIP LOCKED](leasing.md)
+- [Ordering Guarantees](ordering.md)
 - [Dataset Partitioning Strategy](partitioning.md)
 
 # Performance & Tuning

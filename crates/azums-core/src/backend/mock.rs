@@ -40,6 +40,13 @@ pub enum CallRecord {
         lease_seconds: i64,
         batch_size: i64,
     },
+    LeaseJobsBatchWithOrdering {
+        queue: String,
+        worker_id: String,
+        lease_seconds: i64,
+        batch_size: i64,
+        ordering: crate::model::QueueOrdering,
+    },
     ReapExpiredLocks,
     StartAttemptsBatch {
         job_ids: Vec<Uuid>,
@@ -218,6 +225,29 @@ impl StorageBackend for MockBackend {
         });
         self.inner
             .lease_jobs_batch(queue, worker_id, lease_seconds, batch_size)
+            .await
+    }
+
+    async fn lease_jobs_batch_with_ordering(
+        &self,
+        queue: &str,
+        worker_id: &str,
+        lease_seconds: i64,
+        batch_size: i64,
+        ordering: crate::model::QueueOrdering,
+    ) -> anyhow::Result<Vec<Job>> {
+        self.calls
+            .lock()
+            .unwrap()
+            .push(CallRecord::LeaseJobsBatchWithOrdering {
+                queue: queue.to_string(),
+                worker_id: worker_id.to_string(),
+                lease_seconds,
+                batch_size,
+                ordering,
+            });
+        self.inner
+            .lease_jobs_batch_with_ordering(queue, worker_id, lease_seconds, batch_size, ordering)
             .await
     }
 

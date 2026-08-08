@@ -103,6 +103,9 @@ impl StorageBackend for SqliteBackend {
             CREATE INDEX IF NOT EXISTS idx_jobs_runnable
                 ON jobs (queue, status, run_at, priority DESC, created_at);
 
+            CREATE INDEX IF NOT EXISTS idx_jobs_fifo
+                ON jobs (queue, status, run_at, priority DESC, created_at ASC, id ASC);
+
             CREATE TABLE IF NOT EXISTS job_attempts (
                 id BLOB PRIMARY KEY,
                 dataset_id TEXT NOT NULL DEFAULT 'default',
@@ -225,10 +228,35 @@ impl StorageBackend for SqliteBackend {
         lease_seconds: i64,
         batch_size: i64,
     ) -> anyhow::Result<Vec<Job>> {
+        self.lease_jobs_batch_with_ordering(
+            queue,
+            worker_id,
+            lease_seconds,
+            batch_size,
+            azums_core::QueueOrdering::Fifo,
+        )
+        .await
+    }
+
+    async fn lease_jobs_batch_with_ordering(
+        &self,
+        queue: &str,
+        worker_id: &str,
+        lease_seconds: i64,
+        batch_size: i64,
+        ordering: azums_core::QueueOrdering,
+    ) -> anyhow::Result<Vec<Job>> {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now();
 
-        let candidates = sqlx::query_as::<_, Job>(
+        let order_sql = match ordering {
+            azums_core::QueueOrdering::Fifo => {
+                "ORDER BY priority DESC, run_at ASC, created_at ASC, id ASC"
+            }
+            azums_core::QueueOrdering::Fastest => "ORDER BY priority DESC, run_at ASC",
+        };
+
+        let sql = format!(
             r#"
             SELECT
                 dataset_id, replay_of_job_id, id, queue, job_type,
@@ -237,15 +265,17 @@ impl StorageBackend for SqliteBackend {
                 created_at, updated_at
             FROM jobs
             WHERE queue = ? AND status = 'queued' AND run_at <= ?
-            ORDER BY priority DESC, run_at ASC, created_at ASC
+            {order_sql}
             LIMIT ?
-            "#,
-        )
-        .bind(queue)
-        .bind(now)
-        .bind(batch_size)
-        .fetch_all(&mut *tx)
-        .await?;
+            "#
+        );
+
+        let candidates = sqlx::query_as::<_, Job>(&sql)
+            .bind(queue)
+            .bind(now)
+            .bind(batch_size)
+            .fetch_all(&mut *tx)
+            .await?;
 
         if candidates.is_empty() {
             tx.commit().await?;

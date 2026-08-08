@@ -157,7 +157,15 @@ impl StorageBackend for RedisBackend {
         let batch_size = batch_size.clamp(1, 100) as usize;
 
         for _ in 0..batch_size {
-            let job_id_str: Option<String> = conn.rpoplpush(&queue_key, &processing_key).await.ok();
+            let job_id_str: Option<String> = redis::cmd("LMOVE")
+                .arg(&queue_key)
+                .arg(&processing_key)
+                .arg("LEFT")
+                .arg("RIGHT")
+                .query_async(&mut conn)
+                .await
+                .ok();
+
             let job_id_str = match job_id_str {
                 Some(id) if !id.is_empty() => id,
                 _ => break,
@@ -167,8 +175,8 @@ impl StorageBackend for RedisBackend {
             if let Some(json) = json_str {
                 if let Ok(mut job) = serde_json::from_str::<Job>(&json) {
                     if job.run_at > now {
-                        // Put back if run_at is in the future
-                        let _: () = conn.rpush(&queue_key, &job_id_str).await?;
+                        // Put back at head if run_at is in the future
+                        let _: () = conn.lpush(&queue_key, &job_id_str).await?;
                         let _: () = conn.lrem(&processing_key, 1, &job_id_str).await?;
                         continue;
                     }
@@ -187,6 +195,19 @@ impl StorageBackend for RedisBackend {
         }
 
         Ok(leased)
+    }
+
+    async fn lease_jobs_batch_with_ordering(
+        &self,
+        queue: &str,
+        worker_id: &str,
+        lease_seconds: i64,
+        batch_size: i64,
+        ordering: azums_core::QueueOrdering,
+    ) -> anyhow::Result<Vec<Job>> {
+        let _ = ordering; // Redis RPUSH (enqueue) and LMOVE LEFT RIGHT (dequeue) natively preserve strict FIFO insertion order
+        self.lease_jobs_batch(queue, worker_id, lease_seconds, batch_size)
+            .await
     }
 
     async fn reap_expired_locks(&self) -> anyhow::Result<u64> {

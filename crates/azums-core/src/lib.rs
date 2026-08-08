@@ -20,5 +20,5 @@ pub use backend::{
 pub use error::{Error, QueueError};
 pub use model::{
     ConsumerGroupStatus, Event, Job, JobHandler, JobListItem, JobProcessor, JobStatus, NewEvent,
-    NewJob,
+    NewJob, QueueConfig, QueueOrdering,
 };

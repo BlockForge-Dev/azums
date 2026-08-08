@@ -93,6 +93,19 @@ impl StorageBackend for PostgresBackend {
             .await
     }
 
+    async fn lease_jobs_batch_with_ordering(
+        &self,
+        queue: &str,
+        worker_id: &str,
+        lease_seconds: i64,
+        batch_size: i64,
+        ordering: azums_core::QueueOrdering,
+    ) -> anyhow::Result<Vec<Job>> {
+        self.jobs_repo
+            .lease_jobs_batch_with_ordering(queue, worker_id, lease_seconds, batch_size, ordering)
+            .await
+    }
+
     async fn reap_expired_locks(&self) -> anyhow::Result<u64> {
         let count = self.jobs_repo.reap_expired_locks().await?;
         Ok(count as u64)

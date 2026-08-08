@@ -144,6 +144,24 @@ impl StorageBackend for MemoryBackend {
         lease_seconds: i64,
         batch_size: i64,
     ) -> anyhow::Result<Vec<Job>> {
+        self.lease_jobs_batch_with_ordering(
+            queue,
+            worker_id,
+            lease_seconds,
+            batch_size,
+            crate::model::QueueOrdering::Fifo,
+        )
+        .await
+    }
+
+    async fn lease_jobs_batch_with_ordering(
+        &self,
+        queue: &str,
+        worker_id: &str,
+        lease_seconds: i64,
+        batch_size: i64,
+        ordering: crate::model::QueueOrdering,
+    ) -> anyhow::Result<Vec<Job>> {
         let mut state = self.state.write().unwrap();
         let now = Utc::now();
 
@@ -154,12 +172,20 @@ impl StorageBackend for MemoryBackend {
             .cloned()
             .collect();
 
-        candidates.sort_by(|a, b| {
-            b.priority
-                .cmp(&a.priority)
-                .then_with(|| a.run_at.cmp(&b.run_at))
-                .then_with(|| a.created_at.cmp(&b.created_at))
-        });
+        match ordering {
+            crate::model::QueueOrdering::Fifo => {
+                candidates.sort_by(|a, b| {
+                    b.priority
+                        .cmp(&a.priority)
+                        .then_with(|| a.run_at.cmp(&b.run_at))
+                        .then_with(|| a.created_at.cmp(&b.created_at))
+                        .then_with(|| a.id.cmp(&b.id))
+                });
+            }
+            crate::model::QueueOrdering::Fastest => {
+                candidates.sort_by(|a, b| b.priority.cmp(&a.priority));
+            }
+        }
 
         let candidates: Vec<Job> = candidates.into_iter().take(batch_size as usize).collect();
         if candidates.is_empty() {

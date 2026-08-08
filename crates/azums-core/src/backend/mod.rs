@@ -47,6 +47,20 @@ pub trait StorageBackend: Send + Sync {
         batch_size: i64,
     ) -> anyhow::Result<Vec<Job>>;
 
+    /// Leases up to `batch_size` runnable jobs with specified queue ordering preference (`QueueOrdering`).
+    async fn lease_jobs_batch_with_ordering(
+        &self,
+        queue: &str,
+        worker_id: &str,
+        lease_seconds: i64,
+        batch_size: i64,
+        ordering: crate::model::QueueOrdering,
+    ) -> anyhow::Result<Vec<Job>> {
+        let _ = ordering;
+        self.lease_jobs_batch(queue, worker_id, lease_seconds, batch_size)
+            .await
+    }
+
     /// Reaps expired locks from inactive workers, resetting their status back to queued.
     async fn reap_expired_locks(&self) -> anyhow::Result<u64>;
 
