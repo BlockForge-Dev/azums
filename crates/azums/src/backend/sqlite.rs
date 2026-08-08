@@ -346,9 +346,7 @@ impl StorageBackend for SqliteBackend {
         let _ = sqlx::query("PRAGMA incremental_vacuum")
             .execute(&self.pool)
             .await;
-        let _ = sqlx::query("PRAGMA optimize")
-            .execute(&self.pool)
-            .await;
+        let _ = sqlx::query("PRAGMA optimize").execute(&self.pool).await;
         Ok(())
     }
 

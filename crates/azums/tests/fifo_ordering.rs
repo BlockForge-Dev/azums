@@ -4,7 +4,8 @@ use std::sync::{Arc, Mutex};
 #[tokio::test]
 async fn test_single_worker_strict_fifo_ordering() -> anyhow::Result<()> {
     let flow = quickstart("memory").await?.with_queue("fifo_test");
-    flow.configure_queue("fifo_test", QueueConfig::new(QueueOrdering::Fifo)).await;
+    flow.configure_queue("fifo_test", QueueConfig::new(QueueOrdering::Fifo))
+        .await;
 
     let received = Arc::new(Mutex::new(Vec::new()));
     let rec_clone = received.clone();
@@ -21,11 +22,8 @@ async fn test_single_worker_strict_fifo_ordering() -> anyhow::Result<()> {
 
     // Enqueue 100 jobs sequentially
     for i in 0..100 {
-        flow.enqueue(
-            Job::new("seq_job", serde_json::json!({ "seq": i }))
-                .queue("fifo_test"),
-        )
-        .await?;
+        flow.enqueue(Job::new("seq_job", serde_json::json!({ "seq": i })).queue("fifo_test"))
+            .await?;
     }
 
     let count = flow.run_until_empty().await?;
@@ -45,7 +43,8 @@ async fn test_single_worker_strict_fifo_ordering() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_fastest_ordering_mode() -> anyhow::Result<()> {
     let flow = quickstart("memory").await?.with_queue("fastest_test");
-    flow.configure_queue("fastest_test", QueueConfig::new(QueueOrdering::Fastest)).await;
+    flow.configure_queue("fastest_test", QueueConfig::new(QueueOrdering::Fastest))
+        .await;
 
     let count = Arc::new(Mutex::new(0));
     let count_clone = count.clone();
@@ -60,11 +59,8 @@ async fn test_fastest_ordering_mode() -> anyhow::Result<()> {
     .await;
 
     for i in 0..50 {
-        flow.enqueue(
-            Job::new("fast_job", serde_json::json!({ "idx": i }))
-                .queue("fastest_test"),
-        )
-        .await?;
+        flow.enqueue(Job::new("fast_job", serde_json::json!({ "idx": i })).queue("fastest_test"))
+            .await?;
     }
 
     let processed = flow.run_until_empty().await?;
@@ -77,8 +73,11 @@ async fn test_fastest_ordering_mode() -> anyhow::Result<()> {
 #[tokio::test]
 #[cfg(feature = "sqlite")]
 async fn test_sqlite_fifo_ordering() -> anyhow::Result<()> {
-    let flow = quickstart("sqlite::memory:").await?.with_queue("sqlite_fifo");
-    flow.configure_queue("sqlite_fifo", QueueConfig::new(QueueOrdering::Fifo)).await;
+    let flow = quickstart("sqlite::memory:")
+        .await?
+        .with_queue("sqlite_fifo");
+    flow.configure_queue("sqlite_fifo", QueueConfig::new(QueueOrdering::Fifo))
+        .await;
 
     let received = Arc::new(Mutex::new(Vec::new()));
     let rec_clone = received.clone();
@@ -94,11 +93,8 @@ async fn test_sqlite_fifo_ordering() -> anyhow::Result<()> {
     .await;
 
     for i in 0..100 {
-        flow.enqueue(
-            Job::new("sq_job", serde_json::json!({ "seq": i }))
-                .queue("sqlite_fifo"),
-        )
-        .await?;
+        flow.enqueue(Job::new("sq_job", serde_json::json!({ "seq": i })).queue("sqlite_fifo"))
+            .await?;
     }
 
     let count = flow.run_until_empty().await?;
@@ -106,7 +102,10 @@ async fn test_sqlite_fifo_ordering() -> anyhow::Result<()> {
 
     let seqs = received.lock().unwrap().clone();
     let expected: Vec<usize> = (0..100).collect();
-    assert_eq!(seqs, expected, "SQLite FIFO queue must process jobs in exact enqueued order");
+    assert_eq!(
+        seqs, expected,
+        "SQLite FIFO queue must process jobs in exact enqueued order"
+    );
 
     Ok(())
 }
@@ -116,16 +115,14 @@ async fn test_multi_worker_fifo_batch_leasing() -> anyhow::Result<()> {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     let flow = quickstart("memory").await?.with_queue("multi_fifo");
-    flow.configure_queue("multi_fifo", QueueConfig::new(QueueOrdering::Fifo)).await;
+    flow.configure_queue("multi_fifo", QueueConfig::new(QueueOrdering::Fifo))
+        .await;
 
     let total = Arc::new(AtomicUsize::new(0));
 
     for i in 0..100 {
-        flow.enqueue(
-            Job::new("multi_job", serde_json::json!({ "seq": i }))
-                .queue("multi_fifo"),
-        )
-        .await?;
+        flow.enqueue(Job::new("multi_job", serde_json::json!({ "seq": i })).queue("multi_fifo"))
+            .await?;
     }
 
     let backend = flow.backend().clone();

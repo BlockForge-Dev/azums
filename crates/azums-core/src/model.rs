@@ -4,18 +4,13 @@ use serde_json::Value;
 use uuid::Uuid;
 
 /// Per-queue job execution ordering policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum QueueOrdering {
     /// Process jobs in exact First-In, First-Out order by creation time (`created_at ASC`).
+    #[default]
     Fifo,
     /// Process jobs as fast as possible without strict creation order guarantees.
     Fastest,
-}
-
-impl Default for QueueOrdering {
-    fn default() -> Self {
-        Self::Fifo
-    }
 }
 
 /// Configuration options for a job queue.

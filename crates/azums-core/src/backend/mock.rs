@@ -422,7 +422,10 @@ impl StorageBackend for MockBackend {
     }
 
     async fn perform_maintenance(&self) -> anyhow::Result<()> {
-        self.calls.lock().unwrap().push(CallRecord::PerformMaintenance);
+        self.calls
+            .lock()
+            .unwrap()
+            .push(CallRecord::PerformMaintenance);
         self.inner.perform_maintenance().await
     }
 
@@ -437,7 +440,9 @@ impl StorageBackend for MockBackend {
             worker_id: worker_id.to_string(),
             lease_seconds,
         });
-        self.inner.extend_lease(job_id, worker_id, lease_seconds).await
+        self.inner
+            .extend_lease(job_id, worker_id, lease_seconds)
+            .await
     }
 
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {

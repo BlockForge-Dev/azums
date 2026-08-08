@@ -171,8 +171,11 @@ async fn test_quickstart_perform_maintenance_memory() -> anyhow::Result<()> {
 async fn test_sqlite_perform_maintenance_and_incremental_vacuum() -> anyhow::Result<()> {
     use azums::Job;
 
-    let flow = azums::quickstart("sqlite::memory:").await?.with_queue("maint_test");
-    flow.register_handler("dummy", |_j| async move { Ok(()) }).await;
+    let flow = azums::quickstart("sqlite::memory:")
+        .await?
+        .with_queue("maint_test");
+    flow.register_handler("dummy", |_j| async move { Ok(()) })
+        .await;
 
     // Enqueue 200 jobs to trigger automatic incremental vacuum threshold
     for i in 0..200 {

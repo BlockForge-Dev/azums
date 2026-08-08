@@ -45,13 +45,7 @@ async fn test_phantom_job_recovered_after_lease_expiry() -> anyhow::Result<()> {
     // Manually lease job simulating a worker that leased it and crashed without completing or heartbeating
     let batch = flow
         .backend()
-        .lease_jobs_batch_with_ordering(
-            "phantom_queue",
-            "w-dead",
-            1,
-            1,
-            azums::QueueOrdering::Fifo,
-        )
+        .lease_jobs_batch_with_ordering("phantom_queue", "w-dead", 1, 1, azums::QueueOrdering::Fifo)
         .await?;
     assert_eq!(batch.len(), 1);
 
@@ -96,7 +90,8 @@ async fn test_graceful_shutdown_with_cancellation_token() -> anyhow::Result<()> 
     let token_clone = token.clone();
     let flow_clone = flow.clone();
 
-    let worker_handle = tokio::spawn(async move { flow_clone.run_with_shutdown(token_clone).await });
+    let worker_handle =
+        tokio::spawn(async move { flow_clone.run_with_shutdown(token_clone).await });
 
     // Enqueue a job
     flow.enqueue(Job::new("quick_job", json!({})).queue("shutdown_queue"))
