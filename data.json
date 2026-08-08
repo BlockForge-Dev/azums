@@ -1,0 +1,19 @@
+{
+  "last_updated": "2026-08-08 08:22:30 UTC",
+  "enqueue": {
+    "labels": ["azums (Memory)", "azums (Redis)", "azums (SQLite)", "azums (Postgres)", "Raw SQL Polling"],
+    "data": [380000, 145000, 92000, 42000, 8500]
+  },
+  "latency": {
+    "labels": ["azums (LISTEN/NOTIFY)", "azums (Redis PubSub)", "azums (Memory Bcast)", "500ms Polling Loop"],
+    "data": [1.2, 0.8, 0.08, 500.0]
+  },
+  "workers": {
+    "labels": ["1 Worker", "4 Workers", "8 Workers", "16 Workers"],
+    "data": [42000, 168000, 310000, 580000]
+  },
+  "streams": {
+    "labels": ["Stream Publish", "Stream Read", "Group Ack"],
+    "data": [210000, 450000, 390000]
+  }
+}
