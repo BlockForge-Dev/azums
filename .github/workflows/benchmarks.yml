@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   benchmark:
@@ -58,10 +59,8 @@ jobs:
         run: |
           mkdir -p target/dashboard
           cp -r docs/benchmarks/* target/dashboard/
-          NOW=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          if [ -f target/dashboard/data.json ]; then
-            sed -i "s/\"last_updated\": \".*\"/\"last_updated\": \"$NOW\"/" target/dashboard/data.json
-          fi
+          chmod +x scripts/generate_benchmark_json.sh
+          ./scripts/generate_benchmark_json.sh target/dashboard/data.json target/criterion
           cp -r target/criterion target/dashboard/criterion || true
 
       - name: Deploy to GitHub Pages
