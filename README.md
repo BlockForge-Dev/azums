@@ -6,9 +6,9 @@
 [![CI Status](https://github.com/BlockForge-Dev/azums/workflows/CI/badge.svg)](https://github.com/BlockForge-Dev/azums/actions)
 [![License](https://img.shields.io/crates/l/azums.svg)](https://github.com/BlockForge-Dev/azums#license)
 
-> **High-performance job queue & streaming engine for Rust — from embedded to cloud.**
+> A lightweight, high-performance job queue. The optional web dashboard is available as a separate package (`azums-dashboard`) coming soon.
 
-`azums` is an enterprise-grade, transactional background job queue and streaming framework designed for Rust web applications, CLI tools, AI agents, and microservices. Built on top of PostgreSQL, SQLite, and In-Memory storage backends with native extractors for **Axum**, **Actix Web**, **Poem**, and **Rocket**.
+`azums` is an enterprise-grade, transactional background job queue and streaming framework designed for Rust web applications, CLI tools, AI agents, and microservices. Built on top of PostgreSQL, SQLite, Redis, and In-Memory storage backends with native extractors for **Axum**, **Actix Web**, **Poem**, and **Rocket**.
 
 ---
 

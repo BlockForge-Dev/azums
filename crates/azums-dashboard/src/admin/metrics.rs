@@ -59,7 +59,6 @@ struct AttemptsRow {
 }
 
 pub async fn metrics(State(st): State<AdminState>) -> Result<Json<Metrics>, (StatusCode, String)> {
-    // Totals by status
     let totals_row = sqlx::query_as::<_, TotalsRow>(
         r#"
         SELECT
@@ -75,7 +74,6 @@ pub async fn metrics(State(st): State<AdminState>) -> Result<Json<Metrics>, (Sta
     .await
     .map_err(db_err)?;
 
-    // Per-queue job stats
     let q_rows = sqlx::query_as::<_, QueueRow>(
         r#"
         SELECT
@@ -93,7 +91,6 @@ pub async fn metrics(State(st): State<AdminState>) -> Result<Json<Metrics>, (Sta
     .await
     .map_err(db_err)?;
 
-    // Attempts started in the last minute, grouped by queue
     let a_rows = sqlx::query_as::<_, AttemptsRow>(
         r#"
         SELECT j.queue AS queue, COUNT(*)::bigint AS attempts_last_min
@@ -107,17 +104,14 @@ pub async fn metrics(State(st): State<AdminState>) -> Result<Json<Metrics>, (Sta
     .await
     .map_err(db_err)?;
 
-    // Build attempts_map: queue -> attempts_last_min
     let mut attempts_map: HashMap<String, i64> = HashMap::new();
     for r in a_rows {
         attempts_map.insert(r.queue, r.attempts_last_min);
     }
 
-    // Merge into per_queue output
     let per_queue = q_rows
         .into_iter()
         .map(|r| {
-            // IMPORTANT: look up before moving r.queue
             let attempts_last_min = attempts_map.get(&r.queue).copied().unwrap_or(0);
 
             QueueMetrics {

@@ -13,11 +13,10 @@ keywords = ["postgres", "sqlite", "job-queue", "background-jobs", "task-queue"]
 categories = ["database", "asynchronous"]
 
 [features]
-default = ["postgres", "sqlite", "redis", "api", "cli"]
+default = ["postgres", "sqlite", "redis", "cli"]
 postgres = ["sqlx/postgres"]
 sqlite = ["sqlx/sqlite"]
 redis = ["dep:azums-redis"]
-api = ["dep:axum"]
 cli = []
 
 [dependencies]
@@ -43,9 +42,6 @@ rand = "0.8"
 
 uuid = { version = "1", features = ["v4", "serde"] }
 tokio-stream = { version = "0.1", features = ["sync", "time"] }
-
-# Optional: only needed when `api` feature is enabled
-axum = { version = "0.7", optional = true }
 
 
 [dev-dependencies]

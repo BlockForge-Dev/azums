@@ -400,7 +400,6 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "axum",
  "azums-core",
  "azums-redis",
  "chrono",
@@ -467,6 +466,24 @@ dependencies = [
  "thiserror 2.0.19",
  "tokio",
  "tokio-stream",
+ "uuid",
+]
+
+[[package]]
+name = "azums-dashboard"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "azums",
+ "azums-core",
+ "azums-postgres",
+ "chrono",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
  "uuid",
 ]
 

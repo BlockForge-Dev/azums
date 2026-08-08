@@ -79,12 +79,7 @@
 //!
 //! - **Single-Binary Service**: Use `azums` inside your Axum, Actix, Poem, or Rocket application binary.
 //! - **Separate Worker Nodes**: Run background workers independently using the [`worker`](https://crates.io/crates/worker) crate or `azumsctl`.
-//! - **Monitoring Dashboard**: Enable the `api` feature to expose an Axum-based web UI console and Prometheus `/metrics` endpoint.
-
-#[cfg(feature = "api")]
-pub mod admin;
-#[cfg(feature = "api")]
-pub mod api;
+//! - **Monitoring Dashboard**: The optional web dashboard is available as a separate package (`azums-dashboard`).
 
 pub mod backend;
 pub mod config;

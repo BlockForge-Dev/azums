@@ -8,17 +8,16 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use azums::jobs::enqueue_guard::EnqueueGuard;
+use azums::jobs::ingest_decisions::IngestDecisionsRepo;
+use azums::jobs::metrics::MetricsRepo;
+use azums::jobs::model::NewJob;
+use azums::jobs::{AttemptsRepo, JobsRepo, PolicyDecisionsRepo};
+use azums::JobListItem;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
-
-use crate::api::models::JobListItem;
-use crate::jobs::enqueue_guard::EnqueueGuard;
-use crate::jobs::ingest_decisions::IngestDecisionsRepo;
-use crate::jobs::metrics::MetricsRepo;
-use crate::jobs::model::NewJob;
-use crate::jobs::{AttemptsRepo, JobsRepo, PolicyDecisionsRepo};
 
 pub mod models;
 
@@ -60,14 +59,12 @@ async fn require_api_key(
 
 pub fn router(state: ApiState) -> Router {
     let protected = Router::new()
-        // Admin / inspect
         .route("/jobs", get(list_jobs).post(enqueue_job))
         .route("/jobs/:id/timeline", get(get_timeline))
         .route("/jobs/:id/explain", get(explain_job))
         .route("/jobs/:id/replay", post(replay_job))
         .route("/dlq", get(list_dlq))
         .route("/ingest/decisions", get(list_ingest_decisions))
-        // Metrics
         .route("/metrics", get(metrics))
         .route("/metrics/prom", get(metrics_prom))
         .layer(middleware::from_fn_with_state(
@@ -77,7 +74,6 @@ pub fn router(state: ApiState) -> Router {
 
     Router::new()
         .route("/", get(admin_index))
-        // Keep health unauthenticated for readiness/liveness checks.
         .route("/health", get(health))
         .merge(protected)
         .with_state(state)
@@ -88,7 +84,7 @@ const ADMIN_HTML: &str = r#"<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PostgresFlow Admin</title>
+  <title>Azums Dashboard</title>
   <style>
     :root {
       color-scheme: light;
@@ -158,7 +154,7 @@ const ADMIN_HTML: &str = r#"<!doctype html>
 </head>
 <body>
   <header>
-    <h1>PostgresFlow Admin</h1>
+    <h1>Azums Dashboard</h1>
     <div class="muted">Endpoints: GET /jobs, POST /jobs, /jobs/:id/timeline, /jobs/:id/explain, /jobs/:id/replay, /dlq, /metrics, /metrics/prom</div>
   </header>
   <main>
@@ -480,7 +476,7 @@ pub async fn get_timeline(
     Path(id): Path<Uuid>,
     State(state): State<ApiState>,
 ) -> impl IntoResponse {
-    match crate::jobs::timeline::build_timeline(
+    match azums::jobs::timeline::build_timeline(
         &state.jobs,
         &state.attempts,
         &state.policy_decisions,
@@ -554,7 +550,6 @@ pub async fn list_dlq(
     State(state): State<ApiState>,
     Query(mut q): Query<ListJobsQuery>,
 ) -> Result<Json<ListJobsResponse>, (StatusCode, String)> {
-    // force status=dlq
     q.status = Some("dlq".to_string());
     list_jobs(State(state), Query(q)).await
 }
@@ -610,7 +605,7 @@ pub struct MetricsQuery {
 #[derive(Debug, Serialize)]
 pub struct MetricsResponse {
     pub now_utc: DateTime<Utc>,
-    pub queues: Vec<crate::jobs::metrics::Metrics>,
+    pub queues: Vec<azums::jobs::metrics::Metrics>,
 }
 
 pub async fn metrics(
@@ -634,7 +629,6 @@ pub async fn metrics(
 }
 
 pub async fn metrics_prom(State(state): State<ApiState>) -> Response {
-    // Minimal Prometheus text format (no extra crate needed).
     match state.jobs.metrics_snapshot().await {
         Ok((queued, running, succeeded_last_60s, failed_last_60s)) => {
             let body = format!(
@@ -675,7 +669,7 @@ pub struct ExplainResponse {
     pub attempts: i32,
     pub failed_attempts: i32,
     pub next_run_at: Option<DateTime<Utc>>,
-    pub last_error: Option<crate::jobs::timeline::LastError>,
+    pub last_error: Option<azums::jobs::timeline::LastError>,
     pub dlq_reason_code: Option<String>,
     pub suggested_action: Option<String>,
 }
@@ -703,7 +697,7 @@ pub async fn explain_job(Path(id): Path<Uuid>, State(state): State<ApiState>) ->
         }
     };
 
-    let timeline = match crate::jobs::timeline::build_timeline(
+    let timeline = match azums::jobs::timeline::build_timeline(
         &state.jobs,
         &state.attempts,
         &state.policy_decisions,
@@ -743,7 +737,7 @@ pub async fn explain_job(Path(id): Path<Uuid>, State(state): State<ApiState>) ->
         .last_error
         .as_ref()
         .and_then(|e| e.error_code.as_deref())
-        .map(|code| crate::jobs::error_codes::suggested_action(code).to_string());
+        .map(|code| azums::jobs::error_codes::suggested_action(code).to_string());
 
     let summary = match timeline.status.as_str() {
         "succeeded" => format!("Succeeded after {} attempt(s).", attempts.max(1)),

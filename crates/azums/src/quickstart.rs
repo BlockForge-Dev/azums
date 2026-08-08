@@ -1,11 +1,7 @@
 use crate::{
     backend::PostgresBackend,
     jobs::{
-        enqueue_guard::{EnqueueGuard, EnqueueGuardConfig},
-        ingest_decisions::IngestDecisionsRepo,
-        metrics::MetricsRepo,
         model::{Job, NewJob},
-        policy_decisions::PolicyDecisionsRepo,
         retry::classify_error,
         retry::{next_delay_seconds, ErrorClass, RetryConfig},
     },
@@ -29,13 +25,9 @@ pub type Client = QuickstartFlow;
 /// and the optional Axum admin web console through an abstract [`StorageBackend`].
 pub struct QuickstartFlow {
     backend: Arc<dyn StorageBackend>,
-    #[cfg(feature = "api")]
-    postgres_backend: Option<PostgresBackend>,
     handlers: Arc<RwLock<HashMap<String, QuickstartHandler>>>,
     queue: String,
     worker_id: String,
-    admin_addr: Option<String>,
-    admin_started: std::sync::atomic::AtomicBool,
     retry_cfg: RetryConfig,
 }
 
@@ -45,19 +37,12 @@ impl QuickstartFlow {
         let queue = std::env::var("AZUMS_QUEUE").unwrap_or_else(|_| "default".to_string());
         let worker_id =
             std::env::var("AZUMS_WORKER_ID").unwrap_or_else(|_| "quickstart-worker".to_string());
-        let admin_addr = std::env::var("AZUMS_ADMIN_ADDR")
-            .ok()
-            .or_else(|| Some("127.0.0.1:3003".to_string()));
 
         Self {
             backend,
-            #[cfg(feature = "api")]
-            postgres_backend: None,
             handlers: Arc::new(RwLock::new(HashMap::new())),
             queue,
             worker_id,
-            admin_addr,
-            admin_started: std::sync::atomic::AtomicBool::new(false),
             retry_cfg: RetryConfig::default(),
         }
     }
@@ -168,8 +153,6 @@ impl QuickstartFlow {
     pub async fn run(&self) -> anyhow::Result<()> {
         use tokio_stream::StreamExt;
 
-        self.ensure_admin_api();
-
         let mut last_reap_at = std::time::Instant::now();
         let reap_interval = std::time::Duration::from_secs(5);
         let mut stream = self.backend.subscribe(&self.queue).await.ok();
@@ -218,7 +201,6 @@ impl QuickstartFlow {
     /// # }
     /// ```
     pub async fn run_until_empty(&self) -> anyhow::Result<usize> {
-        self.ensure_admin_api();
         let mut total_processed = 0;
 
         loop {
@@ -358,57 +340,6 @@ impl QuickstartFlow {
                     attempt_no,
                 )
                 .await
-        }
-    }
-
-    fn ensure_admin_api(&self) {
-        if self
-            .admin_started
-            .compare_exchange(
-                false,
-                true,
-                std::sync::atomic::Ordering::SeqCst,
-                std::sync::atomic::Ordering::SeqCst,
-            )
-            .is_err()
-        {
-            return;
-        }
-
-        #[cfg(feature = "api")]
-        {
-            if let (Some(addr), Some(pg)) = (&self.admin_addr, &self.postgres_backend) {
-                let pool = pg.pool().clone();
-                let policy_decisions_repo = PolicyDecisionsRepo::new(pool.clone());
-                let ingest_decisions_repo = IngestDecisionsRepo::new(pool.clone());
-                let metrics_repo = MetricsRepo::new(pool.clone());
-                let enqueue_guard = EnqueueGuard::new(
-                    pool.clone(),
-                    ingest_decisions_repo.clone(),
-                    EnqueueGuardConfig {
-                        max_payload_bytes: 262144,
-                        max_enqueues_per_minute_per_queue: 10000,
-                    },
-                );
-
-                let api_state = crate::api::ApiState {
-                    jobs: pg.jobs_repo().clone(),
-                    attempts: pg.attempts_repo().clone(),
-                    policy_decisions: policy_decisions_repo,
-                    ingest_decisions: ingest_decisions_repo,
-                    metrics: metrics_repo,
-                    enqueue_guard,
-                    api_token: None,
-                };
-                let app = crate::api::router(api_state);
-                let addr = addr.clone();
-
-                tokio::spawn(async move {
-                    if let Ok(listener) = tokio::net::TcpListener::bind(&addr).await {
-                        let _ = axum::serve(listener, app).await;
-                    }
-                });
-            }
         }
     }
 }
@@ -551,10 +482,6 @@ pub async fn quickstart(database_url: impl AsRef<str>) -> anyhow::Result<Quickst
     pg_backend.run_migrations().await?;
 
     let backend: Arc<dyn StorageBackend> = Arc::new(pg_backend.clone());
-    let mut flow = QuickstartFlow::new(backend);
-    #[cfg(feature = "api")]
-    {
-        flow.postgres_backend = Some(pg_backend);
-    }
+    let flow = QuickstartFlow::new(backend);
     Ok(flow)
 }

@@ -15,6 +15,8 @@ async fn main() -> anyhow::Result<()> {
              - reset\n\
              - seed <n>\n\
              - demo\n\
+             - stats\n\
+             - inspect <job_id>\n\
              - timeline <job_id>\n\
              - demo-timeline\n\
              \n\
@@ -42,6 +44,12 @@ async fn main() -> anyhow::Result<()> {
             reset(&pool).await?;
             seed(&pool, 5).await?;
             show_counts(&pool).await?;
+        }
+        "stats" => show_counts(&pool).await?,
+        "inspect" => {
+            let id = args.get(2).expect("usage: azumsctl inspect <job_id>");
+            let job_id: Uuid = id.parse()?;
+            print_timeline(&pool, job_id).await?;
         }
         "timeline" => {
             let id = args.get(2).expect("usage: azumsctl timeline <job_id>");

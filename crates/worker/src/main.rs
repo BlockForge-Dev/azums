@@ -1,4 +1,4 @@
-use azums::api;
+// use azums::config;
 use azums::config;
 use azums::db;
 
@@ -82,11 +82,11 @@ async fn main() -> anyhow::Result<()> {
 
     let jobs_repo = JobsRepo::new(pool.clone());
     let attempts_repo = AttemptsRepo::new(pool.clone());
-    let policy_decisions_repo = PolicyDecisionsRepo::new(pool.clone());
+    let _policy_decisions_repo = PolicyDecisionsRepo::new(pool.clone());
     let ingest_decisions_repo = IngestDecisionsRepo::new(pool.clone());
     let maintenance_repo = MaintenanceRepo::new(pool.clone());
-    let metrics_repo = MetricsRepo::new(pool.clone());
-    let enqueue_guard = EnqueueGuard::new(
+    let _metrics_repo = MetricsRepo::new(pool.clone());
+    let _enqueue_guard = EnqueueGuard::new(
         pool.clone(),
         ingest_decisions_repo.clone(),
         EnqueueGuardConfig {
@@ -106,28 +106,7 @@ async fn main() -> anyhow::Result<()> {
         worker_id: cfg.worker_id.clone(),
     };
 
-    // ---- API task ----
-    let api_state = api::ApiState {
-        jobs: jobs_repo.clone(),
-        attempts: attempts_repo.clone(),
-        policy_decisions: policy_decisions_repo.clone(),
-        ingest_decisions: ingest_decisions_repo.clone(),
-        metrics: metrics_repo.clone(),
-        enqueue_guard: enqueue_guard.clone(),
-        api_token: cfg.api_token.clone(),
-    };
-    let app = api::router(api_state);
 
-    let api_handle = tokio::spawn(async move {
-        if let Some(addr) = api_addr {
-            let listener = tokio::net::TcpListener::bind(&addr).await?;
-            println!("admin api listening on http://{addr}");
-            axum::serve(listener, app).await?;
-        } else {
-            std::future::pending::<()>().await;
-        }
-        Ok::<(), anyhow::Error>(())
-    });
 
     // ---- Maintenance task ----
     let maintenance_handle = {
@@ -362,7 +341,6 @@ async fn main() -> anyhow::Result<()> {
     });
 
     tokio::select! {
-        res = api_handle => res??,
         res = worker_handle => res??,
         res = maintenance_handle => res??,
     }
