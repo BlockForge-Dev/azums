@@ -134,17 +134,17 @@ jobs:
           fail_ci_if_error: false
 
   msrv-check:
-    name: MSRV Check (1.75)
+    name: MSRV Check (1.78)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install MSRV Rust toolchain (1.75)
+      - name: Install MSRV Rust toolchain (1.78)
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: '1.75'
+          toolchain: '1.78'
 
-      - name: Remove v4 Cargo.lock for 1.75 compatibility
+      - name: Remove v4 Cargo.lock for 1.78 compatibility
         run: rm -f Cargo.lock
 
       - name: MSRV Workspace Check
