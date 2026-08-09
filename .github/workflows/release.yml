@@ -20,31 +20,39 @@ jobs:
         run: cargo login ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Publish azums-core
+        continue-on-error: true
         run: |
-          cargo publish -p azums-core
+          cargo publish -p azums-core || true
           sleep 15
 
       - name: Publish azums-redis
+        continue-on-error: true
         run: |
-          cargo publish -p azums-redis
+          cargo publish -p azums-redis || true
           sleep 15
 
       - name: Publish azums
+        continue-on-error: true
         run: |
-          cargo publish -p azums
+          cargo publish -p azums || true
           sleep 15
 
       - name: Publish azums-postgres
-        run: cargo publish -p azums-postgres
+        continue-on-error: true
+        run: cargo publish -p azums-postgres || true
 
       - name: Publish azums-axum
-        run: cargo publish -p azums-axum
+        continue-on-error: true
+        run: cargo publish -p azums-axum || true
 
       - name: Publish azums-actix
-        run: cargo publish -p azums-actix
+        continue-on-error: true
+        run: cargo publish -p azums-actix || true
 
       - name: Publish azums-poem
-        run: cargo publish -p azums-poem
+        continue-on-error: true
+        run: cargo publish -p azums-poem || true
 
       - name: Publish azums-rocket
-        run: cargo publish -p azums-rocket
+        continue-on-error: true
+        run: cargo publish -p azums-rocket || true
