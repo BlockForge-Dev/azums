@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Introduction - Azums Guide &amp; Reference</title>
+        <title>Ordering Guarantees - Azums Guide &amp; Reference</title>
 
 
         <!-- Custom HTML head -->
@@ -88,7 +88,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item affix "><a href="introduction.html" class="active">Introduction</a></li><li class="chapter-item affix "><a href="quickstart.html">Zero-Config Quickstart</a></li><li class="chapter-item affix "><li class="part-title">Architecture & Design</li><li class="chapter-item "><a href="architecture.html"><strong aria-hidden="true">1.</strong> Architecture Overview</a></li><li class="chapter-item "><a href="instant_wakeup.html"><strong aria-hidden="true">2.</strong> Event-Driven Instant Wake-Up</a></li><li class="chapter-item "><a href="streams.html"><strong aria-hidden="true">3.</strong> Redis-Style Event Streams</a></li><li class="chapter-item "><a href="redis_backend.html"><strong aria-hidden="true">4.</strong> Redis Storage Backend</a></li><li class="chapter-item "><a href="LLD.html"><strong aria-hidden="true">5.</strong> Low-Level Design & DSA</a></li><li class="chapter-item "><a href="job_lifecycle.html"><strong aria-hidden="true">6.</strong> Job Lifecycle</a></li><li class="chapter-item "><a href="leasing.html"><strong aria-hidden="true">7.</strong> Transactional Leasing & SKIP LOCKED</a></li><li class="chapter-item "><a href="ordering.html"><strong aria-hidden="true">8.</strong> Ordering Guarantees</a></li><li class="chapter-item "><a href="partitioning.html"><strong aria-hidden="true">9.</strong> Dataset Partitioning Strategy</a></li><li class="chapter-item affix "><li class="part-title">Performance & Tuning</li><li class="chapter-item "><a href="../PERFORMANCE_TUNING.html"><strong aria-hidden="true">10.</strong> Performance Tuning Guide</a></li><li class="chapter-item "><a href="../benchmarks/index.html"><strong aria-hidden="true">11.</strong> Interactive Benchmark Dashboard</a></li><li class="chapter-item affix "><li class="part-title">Reference & Admin</li><li class="chapter-item "><a href="comparison.html"><strong aria-hidden="true">12.</strong> Feature Comparison Matrix</a></li><li class="chapter-item "><a href="admin_api.html"><strong aria-hidden="true">13.</strong> Admin API & Web UI</a></li></ol>
+                <ol class="chapter"><li class="chapter-item affix "><a href="introduction.html">Introduction</a></li><li class="chapter-item affix "><a href="quickstart.html">Zero-Config Quickstart</a></li><li class="chapter-item affix "><li class="part-title">Architecture & Design</li><li class="chapter-item "><a href="architecture.html"><strong aria-hidden="true">1.</strong> Architecture Overview</a></li><li class="chapter-item "><a href="instant_wakeup.html"><strong aria-hidden="true">2.</strong> Event-Driven Instant Wake-Up</a></li><li class="chapter-item "><a href="streams.html"><strong aria-hidden="true">3.</strong> Redis-Style Event Streams</a></li><li class="chapter-item "><a href="redis_backend.html"><strong aria-hidden="true">4.</strong> Redis Storage Backend</a></li><li class="chapter-item "><a href="LLD.html"><strong aria-hidden="true">5.</strong> Low-Level Design & DSA</a></li><li class="chapter-item "><a href="job_lifecycle.html"><strong aria-hidden="true">6.</strong> Job Lifecycle</a></li><li class="chapter-item "><a href="leasing.html"><strong aria-hidden="true">7.</strong> Transactional Leasing & SKIP LOCKED</a></li><li class="chapter-item expanded "><a href="ordering.html" class="active"><strong aria-hidden="true">8.</strong> Ordering Guarantees</a></li><li class="chapter-item "><a href="partitioning.html"><strong aria-hidden="true">9.</strong> Dataset Partitioning Strategy</a></li><li class="chapter-item affix "><li class="part-title">Performance & Tuning</li><li class="chapter-item "><a href="../PERFORMANCE_TUNING.html"><strong aria-hidden="true">10.</strong> Performance Tuning Guide</a></li><li class="chapter-item "><a href="../benchmarks/index.html"><strong aria-hidden="true">11.</strong> Interactive Benchmark Dashboard</a></li><li class="chapter-item affix "><li class="part-title">Reference & Admin</li><li class="chapter-item "><a href="comparison.html"><strong aria-hidden="true">12.</strong> Feature Comparison Matrix</a></li><li class="chapter-item "><a href="admin_api.html"><strong aria-hidden="true">13.</strong> Admin API & Web UI</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -150,7 +150,7 @@
                         <a href="https://github.com/BlockForge-Dev/azums" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/BlockForge-Dev/azums/edit/main/docs/src/introduction.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/BlockForge-Dev/azums/edit/main/docs/src/ordering.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -179,45 +179,62 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="introduction-to-postgresflow"><a class="header" href="#introduction-to-postgresflow">Introduction to PostgresFlow</a></h1>
-<p><strong>PostgresFlow</strong> is a modern, high-performance background job queue engine built entirely on <strong>PostgreSQL</strong>, <strong>SQLx</strong>, and <strong>Tokio</strong>.</p>
-<pre><code>+-------------------------------------------------------------------------+
-|                              PostgresFlow                               |
-|                                                                         |
-|  +--------------------+  +----------------------+  +-----------------+  |
-|  | Transactional      |  | Time-Partitioned     |  | Built-in Admin  |  |
-|  | ACID Enqueue       |  | Dataset Storage      |  | HTTP Web UI     |  |
-|  +--------------------+  +----------------------+  +-----------------+  |
-|  | FOR UPDATE         |  | Auto Retries &amp;       |  | Prometheus      |  |
-|  | SKIP LOCKED        |  | Dead-Letter Queue    |  | Metrics         |  |
-|  +--------------------+  +----------------------+  +-----------------+  |
-+-------------------------------------------------------------------------+
-</code></pre>
-<h2 id="why-postgres-only-background-jobs"><a class="header" href="#why-postgres-only-background-jobs">Why Postgres-Only Background Jobs?</a></h2>
-<p>Traditional background job systems force application developers to introduce secondary stateful infrastructure (such as Redis, RabbitMQ, Sidekiq, or Celery).</p>
-<p>Introducing a second broker creates dual-write consistency problems:</p>
-<ol>
-<li>Your application commits a database transaction (e.g. <code>users.insert(...)</code>).</li>
-<li>Your application tries to publish a job to Redis/RabbitMQ.</li>
-<li>If the network fails or the server crashes between step 1 and step 2, your database contains records without corresponding background jobs, leading to silent state drift and data loss.</li>
-</ol>
-<p><strong>PostgresFlow solves this by allowing jobs to be enqueued directly inside your application's Postgres transactions.</strong> If your SQL transaction rolls back, the background job never exists. If your SQL transaction commits, the job is guaranteed to exist atomically.</p>
-<h2 id="key-features"><a class="header" href="#key-features">Key Features</a></h2>
+                        <h1 id="ordering-guarantees--queue-policies"><a class="header" href="#ordering-guarantees--queue-policies">Ordering Guarantees &amp; Queue Policies</a></h1>
+<p><code>azums</code> supports per-queue ordering policies to control the precise sequence in which background jobs are leased and executed by workers.</p>
+<h2 id="queue-ordering-policies-queueordering"><a class="header" href="#queue-ordering-policies-queueordering">Queue Ordering Policies (<code>QueueOrdering</code>)</a></h2>
+<p>When creating or configuring a queue, you can specify one of two ordering modes via <code>QueueConfig</code>:</p>
+<pre><pre class="playground"><code class="language-rust">use azums::{quickstart, QueueConfig, QueueOrdering};
+
+#[tokio::main]
+async fn main() -&gt; anyhow::Result&lt;()&gt; {
+    let flow = quickstart("memory").await?;
+
+    // Configure "order_processing" queue for strict FIFO execution (default)
+    flow.configure_queue("order_processing", QueueConfig::new(QueueOrdering::Fifo)).await;
+
+    // Configure "bulk_notifications" queue for maximum throughput
+    flow.configure_queue("bulk_notifications", QueueConfig::new(QueueOrdering::Fastest)).await;
+
+    Ok(())
+}</code></pre></pre>
+<h3 id="1-queueorderingfifo-default"><a class="header" href="#1-queueorderingfifo-default">1. <code>QueueOrdering::Fifo</code> (Default)</a></h3>
 <ul>
-<li>⚡ <strong>Zero-Config Quickstart</strong>: Go from zero to a running job worker in under 2 minutes.</li>
-<li>🔒 <strong>Transactional Enqueue</strong>: Enqueue jobs inside SQL transactions with 100% ACID safety.</li>
-<li>⚡ <strong>Concurrent Leasing</strong>: Multi-worker parallel processing powered by Postgres <code>FOR UPDATE SKIP LOCKED</code>.</li>
-<li>📁 <strong>Dataset Time Partitioning</strong>: Bounded table sizes via monthly table partitioning and archiving.</li>
-<li>🔄 <strong>Retries &amp; Backoff</strong>: Configurable exponential backoff with random jitter and DLQ routing.</li>
-<li>📊 <strong>Visual Web UI</strong>: Built-in HTTP dashboard and Prometheus metrics endpoint.</li>
+<li><strong>Behavior</strong>: Jobs are leased strictly in First-In, First-Out order based on priority (<code>priority DESC</code>), scheduled run time (<code>run_at ASC</code>), enqueued timestamp (<code>created_at ASC</code>), and unique identifier (<code>id ASC</code> / <code>rowid ASC</code>).</li>
+<li><strong>Use Case</strong>: Financial transactions, payment processing, stateful workflows, audit logging, sequential data processing.</li>
+<li><strong>Guarantee</strong>: With a single worker process (or single-partition worker), jobs are guaranteed to execute in exact enqueued sequence.</li>
+</ul>
+<h3 id="2-queueorderingfastest"><a class="header" href="#2-queueorderingfastest">2. <code>QueueOrdering::Fastest</code></a></h3>
+<ul>
+<li><strong>Behavior</strong>: Jobs are leased as quickly as possible based on priority (<code>priority DESC</code>) and scheduled run time (<code>run_at ASC</code>) without enforcing strict creation timestamp sorting.</li>
+<li><strong>Use Case</strong>: High-volume telemetry, email notifications, cache warming, webhooks.</li>
+</ul>
+<hr />
+<h2 id="storage-backend-guarantees"><a class="header" href="#storage-backend-guarantees">Storage Backend Guarantees</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Storage Backend</th><th>FIFO Mechanism</th><th>Details</th></tr></thead><tbody>
+<tr><td><strong>PostgreSQL</strong></td><td><code>ORDER BY priority DESC, run_at ASC, created_at ASC, id ASC FOR UPDATE SKIP LOCKED</code></td><td>Uses composite index <code>jobs_fifo_queue_created_idx</code> to scan runnable jobs in exact enqueued order without locking un-leased rows.</td></tr>
+<tr><td><strong>SQLite</strong></td><td><code>ORDER BY priority DESC, run_at ASC, created_at ASC, rowid ASC</code></td><td>Uses monotonically increasing <code>rowid</code> to break sub-millisecond ties. Single-writer WAL mode guarantees write serialization order.</td></tr>
+<tr><td><strong>Redis</strong></td><td><code>RPUSH</code> + <code>LMOVE LEFT RIGHT</code></td><td>Enqueues jobs to the right (tail) of the list and atomically moves jobs from the left (head) into worker processing queues, preserving FIFO insertion order.</td></tr>
+<tr><td><strong>In-Memory</strong></td><td><code>created_at ASC</code> + <code>id ASC</code></td><td>Deterministic sorting on in-memory job state structures.</td></tr>
+</tbody></table>
+</div>
+<hr />
+<h2 id="multi-worker-concurrent-leasing-nuances"><a class="header" href="#multi-worker-concurrent-leasing-nuances">Multi-Worker Concurrent Leasing Nuances</a></h2>
+<p>When running multiple concurrent workers on the same <code>QueueOrdering::Fifo</code> queue:</p>
+<ul>
+<li><strong>Batch Leasing &amp; Lock Contention</strong>: PostgreSQL uses <code>FOR UPDATE SKIP LOCKED</code> and Redis uses <code>LMOVE</code> to prevent worker lock contention.</li>
+<li><strong>Best-Effort FIFO Across Workers</strong>: Each worker receives an atomically leased batch ordered by <code>created_at ASC</code>. However, because parallel workers process leased batches concurrently, network jitter or varying handler execution times may cause small overlaps in completion order across workers.</li>
+<li><strong>Strict Single-Key FIFO</strong>: If absolute strict linear ordering is required across multiple nodes, use dataset partitioning or assign a single dedicated worker to that queue partition.</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="leasing.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
 
-                            <a rel="next prefetch" href="quickstart.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="partitioning.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -227,8 +244,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="leasing.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
 
-                    <a rel="next prefetch" href="quickstart.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="partitioning.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
