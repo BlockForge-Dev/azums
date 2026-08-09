@@ -1,6 +1,6 @@
 [package]
 name = "azums-actix"
-version = "0.2.0"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
 description = "Native Actix Web extractor and background jobs integration for azums"
@@ -13,8 +13,8 @@ keywords = ["actix", "actix-web", "job-queue", "background-jobs", "extractor"]
 categories = ["web-programming::HTTP-server", "asynchronous"]
 
 [dependencies]
-azums = { version = "0.2.0", path = "../azums" }
-azums-core = { version = "0.2.0", path = "../azums-core" }
+azums = { version = "0.1.0", path = "../azums" }
+azums-core = { version = "0.1.0", path = "../azums-core" }
 
 actix-web = "4"
 futures-util = "0.3"

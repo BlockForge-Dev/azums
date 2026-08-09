@@ -21,7 +21,7 @@ Add `azums` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-azums = "0.3"
+azums = "0.1"
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"
 ```
