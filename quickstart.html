@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Introduction - Azums Guide &amp; Reference</title>
+        <title>Zero-Config Quickstart - Azums Guide &amp; Reference</title>
 
 
         <!-- Custom HTML head -->
@@ -88,7 +88,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item affix "><a href="introduction.html" class="active">Introduction</a></li><li class="chapter-item affix "><a href="quickstart.html">Zero-Config Quickstart</a></li><li class="chapter-item affix "><li class="part-title">Architecture & Design</li><li class="chapter-item "><a href="architecture.html"><strong aria-hidden="true">1.</strong> Architecture Overview</a></li><li class="chapter-item "><a href="instant_wakeup.html"><strong aria-hidden="true">2.</strong> Event-Driven Instant Wake-Up</a></li><li class="chapter-item "><a href="streams.html"><strong aria-hidden="true">3.</strong> Redis-Style Event Streams</a></li><li class="chapter-item "><a href="redis_backend.html"><strong aria-hidden="true">4.</strong> Redis Storage Backend</a></li><li class="chapter-item "><a href="LLD.html"><strong aria-hidden="true">5.</strong> Low-Level Design & DSA</a></li><li class="chapter-item "><a href="job_lifecycle.html"><strong aria-hidden="true">6.</strong> Job Lifecycle</a></li><li class="chapter-item "><a href="leasing.html"><strong aria-hidden="true">7.</strong> Transactional Leasing & SKIP LOCKED</a></li><li class="chapter-item "><a href="ordering.html"><strong aria-hidden="true">8.</strong> Ordering Guarantees</a></li><li class="chapter-item "><a href="partitioning.html"><strong aria-hidden="true">9.</strong> Dataset Partitioning Strategy</a></li><li class="chapter-item affix "><li class="part-title">Performance & Tuning</li><li class="chapter-item "><a href="../PERFORMANCE_TUNING.html"><strong aria-hidden="true">10.</strong> Performance Tuning Guide</a></li><li class="chapter-item "><a href="../benchmarks/index.html"><strong aria-hidden="true">11.</strong> Interactive Benchmark Dashboard</a></li><li class="chapter-item affix "><li class="part-title">Reference & Admin</li><li class="chapter-item "><a href="comparison.html"><strong aria-hidden="true">12.</strong> Feature Comparison Matrix</a></li><li class="chapter-item "><a href="admin_api.html"><strong aria-hidden="true">13.</strong> Admin API & Web UI</a></li></ol>
+                <ol class="chapter"><li class="chapter-item affix "><a href="introduction.html">Introduction</a></li><li class="chapter-item affix "><a href="quickstart.html" class="active">Zero-Config Quickstart</a></li><li class="chapter-item affix "><li class="part-title">Architecture & Design</li><li class="chapter-item "><a href="architecture.html"><strong aria-hidden="true">1.</strong> Architecture Overview</a></li><li class="chapter-item "><a href="instant_wakeup.html"><strong aria-hidden="true">2.</strong> Event-Driven Instant Wake-Up</a></li><li class="chapter-item "><a href="streams.html"><strong aria-hidden="true">3.</strong> Redis-Style Event Streams</a></li><li class="chapter-item "><a href="redis_backend.html"><strong aria-hidden="true">4.</strong> Redis Storage Backend</a></li><li class="chapter-item "><a href="LLD.html"><strong aria-hidden="true">5.</strong> Low-Level Design & DSA</a></li><li class="chapter-item "><a href="job_lifecycle.html"><strong aria-hidden="true">6.</strong> Job Lifecycle</a></li><li class="chapter-item "><a href="leasing.html"><strong aria-hidden="true">7.</strong> Transactional Leasing & SKIP LOCKED</a></li><li class="chapter-item "><a href="ordering.html"><strong aria-hidden="true">8.</strong> Ordering Guarantees</a></li><li class="chapter-item "><a href="partitioning.html"><strong aria-hidden="true">9.</strong> Dataset Partitioning Strategy</a></li><li class="chapter-item affix "><li class="part-title">Performance & Tuning</li><li class="chapter-item "><a href="../PERFORMANCE_TUNING.html"><strong aria-hidden="true">10.</strong> Performance Tuning Guide</a></li><li class="chapter-item "><a href="../benchmarks/index.html"><strong aria-hidden="true">11.</strong> Interactive Benchmark Dashboard</a></li><li class="chapter-item affix "><li class="part-title">Reference & Admin</li><li class="chapter-item "><a href="comparison.html"><strong aria-hidden="true">12.</strong> Feature Comparison Matrix</a></li><li class="chapter-item "><a href="admin_api.html"><strong aria-hidden="true">13.</strong> Admin API & Web UI</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -150,7 +150,7 @@
                         <a href="https://github.com/BlockForge-Dev/azums" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/BlockForge-Dev/azums/edit/main/docs/src/introduction.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/BlockForge-Dev/azums/edit/main/docs/src/quickstart.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -179,45 +179,56 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="introduction-to-postgresflow"><a class="header" href="#introduction-to-postgresflow">Introduction to PostgresFlow</a></h1>
-<p><strong>PostgresFlow</strong> is a modern, high-performance background job queue engine built entirely on <strong>PostgreSQL</strong>, <strong>SQLx</strong>, and <strong>Tokio</strong>.</p>
-<pre><code>+-------------------------------------------------------------------------+
-|                              PostgresFlow                               |
-|                                                                         |
-|  +--------------------+  +----------------------+  +-----------------+  |
-|  | Transactional      |  | Time-Partitioned     |  | Built-in Admin  |  |
-|  | ACID Enqueue       |  | Dataset Storage      |  | HTTP Web UI     |  |
-|  +--------------------+  +----------------------+  +-----------------+  |
-|  | FOR UPDATE         |  | Auto Retries &amp;       |  | Prometheus      |  |
-|  | SKIP LOCKED        |  | Dead-Letter Queue    |  | Metrics         |  |
-|  +--------------------+  +----------------------+  +-----------------+  |
-+-------------------------------------------------------------------------+
+                        <h1 id="zero-config-quickstart"><a class="header" href="#zero-config-quickstart">Zero-Config Quickstart</a></h1>
+<p>You can add <code>azums</code> to your application and start processing background jobs in just a few lines of Rust.</p>
+<h2 id="step-1-add-dependency"><a class="header" href="#step-1-add-dependency">Step 1: Add Dependency</a></h2>
+<p>In <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+azums = "0.2"
+tokio = { version = "1", features = ["full"] }
+serde_json = "1"
+anyhow = "1"
 </code></pre>
-<h2 id="why-postgres-only-background-jobs"><a class="header" href="#why-postgres-only-background-jobs">Why Postgres-Only Background Jobs?</a></h2>
-<p>Traditional background job systems force application developers to introduce secondary stateful infrastructure (such as Redis, RabbitMQ, Sidekiq, or Celery).</p>
-<p>Introducing a second broker creates dual-write consistency problems:</p>
-<ol>
-<li>Your application commits a database transaction (e.g. <code>users.insert(...)</code>).</li>
-<li>Your application tries to publish a job to Redis/RabbitMQ.</li>
-<li>If the network fails or the server crashes between step 1 and step 2, your database contains records without corresponding background jobs, leading to silent state drift and data loss.</li>
-</ol>
-<p><strong>PostgresFlow solves this by allowing jobs to be enqueued directly inside your application's Postgres transactions.</strong> If your SQL transaction rolls back, the background job never exists. If your SQL transaction commits, the job is guaranteed to exist atomically.</p>
-<h2 id="key-features"><a class="header" href="#key-features">Key Features</a></h2>
-<ul>
-<li>⚡ <strong>Zero-Config Quickstart</strong>: Go from zero to a running job worker in under 2 minutes.</li>
-<li>🔒 <strong>Transactional Enqueue</strong>: Enqueue jobs inside SQL transactions with 100% ACID safety.</li>
-<li>⚡ <strong>Concurrent Leasing</strong>: Multi-worker parallel processing powered by Postgres <code>FOR UPDATE SKIP LOCKED</code>.</li>
-<li>📁 <strong>Dataset Time Partitioning</strong>: Bounded table sizes via monthly table partitioning and archiving.</li>
-<li>🔄 <strong>Retries &amp; Backoff</strong>: Configurable exponential backoff with random jitter and DLQ routing.</li>
-<li>📊 <strong>Visual Web UI</strong>: Built-in HTTP dashboard and Prometheus metrics endpoint.</li>
-</ul>
+<h2 id="step-2-code-example"><a class="header" href="#step-2-code-example">Step 2: Code Example</a></h2>
+<pre><pre class="playground"><code class="language-rust no_run">use azums::{quickstart, Job};
+
+#[tokio::main]
+async fn main() -&gt; anyhow::Result&lt;()&gt; {
+    // Automatically connects to local database or DATABASE_URL and runs migrations
+    let flow = quickstart("memory").await?;
+
+    // Enqueue a job with a JSON payload
+    flow.enqueue(Job::new("greet", serde_json::json!({"name": "World"}))).await?;
+
+    // Register async job handler
+    flow.register_handler("greet", |job| async move {
+        println!("Hello, {}!", job.payload["name"]);
+        Ok(())
+    }).await;
+
+    // Run until queue is empty
+    flow.run_until_empty().await?;
+
+    Ok(())
+}</code></pre></pre>
+<h2 id="step-3-run-against-local-database"><a class="header" href="#step-3-run-against-local-database">Step 3: Run against Local Database</a></h2>
+<p>Azums includes a ready-to-use local environment in <code>docker-compose.yml</code>:</p>
+<pre><code class="language-bash">docker compose up -d db
+cargo run
+</code></pre>
+<p>You will see:</p>
+<pre><code class="language-text">Hello, "World"!
+</code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="introduction.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
 
-                            <a rel="next prefetch" href="quickstart.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="architecture.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -227,8 +238,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="introduction.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
 
-                    <a rel="next prefetch" href="quickstart.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="architecture.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
