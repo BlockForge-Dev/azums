@@ -1034,23 +1034,18 @@ impl JobsRepo {
         override_queue: Option<&str>,
         override_run_at: Option<DateTime<Utc>>,
     ) -> anyhow::Result<Uuid> {
-        let mut tx = self.pool.begin().await?;
-
-        let src = sqlx::query_as::<_, Job>(
-            r#"
-            SELECT *
-            FROM jobs
-            WHERE id = $1
-            "#,
-        )
-        .bind(job_id)
-        .fetch_one(&mut *tx)
-        .await?;
+        let src = match self.get_job(job_id).await? {
+            Some(j) => j,
+            None => return Err(anyhow::anyhow!("Job with id {} not found", job_id)),
+        };
 
         let new_queue = override_queue.unwrap_or(src.queue.as_str()).to_string();
         let new_run_at = override_run_at.unwrap_or_else(Utc::now);
         let new_dataset_id = Self::dataset_id_for(&new_queue, new_run_at);
+
         self.ensure_dataset_partition(&new_dataset_id).await?;
+
+        let mut tx = self.pool.begin().await?;
 
         let new_id = sqlx::query_scalar::<_, Uuid>(
             r#"
