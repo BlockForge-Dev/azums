@@ -144,6 +144,9 @@ jobs:
         with:
           toolchain: '1.75'
 
+      - name: Remove v4 Cargo.lock for 1.75 compatibility
+        run: rm -f Cargo.lock
+
       - name: MSRV Workspace Check
         run: cargo check --workspace --all-targets
 
