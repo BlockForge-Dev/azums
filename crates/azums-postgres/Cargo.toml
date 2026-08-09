@@ -1,6 +1,6 @@
 [package]
 name = "azums-postgres"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 rust-version = "1.75"
 description = "Production-grade PostgreSQL backend driver for azums"
@@ -13,8 +13,8 @@ keywords = ["postgres", "postgresql", "job-queue", "sqlx", "storage-backend"]
 categories = ["database", "asynchronous"]
 
 [dependencies]
-azums-core = { version = "0.1.2", path = "../azums-core", features = ["sqlx"] }
-azums = { version = "0.1.2", path = "../azums" }
+azums-core = { version = "0.1.3", path = "../azums-core", features = ["sqlx"] }
+azums = { version = "0.1.3", path = "../azums" }
 
 async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
