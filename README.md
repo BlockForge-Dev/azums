@@ -3,11 +3,11 @@
 [![Crates.io](https://img.shields.io/crates/v/azums.svg)](https://crates.io/crates/azums)
 [![Docs.rs](https://docs.rs/azums/badge.svg)](https://docs.rs/azums)
 [![📊 Live Benchmarks](https://img.shields.io/badge/%F0%9F%93%8A_Live_Benchmarks-Dashboard-blue)](https://blockforge-dev.github.io/azums/)
-[![Fastest Rust Job Queue](https://img.shields.io/badge/Performance-Fastest_Rust_Job_Queue-brightgreen)](docs/PERFORMANCE_TUNING.md)
-[![CI Status](https://github.com/BlockForge-Dev/azums/workflows/CI/badge.svg)](https://github.com/BlockForge-Dev/azums/actions)
-[![License](https://img.shields.io/crates/l/azums.svg)](https://github.com/BlockForge-Dev/azums#license)
+[![Fastest Rust Job Queue](https://img.shields.io/badge/Performance-Fastest_Rust_Job_Queue-brightgreen)](docs/src/comparison.md)
+[![CI Status](https://github.com/BlockForge-Dev/azums/actions/workflows/ci.yml/badge.svg)](https://github.com/BlockForge-Dev/azums/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](https://github.com/BlockForge-Dev/azums#license)
 
-> A lightweight, high-performance job queue. The optional web dashboard is available as a separate package (`azums-dashboard`) coming soon.
+> A lightweight, high-performance job queue. The optional web dashboard is available as a separate package (`azums-dashboard`).
 
 `azums` is an enterprise-grade, transactional background job queue and streaming framework designed for Rust web applications, CLI tools, AI agents, and microservices. Built on top of PostgreSQL, SQLite, Redis, and In-Memory storage backends with native extractors for **Axum**, **Actix Web**, **Poem**, and **Rocket**.
 
@@ -21,7 +21,7 @@ Add `azums` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-azums = "0.2"
+azums = "0.3"
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"
 ```
