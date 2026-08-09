@@ -21,7 +21,7 @@ Add `azums` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-azums = "0.1"
+azums = "0.2"
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"
 ```
@@ -137,6 +137,7 @@ cargo bench -p azums
 ## 📚 Documentation & Book
 
 - **[Docs.rs API Guide](https://docs.rs/azums)**: Comprehensive module documentation & inline examples.
+- **[Architecture & Technical Design (ARCHITECTURE.md)](./ARCHITECTURE.md)**: State machine, `FOR UPDATE SKIP LOCKED` leasing algorithm, phantom recovery, and partitioning.
 - **[Azums Low-Level Design (LLD + DSA)](./docs/architecture/LLD.md)**: Deep-dive architecture specs, data structures, and algorithm complexity.
 - **[Azums Architecture Book](https://blockforge-dev.github.io/azums/)**: FOR UPDATE SKIP LOCKED leasing, DLQ sequence diagrams, and table partitioning.
 

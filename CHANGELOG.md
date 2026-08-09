@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-08-09
+
+### Added
+- **API Documentation & Core Polish**:
+  - Achieved >90% API documentation coverage across all public items in `azums`, `azums-core`, `azums-postgres`, `azums-redis`, and web framework crates.
+  - Comprehensive crate-level guide in `azums/src/lib.rs` covering Quickstart, Choosing a Backend, Error Handling, Configuration, and Deployment.
+- **Runnable Examples Directory (`examples/`)**:
+  - Added `hello_world_memory.rs`, `hello_world_postgres.rs`, `hello_world_sqlite.rs`, `hello_world_redis.rs`, `web_axum.rs`, `stream_consumer.rs`, and `graceful_shutdown.rs`.
+- **Technical Architecture Specification**:
+  - Added `ARCHITECTURE.md` detailing system component diagrams, job lifecycle state machine, row-level leasing algorithms, phantom recovery, and table partitioning.
+- **Minimum Supported Rust Version (MSRV)**:
+  - Enforced and validated MSRV `1.75` across all workspace crates and added `msrv-check` job to GitHub Actions CI workflow.
+
 ## [0.1.0] - 2026-08-09 (Initial Release)
 
 ### Added
