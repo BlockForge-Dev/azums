@@ -38,7 +38,7 @@ async fn test_postgres_pool_isolation_single_connection_pool() -> anyhow::Result
 
     let pool = opts.connect(&url).await?;
     let backend = azums::PostgresBackend::new_with_url(pool, &url);
-    let flow = azums::QuickstartFlow::new(std::sync::Arc::new(backend));
+    let flow = azums::QuickstartFlow::new(std::sync::Arc::new(backend)).with_queue("single_conn_q");
 
     // Subscribe opens unpooled LISTEN connection
     let _stream = flow.backend().subscribe("single_conn_q").await?;

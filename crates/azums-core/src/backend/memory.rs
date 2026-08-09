@@ -183,7 +183,7 @@ impl StorageBackend for MemoryBackend {
                 });
             }
             crate::model::QueueOrdering::Fastest => {
-                candidates.sort_by(|a, b| b.priority.cmp(&a.priority));
+                candidates.sort_by_key(|a| std::cmp::Reverse(a.priority));
             }
         }
 
