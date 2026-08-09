@@ -1,6 +1,6 @@
 [package]
 name = "azums-poem"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.75"
 description = "Native Poem extractor and background jobs integration for azums"
@@ -13,8 +13,8 @@ keywords = ["poem", "job-queue", "background-jobs", "extractor"]
 categories = ["web-programming::HTTP-server", "asynchronous"]
 
 [dependencies]
-azums = { version = "0.1.1", path = "../azums" }
-azums-core = { version = "0.1.1", path = "../azums-core" }
+azums = { version = "0.1.2", path = "../azums" }
+azums-core = { version = "0.1.2", path = "../azums-core" }
 
 poem = "3"
 async-trait = "0.1"

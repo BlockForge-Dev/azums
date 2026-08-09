@@ -1,6 +1,6 @@
 [package]
 name = "azums-core"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.75"
 description = "Zero-dependency core traits, models, and QueueError for azums"
@@ -33,7 +33,7 @@ tokio-util = "0.7"
 
 # Optional: sqlx FromRow derives for SQL-based backends
 sqlx = { version = "0.7", optional = true, features = [
-    "runtime-tokio",
+    "runtime-tokio-rustls",
     "postgres",
     "sqlite",
     "uuid",
