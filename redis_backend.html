@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Introduction - Azums Guide &amp; Reference</title>
+        <title>Redis Storage Backend - Azums Guide &amp; Reference</title>
 
 
         <!-- Custom HTML head -->
@@ -88,7 +88,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item affix "><a href="introduction.html" class="active">Introduction</a></li><li class="chapter-item affix "><a href="quickstart.html">Zero-Config Quickstart</a></li><li class="chapter-item affix "><li class="part-title">Architecture & Design</li><li class="chapter-item "><a href="architecture.html"><strong aria-hidden="true">1.</strong> Architecture Overview</a></li><li class="chapter-item "><a href="instant_wakeup.html"><strong aria-hidden="true">2.</strong> Event-Driven Instant Wake-Up</a></li><li class="chapter-item "><a href="streams.html"><strong aria-hidden="true">3.</strong> Redis-Style Event Streams</a></li><li class="chapter-item "><a href="redis_backend.html"><strong aria-hidden="true">4.</strong> Redis Storage Backend</a></li><li class="chapter-item "><a href="LLD.html"><strong aria-hidden="true">5.</strong> Low-Level Design & DSA</a></li><li class="chapter-item "><a href="job_lifecycle.html"><strong aria-hidden="true">6.</strong> Job Lifecycle</a></li><li class="chapter-item "><a href="leasing.html"><strong aria-hidden="true">7.</strong> Transactional Leasing & SKIP LOCKED</a></li><li class="chapter-item "><a href="ordering.html"><strong aria-hidden="true">8.</strong> Ordering Guarantees</a></li><li class="chapter-item "><a href="partitioning.html"><strong aria-hidden="true">9.</strong> Dataset Partitioning Strategy</a></li><li class="chapter-item affix "><li class="part-title">Performance & Tuning</li><li class="chapter-item "><a href="../PERFORMANCE_TUNING.html"><strong aria-hidden="true">10.</strong> Performance Tuning Guide</a></li><li class="chapter-item "><a href="../benchmarks/index.html"><strong aria-hidden="true">11.</strong> Interactive Benchmark Dashboard</a></li><li class="chapter-item affix "><li class="part-title">Reference & Admin</li><li class="chapter-item "><a href="comparison.html"><strong aria-hidden="true">12.</strong> Feature Comparison Matrix</a></li><li class="chapter-item "><a href="admin_api.html"><strong aria-hidden="true">13.</strong> Admin API & Web UI</a></li></ol>
+                <ol class="chapter"><li class="chapter-item affix "><a href="introduction.html">Introduction</a></li><li class="chapter-item affix "><a href="quickstart.html">Zero-Config Quickstart</a></li><li class="chapter-item affix "><li class="part-title">Architecture & Design</li><li class="chapter-item "><a href="architecture.html"><strong aria-hidden="true">1.</strong> Architecture Overview</a></li><li class="chapter-item "><a href="instant_wakeup.html"><strong aria-hidden="true">2.</strong> Event-Driven Instant Wake-Up</a></li><li class="chapter-item "><a href="streams.html"><strong aria-hidden="true">3.</strong> Redis-Style Event Streams</a></li><li class="chapter-item expanded "><a href="redis_backend.html" class="active"><strong aria-hidden="true">4.</strong> Redis Storage Backend</a></li><li class="chapter-item "><a href="LLD.html"><strong aria-hidden="true">5.</strong> Low-Level Design & DSA</a></li><li class="chapter-item "><a href="job_lifecycle.html"><strong aria-hidden="true">6.</strong> Job Lifecycle</a></li><li class="chapter-item "><a href="leasing.html"><strong aria-hidden="true">7.</strong> Transactional Leasing & SKIP LOCKED</a></li><li class="chapter-item "><a href="ordering.html"><strong aria-hidden="true">8.</strong> Ordering Guarantees</a></li><li class="chapter-item "><a href="partitioning.html"><strong aria-hidden="true">9.</strong> Dataset Partitioning Strategy</a></li><li class="chapter-item affix "><li class="part-title">Performance & Tuning</li><li class="chapter-item "><a href="../PERFORMANCE_TUNING.html"><strong aria-hidden="true">10.</strong> Performance Tuning Guide</a></li><li class="chapter-item "><a href="../benchmarks/index.html"><strong aria-hidden="true">11.</strong> Interactive Benchmark Dashboard</a></li><li class="chapter-item affix "><li class="part-title">Reference & Admin</li><li class="chapter-item "><a href="comparison.html"><strong aria-hidden="true">12.</strong> Feature Comparison Matrix</a></li><li class="chapter-item "><a href="admin_api.html"><strong aria-hidden="true">13.</strong> Admin API & Web UI</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -150,7 +150,7 @@
                         <a href="https://github.com/BlockForge-Dev/azums" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/BlockForge-Dev/azums/edit/main/docs/src/introduction.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/BlockForge-Dev/azums/edit/main/docs/src/redis_backend.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -179,45 +179,44 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="introduction-to-postgresflow"><a class="header" href="#introduction-to-postgresflow">Introduction to PostgresFlow</a></h1>
-<p><strong>PostgresFlow</strong> is a modern, high-performance background job queue engine built entirely on <strong>PostgreSQL</strong>, <strong>SQLx</strong>, and <strong>Tokio</strong>.</p>
-<pre><code>+-------------------------------------------------------------------------+
-|                              PostgresFlow                               |
-|                                                                         |
-|  +--------------------+  +----------------------+  +-----------------+  |
-|  | Transactional      |  | Time-Partitioned     |  | Built-in Admin  |  |
-|  | ACID Enqueue       |  | Dataset Storage      |  | HTTP Web UI     |  |
-|  +--------------------+  +----------------------+  +-----------------+  |
-|  | FOR UPDATE         |  | Auto Retries &amp;       |  | Prometheus      |  |
-|  | SKIP LOCKED        |  | Dead-Letter Queue    |  | Metrics         |  |
-|  +--------------------+  +----------------------+  +-----------------+  |
-+-------------------------------------------------------------------------+
-</code></pre>
-<h2 id="why-postgres-only-background-jobs"><a class="header" href="#why-postgres-only-background-jobs">Why Postgres-Only Background Jobs?</a></h2>
-<p>Traditional background job systems force application developers to introduce secondary stateful infrastructure (such as Redis, RabbitMQ, Sidekiq, or Celery).</p>
-<p>Introducing a second broker creates dual-write consistency problems:</p>
-<ol>
-<li>Your application commits a database transaction (e.g. <code>users.insert(...)</code>).</li>
-<li>Your application tries to publish a job to Redis/RabbitMQ.</li>
-<li>If the network fails or the server crashes between step 1 and step 2, your database contains records without corresponding background jobs, leading to silent state drift and data loss.</li>
-</ol>
-<p><strong>PostgresFlow solves this by allowing jobs to be enqueued directly inside your application's Postgres transactions.</strong> If your SQL transaction rolls back, the background job never exists. If your SQL transaction commits, the job is guaranteed to exist atomically.</p>
-<h2 id="key-features"><a class="header" href="#key-features">Key Features</a></h2>
-<ul>
-<li>⚡ <strong>Zero-Config Quickstart</strong>: Go from zero to a running job worker in under 2 minutes.</li>
-<li>🔒 <strong>Transactional Enqueue</strong>: Enqueue jobs inside SQL transactions with 100% ACID safety.</li>
-<li>⚡ <strong>Concurrent Leasing</strong>: Multi-worker parallel processing powered by Postgres <code>FOR UPDATE SKIP LOCKED</code>.</li>
-<li>📁 <strong>Dataset Time Partitioning</strong>: Bounded table sizes via monthly table partitioning and archiving.</li>
-<li>🔄 <strong>Retries &amp; Backoff</strong>: Configurable exponential backoff with random jitter and DLQ routing.</li>
-<li>📊 <strong>Visual Web UI</strong>: Built-in HTTP dashboard and Prometheus metrics endpoint.</li>
-</ul>
+                        <h1 id="redis-storage--streaming-backend"><a class="header" href="#redis-storage--streaming-backend">Redis Storage &amp; Streaming Backend</a></h1>
+<p>The <code>azums-redis</code> crate delivers a production-grade Redis 5.0+ storage and event streaming backend driver built on <code>redis::aio::ConnectionManager</code>.</p>
+<hr />
+<h2 id="1-zero-config-connection-urls"><a class="header" href="#1-zero-config-connection-urls">1. Zero-Config Connection URLs</a></h2>
+<p>Switching your entire application from PostgreSQL, SQLite, or In-Memory to Redis requires changing <strong>only the connection string</strong>:</p>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Redis standalone
+let client = azums::quickstart("redis://127.0.0.1:6379").await?;
+
+// Redis TLS / Sentinel / Authenticated
+let client = azums::quickstart("rediss://:secretpass@redis.prod.internal:6379/0").await?;
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="2-redis-key-schema--data-layout"><a class="header" href="#2-redis-key-schema--data-layout">2. Redis Key Schema &amp; Data Layout</a></h2>
+<div class="table-wrapper"><table><thead><tr><th style="text-align: left">Purpose</th><th style="text-align: left">Redis Data Structure</th><th style="text-align: left">Key Naming Pattern</th><th style="text-align: left">Description</th></tr></thead><tbody>
+<tr><td style="text-align: left"><strong>Job Payloads</strong></td><td style="text-align: left">Hash (<code>HSET</code> / <code>HGET</code>)</td><td style="text-align: left"><code>azums:jobs</code></td><td style="text-align: left">Hash mapping <code>job_id</code> string to serialized JSON <code>Job</code>.</td></tr>
+<tr><td style="text-align: left"><strong>Queue List</strong></td><td style="text-align: left">List (<code>RPUSH</code> / <code>RPOPLPUSH</code>)</td><td style="text-align: left"><code>azums:queue:&lt;queue&gt;</code></td><td style="text-align: left">List holding queued <code>job_id</code> strings.</td></tr>
+<tr><td style="text-align: left"><strong>Worker Processing</strong></td><td style="text-align: left">List (<code>RPOPLPUSH</code> / <code>LREM</code>)</td><td style="text-align: left"><code>azums:processing:&lt;queue&gt;:&lt;worker_id&gt;</code></td><td style="text-align: left">List holding leased job IDs actively processed by worker.</td></tr>
+<tr><td style="text-align: left"><strong>Instant PubSub</strong></td><td style="text-align: left">Channel (<code>PUBLISH</code> / <code>SUBSCRIBE</code>)</td><td style="text-align: left"><code>azums:notify:&lt;queue&gt;</code></td><td style="text-align: left">Real-time wake-up notifications for idle workers.</td></tr>
+<tr><td style="text-align: left"><strong>Stream Events</strong></td><td style="text-align: left">List &amp; Hash</td><td style="text-align: left"><code>azums:stream_events:&lt;stream&gt;</code></td><td style="text-align: left">Append-only event log holding JSON stream events.</td></tr>
+<tr><td style="text-align: left"><strong>Stream Offsets</strong></td><td style="text-align: left">Hash (<code>HSET</code> / <code>HGETALL</code>)</td><td style="text-align: left"><code>azums:stream_offsets:&lt;stream&gt;</code></td><td style="text-align: left">Hash mapping <code>consumer_group</code> to <code>last_acked_seq</code>.</td></tr>
+</tbody></table>
+</div>
+<hr />
+<h2 id="3-high-throughput-batch-leasing"><a class="header" href="#3-high-throughput-batch-leasing">3. High-Throughput Batch Leasing</a></h2>
+<p><code>RedisBackend</code> leverages <code>RPOPLPUSH</code> (or <code>LMOVE</code> in Redis 6.2+) to atomically claim jobs from <code>azums:queue:&lt;queue&gt;</code> to <code>azums:processing:&lt;queue&gt;:&lt;worker_id&gt;</code>. This guarantees zero job loss even if a worker host crashes mid-execution.</p>
+<p>Expired locks are automatically reclaimed back to the queue via <code>backend.reap_expired_locks()</code>.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="streams.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
 
-                            <a rel="next prefetch" href="quickstart.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="LLD.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -227,8 +226,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="streams.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
 
-                    <a rel="next prefetch" href="quickstart.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="LLD.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
