@@ -2,7 +2,7 @@
 name = "azums-core"
 version = "0.2.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Zero-dependency core traits, models, and QueueError for azums"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/BlockForge-Dev/azums"
