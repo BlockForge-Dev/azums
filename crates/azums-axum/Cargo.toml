@@ -2,7 +2,7 @@
 name = "azums-axum"
 version = "0.2.0"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.75"
 description = "Native Axum extractor and background jobs integration for azums"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/BlockForge-Dev/azums"
