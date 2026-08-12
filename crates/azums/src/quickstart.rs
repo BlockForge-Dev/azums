@@ -91,6 +91,11 @@ impl QuickstartFlow {
         &self.backend
     }
 
+    /// Returns the storage guarantees and feature support declared by the active backend.
+    pub fn capabilities(&self) -> azums_core::BackendCapabilities {
+        self.backend.capabilities()
+    }
+
     /// Returns a [`StreamHandle`](crate::StreamHandle) for high-level Redis-style stream log operations.
     pub fn stream(&self, name: impl Into<String>) -> crate::stream_handle::StreamHandle {
         crate::stream_handle::StreamHandle::new(self.backend.clone(), name)
@@ -125,6 +130,11 @@ impl QuickstartFlow {
             ids.push(self.enqueue(job).await?);
         }
         Ok(ids)
+    }
+
+    /// Cancels a queued/scheduled job or a running job owned by `worker_id`.
+    pub async fn cancel_job(&self, job_id: Uuid, worker_id: Option<&str>) -> anyhow::Result<()> {
+        self.backend.cancel_job(job_id, worker_id).await
     }
 
     /// Registers an asynchronous handler closure for a specific `job_type`.

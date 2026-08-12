@@ -44,9 +44,9 @@ async fn main() -> anyhow::Result<()> {
 - Unlike traditional queues where dequeued items are removed, stream logs are durable append-only logs.
 - Any consumer can replay historical events from sequence 0 (`read_events(stream, 0, limit)`) or resume from any specific sequence offset (`read_events(stream, last_seq, limit)`).
 
-### Idempotency Patterns & Exactly-Once Processing
-- Exactly-once semantics are achieved by combining **At-Least-Once delivery** with **Idempotent processing**.
-- When processing stream events, consumers can perform state updates atomically inside database transactions using `event.sequence_no` or unique payload keys as deduplication guards.
+### Idempotency Patterns & External Side Effects
+- Azums provides **At-Least-Once delivery**. It does not guarantee exactly-once external side effects.
+- When processing stream events, consumers should perform state updates atomically inside database transactions using `event.sequence_no` or unique payload keys as deduplication guards.
 
 ```sql
 INSERT INTO processed_events (stream_name, consumer_group, sequence_no)

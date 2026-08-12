@@ -4,7 +4,7 @@ use azums_core::{
     model::{ConsumerGroupStatus, Event, Job, JobListItem, NewEvent, NewJob},
 };
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -73,10 +73,23 @@ impl PostgresBackend {
     pub fn maintenance_repo(&self) -> &MaintenanceRepo {
         &self.maintenance_repo
     }
+
+    /// Inserts a job using the caller's PostgreSQL transaction.
+    pub async fn enqueue_in_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        job: NewJob,
+    ) -> anyhow::Result<Uuid> {
+        self.jobs_repo.enqueue_in_tx(tx, job).await
+    }
 }
 
 #[async_trait]
 impl StorageBackend for PostgresBackend {
+    fn capabilities(&self) -> azums_core::BackendCapabilities {
+        azums_core::BackendCapabilities::postgres()
+    }
+
     fn as_stream(&self) -> Option<&dyn StreamBackend> {
         Some(self)
     }
@@ -146,10 +159,54 @@ impl StorageBackend for PostgresBackend {
         worker_id: &str,
         latency_ms: i32,
     ) -> anyhow::Result<()> {
-        self.attempts_repo
-            .finish_succeeded(attempt_id, latency_ms)
-            .await?;
-        self.jobs_repo.mark_succeeded(job_id, worker_id).await?;
+        let mut tx = self.pool.begin().await?;
+
+        let attempt_res = sqlx::query(
+            r#"
+            UPDATE job_attempts
+            SET status = 'succeeded',
+                finished_at = now(),
+                latency_ms = $2
+            WHERE id = $1
+              AND job_id = $3
+              AND status = 'running'
+            "#,
+        )
+        .bind(attempt_id)
+        .bind(latency_ms)
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+        if attempt_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "cannot complete attempt {attempt_id}: expected running attempt for job {job_id}"
+            );
+        }
+
+        let job_res = sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'succeeded',
+                locked_at = NULL,
+                locked_by = NULL,
+                lock_expires_at = NULL,
+                updated_at = now()
+            WHERE id = $1
+              AND locked_by = $2
+              AND status = 'running'
+            "#,
+        )
+        .bind(job_id)
+        .bind(worker_id)
+        .execute(&mut *tx)
+        .await?;
+        if job_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "illegal job state transition to completed for job {job_id}: expected running lease held by {worker_id}"
+            );
+        }
+
+        tx.commit().await?;
         Ok(())
     }
 
@@ -162,18 +219,61 @@ impl StorageBackend for PostgresBackend {
         if updates.is_empty() {
             return Ok(());
         }
-        let attempt_updates: Vec<(Uuid, i32)> = updates
-            .iter()
-            .map(|(_, attempt_id, latency_ms)| (*attempt_id, *latency_ms))
-            .collect();
-        let job_ids: Vec<Uuid> = updates.iter().map(|(job_id, _, _)| *job_id).collect();
 
-        self.attempts_repo
-            .finish_succeeded_batch(&attempt_updates)
+        let mut tx = self.pool.begin().await?;
+
+        for &(job_id, attempt_id, latency_ms) in updates {
+            let attempt_res = sqlx::query(
+                r#"
+                UPDATE job_attempts
+                SET status = 'succeeded',
+                    finished_at = now(),
+                    latency_ms = $2
+                WHERE dataset_id = $1
+                  AND id = $3
+                  AND job_id = $4
+                  AND status = 'running'
+                "#,
+            )
+            .bind(dataset_id)
+            .bind(latency_ms)
+            .bind(attempt_id)
+            .bind(job_id)
+            .execute(&mut *tx)
             .await?;
-        self.jobs_repo
-            .mark_succeeded_batch_for_dataset(dataset_id, &job_ids, worker_id)
+            if attempt_res.rows_affected() != 1 {
+                anyhow::bail!(
+                    "cannot complete attempt {attempt_id}: expected running attempt for job {job_id}"
+                );
+            }
+
+            let job_res = sqlx::query(
+                r#"
+                UPDATE jobs
+                SET status = 'succeeded',
+                    locked_at = NULL,
+                    locked_by = NULL,
+                    lock_expires_at = NULL,
+                    updated_at = now()
+                WHERE dataset_id = $1
+                  AND id = $2
+                  AND locked_by = $3
+                  AND status = 'running'
+                "#,
+            )
+            .bind(dataset_id)
+            .bind(job_id)
+            .bind(worker_id)
+            .execute(&mut *tx)
             .await?;
+            if job_res.rows_affected() != 1 {
+                anyhow::bail!(
+                    "illegal job state transition to completed for job {job_id}: expected running lease held by {worker_id}"
+                );
+            }
+        }
+
+        tx.commit().await?;
         Ok(())
     }
 
@@ -182,19 +282,71 @@ impl StorageBackend for PostgresBackend {
         &self,
         job_id: Uuid,
         attempt_id: Uuid,
-        _worker_id: &str,
+        worker_id: &str,
         latency_ms: i32,
         next_run_at: DateTime<Utc>,
         error_code: &str,
         error_message: &str,
         _attempt_no: i32,
     ) -> anyhow::Result<()> {
-        self.attempts_repo
-            .finish_failed(attempt_id, latency_ms, error_code, error_message)
-            .await?;
-        self.jobs_repo
-            .reschedule_for_retry(job_id, next_run_at, Some(error_code), Some(error_message))
-            .await?;
+        let mut tx = self.pool.begin().await?;
+
+        let attempt_res = sqlx::query(
+            r#"
+            UPDATE job_attempts
+            SET status = 'failed',
+                finished_at = now(),
+                latency_ms = $2,
+                error_code = $3,
+                error_message = $4
+            WHERE id = $1
+              AND job_id = $5
+              AND status = 'running'
+            "#,
+        )
+        .bind(attempt_id)
+        .bind(latency_ms)
+        .bind(error_code)
+        .bind(error_message)
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+        if attempt_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "cannot fail attempt {attempt_id}: expected running attempt for job {job_id}"
+            );
+        }
+
+        let job_res = sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'queued',
+                run_at = $2,
+                locked_at = NULL,
+                locked_by = NULL,
+                lock_expires_at = NULL,
+                last_error_code = $4,
+                last_error_message = $5,
+                updated_at = now()
+            WHERE id = $1
+              AND locked_by = $3
+              AND status = 'running'
+            "#,
+        )
+        .bind(job_id)
+        .bind(next_run_at)
+        .bind(worker_id)
+        .bind(error_code)
+        .bind(error_message)
+        .execute(&mut *tx)
+        .await?;
+        if job_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "illegal job state transition to retry_wait for job {job_id}: expected running lease held by {worker_id}"
+            );
+        }
+
+        tx.commit().await?;
         Ok(())
     }
 
@@ -210,18 +362,65 @@ impl StorageBackend for PostgresBackend {
         error_message: &str,
         _attempt_no: i32,
     ) -> anyhow::Result<()> {
-        self.attempts_repo
-            .finish_failed(attempt_id, latency_ms, error_code, error_message)
-            .await?;
-        self.jobs_repo
-            .mark_dlq(
-                job_id,
-                worker_id,
-                reason_code,
-                Some(error_code),
-                Some(error_message),
-            )
-            .await?;
+        let mut tx = self.pool.begin().await?;
+
+        let attempt_res = sqlx::query(
+            r#"
+            UPDATE job_attempts
+            SET status = 'failed',
+                finished_at = now(),
+                latency_ms = $2,
+                error_code = $3,
+                error_message = $4
+            WHERE id = $1
+              AND job_id = $5
+              AND status = 'running'
+            "#,
+        )
+        .bind(attempt_id)
+        .bind(latency_ms)
+        .bind(error_code)
+        .bind(error_message)
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+        if attempt_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "cannot fail attempt {attempt_id}: expected running attempt for job {job_id}"
+            );
+        }
+
+        let job_res = sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'dlq',
+                dlq_reason_code = $2,
+                dlq_at = now(),
+                locked_at = NULL,
+                locked_by = NULL,
+                lock_expires_at = NULL,
+                last_error_code = $4,
+                last_error_message = $5,
+                updated_at = now()
+            WHERE id = $1
+              AND locked_by = $3
+              AND status = 'running'
+            "#,
+        )
+        .bind(job_id)
+        .bind(reason_code)
+        .bind(worker_id)
+        .bind(error_code)
+        .bind(error_message)
+        .execute(&mut *tx)
+        .await?;
+        if job_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "illegal job state transition to dlq for job {job_id}: expected running lease held by {worker_id}"
+            );
+        }
+
+        tx.commit().await?;
         Ok(())
     }
 
@@ -290,6 +489,10 @@ impl StorageBackend for PostgresBackend {
         self.jobs_repo
             .extend_lease(job_id, worker_id, lease_seconds)
             .await
+    }
+
+    async fn cancel_job(&self, job_id: Uuid, worker_id: Option<&str>) -> anyhow::Result<()> {
+        self.jobs_repo.cancel_job(job_id, worker_id).await
     }
 }
 

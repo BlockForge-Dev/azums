@@ -71,6 +71,27 @@ impl AttemptsRepo {
         job_id: Uuid,
         worker_id: &str,
     ) -> anyhow::Result<JobAttempt> {
+        let claim_count: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*)
+            FROM jobs
+            WHERE dataset_id = $1
+              AND id = $2
+              AND status = 'running'
+              AND locked_by = $3
+            "#,
+        )
+        .bind(dataset_id)
+        .bind(job_id)
+        .bind(worker_id)
+        .fetch_one(&self.pool)
+        .await?;
+        if claim_count != 1 {
+            anyhow::bail!(
+                "cannot start attempt for job {job_id}: expected running lease held by {worker_id}"
+            );
+        }
+
         let status = AttemptStatus::Running.as_str();
 
         let attempt = sqlx::query_as::<_, JobAttempt>(
@@ -139,6 +160,11 @@ impl AttemptsRepo {
                 $3,
                 $4
               FROM input i
+              JOIN jobs j
+                ON j.dataset_id = i.dataset_id
+               AND j.id = i.job_id
+               AND j.status = 'running'
+               AND j.locked_by = $4
               RETURNING job_id, id, attempt_no
             )
             SELECT job_id, id, attempt_no
@@ -151,6 +177,11 @@ impl AttemptsRepo {
         .bind(worker_id)
         .fetch_all(&self.pool)
         .await?;
+        if rows.len() != job_ids.len() {
+            anyhow::bail!(
+                "cannot start attempts: every job must be running under lease held by {worker_id}"
+            );
+        }
 
         Ok(rows)
     }

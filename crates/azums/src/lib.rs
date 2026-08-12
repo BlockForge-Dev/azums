@@ -92,9 +92,10 @@ pub mod stream_handle;
 // ── Convenience re-exports (stable public API) ──
 
 pub use azums_core::{
-    CallRecord, ConsumerGroupStatus, Error, Event, Job, JobHandler, JobListItem, JobProcessor,
-    JobStatus, MemoryBackend, MockBackend, NewEvent, NewJob, NotificationStream, QueueConfig,
-    QueueError, QueueOrdering, StorageBackend, StreamBackend,
+    BackendCapabilities, CallRecord, ConsumerGroupStatus, Error, Event, Job, JobExecution,
+    JobHandler, JobLifecycleState, JobListItem, JobProcessor, JobStatus, MemoryBackend,
+    MockBackend, NewEvent, NewJob, NotificationStream, OrderingCapability, Queue, QueueConfig,
+    QueueError, QueueOrdering, StorageBackend, StreamBackend, Worker,
 };
 #[cfg(feature = "postgres")]
 pub use backend::PostgresBackend;
@@ -104,7 +105,7 @@ pub use backend::RedisBackend;
 pub use backend::{make_sqlite_pool, SqliteBackend};
 pub use config::Config;
 pub use db::{make_pool, run_migrations};
-pub use jobs::attempts::AttemptsRepo;
+pub use jobs::attempts::{AttemptsRepo, JobAttempt};
 pub use jobs::enqueue_guard::{EnqueueGuard, EnqueueGuardConfig};
 pub use jobs::ingest_decisions::IngestDecisionsRepo;
 pub use jobs::maintenance::{MaintenanceRepo, TableMaintenanceInfo};

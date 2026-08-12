@@ -33,6 +33,114 @@ impl QueueConfig {
     }
 }
 
+/// Named queue definition plus its execution policy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Queue {
+    pub name: String,
+    pub config: QueueConfig,
+}
+
+impl Queue {
+    pub fn new(name: impl Into<String>, config: QueueConfig) -> Self {
+        Self {
+            name: name.into(),
+            config,
+        }
+    }
+}
+
+/// Worker identity used for leases, attempts, and execution ownership.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Worker {
+    pub id: String,
+}
+
+impl Worker {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self { id: id.into() }
+    }
+}
+
+/// Ordering strength exposed by a storage backend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum OrderingCapability {
+    /// No meaningful ordering contract beyond at-least-once execution.
+    None,
+    /// Runnable jobs are leased in priority/schedule/FIFO order where the backend supports it.
+    FifoLeasing,
+    /// Backend supports both FIFO leasing and fastest-throughput leasing modes.
+    FifoAndFastestLeasing,
+}
+
+/// Storage backend feature and guarantee declaration.
+///
+/// Capabilities describe what a backend can honestly provide. They are not a marketing matrix:
+/// application code can inspect this value when it needs a specific storage guarantee.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BackendCapabilities {
+    pub transactional_enqueue: bool,
+    pub durable_jobs: bool,
+    pub notifications: bool,
+    pub streams: bool,
+    pub consumer_groups: bool,
+    pub distributed_workers: bool,
+    pub ordering: OrderingCapability,
+}
+
+impl BackendCapabilities {
+    pub const fn memory() -> Self {
+        Self {
+            transactional_enqueue: false,
+            durable_jobs: false,
+            notifications: true,
+            streams: true,
+            consumer_groups: true,
+            distributed_workers: false,
+            ordering: OrderingCapability::FifoAndFastestLeasing,
+        }
+    }
+
+    pub const fn sqlite() -> Self {
+        Self {
+            transactional_enqueue: true,
+            durable_jobs: true,
+            notifications: true,
+            streams: true,
+            consumer_groups: true,
+            distributed_workers: false,
+            ordering: OrderingCapability::FifoAndFastestLeasing,
+        }
+    }
+
+    pub const fn postgres() -> Self {
+        Self {
+            transactional_enqueue: true,
+            durable_jobs: true,
+            notifications: true,
+            streams: true,
+            consumer_groups: true,
+            distributed_workers: true,
+            ordering: OrderingCapability::FifoAndFastestLeasing,
+        }
+    }
+
+    pub const fn redis() -> Self {
+        Self {
+            transactional_enqueue: false,
+            durable_jobs: true,
+            notifications: true,
+            streams: true,
+            consumer_groups: true,
+            distributed_workers: true,
+            ordering: OrderingCapability::FifoLeasing,
+        }
+    }
+
+    pub fn supports_portable_job_api(&self) -> bool {
+        self.durable_jobs || !self.distributed_workers
+    }
+}
+
 /// Lightweight job summary model returned when listing jobs in Admin UI or APIs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
@@ -163,6 +271,22 @@ impl Job {
         &self.payload
     }
 
+    /// Derives the canonical lifecycle state from this persisted job and attempt history.
+    ///
+    /// `failed_attempts` is the number of durable failed `JobAttempt` rows for this job.
+    pub fn lifecycle_state_at(
+        &self,
+        now: DateTime<Utc>,
+        failed_attempts: usize,
+    ) -> Result<JobLifecycleState, crate::error::Error> {
+        JobLifecycleState::from_persisted(
+            JobStatus::parse(&self.status)?,
+            self.run_at,
+            now,
+            failed_attempts,
+        )
+    }
+
     /// Deserializes the JSON payload into a concrete type `T`.
     ///
     /// # Examples
@@ -204,6 +328,20 @@ pub struct NewJob {
     pub max_attempts: i32,
 }
 
+/// Runtime execution claim tying a job, durable attempt, worker, and lease together.
+///
+/// `JobExecution` is the in-flight view of work. The durable record of the handler run is
+/// `JobAttempt`; the durable record of the work item is `Job`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JobExecution {
+    pub job_id: Uuid,
+    pub attempt_id: Uuid,
+    pub attempt_no: i32,
+    pub worker_id: String,
+    pub lease_expires_at: DateTime<Utc>,
+    pub started_at: DateTime<Utc>,
+}
+
 impl From<Job> for NewJob {
     fn from(job: Job) -> Self {
         NewJob {
@@ -217,14 +355,25 @@ impl From<Job> for NewJob {
     }
 }
 
-/// Enumeration of possible job lifecycle states.
+/// Stored job status values.
+///
+/// The canonical execution model is expressed by [`JobLifecycleState`]. Storage backends
+/// continue to persist compact lowercase strings for compatibility with existing schemas.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JobStatus {
     Queued,
     Running,
+    /// Canonical completed terminal state.
+    Completed,
+    /// Backward-compatible alias for [`JobStatus::Completed`].
     Succeeded,
+    /// Legacy job-level failure status. New executions should record failures on
+    /// `JobAttempt` and move the job to retry wait or DLQ instead.
     Failed,
     Dlq,
+    /// Canonical cancelled terminal state.
+    Cancelled,
+    /// Backward-compatible alias for [`JobStatus::Cancelled`].
     Canceled,
 }
 
@@ -242,10 +391,125 @@ impl JobStatus {
         match self {
             JobStatus::Queued => "queued",
             JobStatus::Running => "running",
-            JobStatus::Succeeded => "succeeded",
+            JobStatus::Completed | JobStatus::Succeeded => "succeeded",
             JobStatus::Failed => "failed",
             JobStatus::Dlq => "dlq",
-            JobStatus::Canceled => "canceled",
+            JobStatus::Cancelled | JobStatus::Canceled => "canceled",
+        }
+    }
+
+    /// Parses a persisted status string.
+    pub fn parse(status: &str) -> Result<Self, crate::error::Error> {
+        match status {
+            "queued" => Ok(JobStatus::Queued),
+            "running" => Ok(JobStatus::Running),
+            "succeeded" | "completed" => Ok(JobStatus::Completed),
+            "failed" => Ok(JobStatus::Failed),
+            "dlq" => Ok(JobStatus::Dlq),
+            "canceled" | "cancelled" => Ok(JobStatus::Cancelled),
+            other => Err(crate::error::Error::InvalidState(format!(
+                "unknown job status '{other}'"
+            ))),
+        }
+    }
+
+    /// Returns true when this persisted status represents a terminal job state.
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            JobStatus::Completed
+                | JobStatus::Succeeded
+                | JobStatus::Dlq
+                | JobStatus::Cancelled
+                | JobStatus::Canceled
+        )
+    }
+}
+
+/// Canonical logical job lifecycle state.
+///
+/// `Scheduled` and `RetryWait` are derived from persisted state: both are stored as
+/// `status = "queued"` with a future `run_at`, but `RetryWait` also has prior failed
+/// attempt history. This keeps storage compact while still making lifecycle reconstruction
+/// deterministic from persisted job and attempt rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum JobLifecycleState {
+    Scheduled,
+    Queued,
+    Running,
+    Completed,
+    RetryWait,
+    Cancelled,
+    Dlq,
+}
+
+impl JobLifecycleState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            JobLifecycleState::Scheduled => "scheduled",
+            JobLifecycleState::Queued => "queued",
+            JobLifecycleState::Running => "running",
+            JobLifecycleState::Completed => "completed",
+            JobLifecycleState::RetryWait => "retry_wait",
+            JobLifecycleState::Cancelled => "cancelled",
+            JobLifecycleState::Dlq => "dlq",
+        }
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            JobLifecycleState::Completed | JobLifecycleState::Cancelled | JobLifecycleState::Dlq
+        )
+    }
+
+    pub fn legal_successors(&self) -> &'static [JobLifecycleState] {
+        use JobLifecycleState::*;
+        match self {
+            Scheduled => &[Queued],
+            Queued => &[Running],
+            Running => &[Completed, RetryWait, Cancelled, Dlq],
+            RetryWait => &[Queued],
+            Completed | Cancelled | Dlq => &[],
+        }
+    }
+
+    pub fn can_transition_to(&self, next: JobLifecycleState) -> bool {
+        self.legal_successors().contains(&next)
+    }
+
+    pub fn ensure_transition_to(&self, next: JobLifecycleState) -> Result<(), crate::error::Error> {
+        if self.can_transition_to(next) {
+            Ok(())
+        } else {
+            Err(crate::error::Error::InvalidState(format!(
+                "illegal job state transition: {} -> {}",
+                self.as_str(),
+                next.as_str()
+            )))
+        }
+    }
+
+    /// Derives the canonical state from persisted job state and attempt history.
+    pub fn from_persisted(
+        status: JobStatus,
+        run_at: DateTime<Utc>,
+        now: DateTime<Utc>,
+        failed_attempts: usize,
+    ) -> Result<Self, crate::error::Error> {
+        match status {
+            JobStatus::Queued if run_at > now && failed_attempts > 0 => {
+                Ok(JobLifecycleState::RetryWait)
+            }
+            JobStatus::Queued if run_at > now => Ok(JobLifecycleState::Scheduled),
+            JobStatus::Queued => Ok(JobLifecycleState::Queued),
+            JobStatus::Running => Ok(JobLifecycleState::Running),
+            JobStatus::Completed | JobStatus::Succeeded => Ok(JobLifecycleState::Completed),
+            JobStatus::Dlq => Ok(JobLifecycleState::Dlq),
+            JobStatus::Cancelled | JobStatus::Canceled => Ok(JobLifecycleState::Cancelled),
+            JobStatus::Failed => Err(crate::error::Error::InvalidState(
+                "job status 'failed' is legacy; failures belong to JobAttempt".to_string(),
+            )),
         }
     }
 }

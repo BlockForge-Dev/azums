@@ -79,6 +79,10 @@ impl MemoryBackend {
 
 #[async_trait]
 impl StorageBackend for MemoryBackend {
+    fn capabilities(&self) -> crate::model::BackendCapabilities {
+        crate::model::BackendCapabilities::memory()
+    }
+
     fn as_stream(&self) -> Option<&dyn StreamBackend> {
         Some(self)
     }
@@ -221,18 +225,36 @@ impl StorageBackend for MemoryBackend {
         let now = Utc::now();
         let mut reaped = 0u64;
 
-        for job in state.jobs.values_mut() {
-            if job.status == "running" {
-                if let Some(exp) = job.lock_expires_at {
-                    if exp <= now {
-                        job.status = JobStatus::Queued.as_str().to_string();
-                        job.locked_at = None;
-                        job.locked_by = None;
-                        job.lock_expires_at = None;
-                        job.updated_at = now;
-                        reaped += 1;
-                    }
-                }
+        let expired_job_ids: Vec<Uuid> = state
+            .jobs
+            .values()
+            .filter(|job| {
+                job.status == "running"
+                    && job
+                        .lock_expires_at
+                        .is_some_and(|lock_expires_at| lock_expires_at <= now)
+            })
+            .map(|job| job.id)
+            .collect();
+
+        for attempt in state.attempts.values_mut() {
+            if expired_job_ids.contains(&attempt.job_id) && attempt.status == "running" {
+                attempt.status = "failed".to_string();
+                attempt.finished_at = Some(now);
+                attempt.latency_ms = Some(0);
+                attempt.error_code = Some("LEASE_EXPIRED".to_string());
+                attempt.error_message = Some("worker lease expired before ACK".to_string());
+            }
+        }
+
+        for job_id in expired_job_ids {
+            if let Some(job) = state.jobs.get_mut(&job_id) {
+                job.status = JobStatus::Queued.as_str().to_string();
+                job.locked_at = None;
+                job.locked_by = None;
+                job.lock_expires_at = None;
+                job.updated_at = now;
+                reaped += 1;
             }
         }
 
@@ -254,6 +276,16 @@ impl StorageBackend for MemoryBackend {
         let mut results = Vec::with_capacity(job_ids.len());
 
         for &job_id in job_ids {
+            let job = state
+                .jobs
+                .get(&job_id)
+                .ok_or_else(|| anyhow::anyhow!("job {job_id} not found"))?;
+            if job.status != "running" || job.locked_by.as_deref() != Some(worker_id) {
+                anyhow::bail!(
+                    "cannot start attempt for job {job_id}: expected running lease held by {worker_id}"
+                );
+            }
+
             let max_attempt = state
                 .attempts
                 .values()
@@ -296,19 +328,36 @@ impl StorageBackend for MemoryBackend {
         let mut state = self.state.write().unwrap();
         let now = Utc::now();
 
-        if let Some(att) = state.attempts.get_mut(&attempt_id) {
-            att.status = "succeeded".to_string();
-            att.finished_at = Some(now);
-            att.latency_ms = Some(latency_ms);
+        let job = state
+            .jobs
+            .get_mut(&job_id)
+            .ok_or_else(|| anyhow::anyhow!("job {job_id} not found"))?;
+        if job.status != "running" || job.locked_by.as_deref() != Some(_worker_id) {
+            anyhow::bail!(
+                "illegal job state transition to completed for job {job_id}: expected running lease held by {_worker_id}"
+            );
         }
 
-        if let Some(job) = state.jobs.get_mut(&job_id) {
-            job.status = JobStatus::Succeeded.as_str().to_string();
-            job.locked_at = None;
-            job.locked_by = None;
-            job.lock_expires_at = None;
-            job.updated_at = now;
+        let att = state
+            .attempts
+            .get_mut(&attempt_id)
+            .ok_or_else(|| anyhow::anyhow!("attempt {attempt_id} not found"))?;
+        if att.status != "running" || att.job_id != job_id {
+            anyhow::bail!(
+                "cannot complete attempt {attempt_id}: expected running attempt for job {job_id}"
+            );
         }
+
+        att.status = "succeeded".to_string();
+        att.finished_at = Some(now);
+        att.latency_ms = Some(latency_ms);
+
+        let job = state.jobs.get_mut(&job_id).expect("job checked above");
+        job.status = JobStatus::Completed.as_str().to_string();
+        job.locked_at = None;
+        job.locked_by = None;
+        job.lock_expires_at = None;
+        job.updated_at = now;
 
         Ok(())
     }
@@ -341,22 +390,39 @@ impl StorageBackend for MemoryBackend {
         let mut state = self.state.write().unwrap();
         let now = Utc::now();
 
-        if let Some(att) = state.attempts.get_mut(&attempt_id) {
-            att.status = "failed".to_string();
-            att.finished_at = Some(now);
-            att.latency_ms = Some(latency_ms);
-            att.error_code = Some(error_code.to_string());
-            att.error_message = Some(error_message.to_string());
+        let job = state
+            .jobs
+            .get_mut(&job_id)
+            .ok_or_else(|| anyhow::anyhow!("job {job_id} not found"))?;
+        if job.status != "running" || job.locked_by.as_deref() != Some(_worker_id) {
+            anyhow::bail!(
+                "illegal job state transition to retry_wait for job {job_id}: expected running lease held by {_worker_id}"
+            );
         }
 
-        if let Some(job) = state.jobs.get_mut(&job_id) {
-            job.status = JobStatus::Queued.as_str().to_string();
-            job.run_at = next_run_at;
-            job.locked_at = None;
-            job.locked_by = None;
-            job.lock_expires_at = None;
-            job.updated_at = now;
+        let att = state
+            .attempts
+            .get_mut(&attempt_id)
+            .ok_or_else(|| anyhow::anyhow!("attempt {attempt_id} not found"))?;
+        if att.status != "running" || att.job_id != job_id {
+            anyhow::bail!(
+                "cannot fail attempt {attempt_id}: expected running attempt for job {job_id}"
+            );
         }
+
+        att.status = "failed".to_string();
+        att.finished_at = Some(now);
+        att.latency_ms = Some(latency_ms);
+        att.error_code = Some(error_code.to_string());
+        att.error_message = Some(error_message.to_string());
+
+        let job = state.jobs.get_mut(&job_id).expect("job checked above");
+        job.status = JobStatus::Queued.as_str().to_string();
+        job.run_at = next_run_at;
+        job.locked_at = None;
+        job.locked_by = None;
+        job.lock_expires_at = None;
+        job.updated_at = now;
 
         Ok(())
     }
@@ -376,23 +442,40 @@ impl StorageBackend for MemoryBackend {
         let mut state = self.state.write().unwrap();
         let now = Utc::now();
 
-        if let Some(att) = state.attempts.get_mut(&attempt_id) {
-            att.status = "failed".to_string();
-            att.finished_at = Some(now);
-            att.latency_ms = Some(latency_ms);
-            att.error_code = Some(error_code.to_string());
-            att.error_message = Some(error_message.to_string());
+        let job = state
+            .jobs
+            .get_mut(&job_id)
+            .ok_or_else(|| anyhow::anyhow!("job {job_id} not found"))?;
+        if job.status != "running" || job.locked_by.as_deref() != Some(_worker_id) {
+            anyhow::bail!(
+                "illegal job state transition to dlq for job {job_id}: expected running lease held by {_worker_id}"
+            );
         }
 
-        if let Some(job) = state.jobs.get_mut(&job_id) {
-            job.status = JobStatus::Dlq.as_str().to_string();
-            job.dlq_reason_code = Some(reason_code.to_string());
-            job.dlq_at = Some(now);
-            job.locked_at = None;
-            job.locked_by = None;
-            job.lock_expires_at = None;
-            job.updated_at = now;
+        let att = state
+            .attempts
+            .get_mut(&attempt_id)
+            .ok_or_else(|| anyhow::anyhow!("attempt {attempt_id} not found"))?;
+        if att.status != "running" || att.job_id != job_id {
+            anyhow::bail!(
+                "cannot fail attempt {attempt_id}: expected running attempt for job {job_id}"
+            );
         }
+
+        att.status = "failed".to_string();
+        att.finished_at = Some(now);
+        att.latency_ms = Some(latency_ms);
+        att.error_code = Some(error_code.to_string());
+        att.error_message = Some(error_message.to_string());
+
+        let job = state.jobs.get_mut(&job_id).expect("job checked above");
+        job.status = JobStatus::Dlq.as_str().to_string();
+        job.dlq_reason_code = Some(reason_code.to_string());
+        job.dlq_at = Some(now);
+        job.locked_at = None;
+        job.locked_by = None;
+        job.lock_expires_at = None;
+        job.updated_at = now;
 
         Ok(())
     }
@@ -472,6 +555,60 @@ impl StorageBackend for MemoryBackend {
             }
         }
         Ok(false)
+    }
+
+    async fn cancel_job(&self, job_id: Uuid, worker_id: Option<&str>) -> anyhow::Result<()> {
+        let mut state = self.state.write().unwrap();
+        let now = Utc::now();
+
+        let job = state
+            .jobs
+            .get_mut(&job_id)
+            .ok_or_else(|| anyhow::anyhow!("job {job_id} not found"))?;
+
+        match job.status.as_str() {
+            "queued" => {}
+            "running" => {
+                let Some(worker_id) = worker_id else {
+                    anyhow::bail!(
+                        "cannot cancel running job {job_id}: worker identity is required"
+                    );
+                };
+                if job.locked_by.as_deref() != Some(worker_id) {
+                    anyhow::bail!(
+                        "illegal job state transition to cancelled for job {job_id}: expected running lease held by {worker_id}"
+                    );
+                }
+            }
+            "succeeded" | "dlq" | "canceled" => {
+                anyhow::bail!("cannot cancel terminal job {job_id}: status={}", job.status);
+            }
+            other => anyhow::bail!("cannot cancel job {job_id}: invalid status={other}"),
+        }
+
+        if job.status == "running" {
+            if let Some(att) = state
+                .attempts
+                .values_mut()
+                .filter(|a| a.job_id == job_id && a.status == "running")
+                .max_by_key(|a| a.attempt_no)
+            {
+                att.status = "failed".to_string();
+                att.finished_at = Some(now);
+                att.latency_ms = Some(0);
+                att.error_code = Some("CANCELLED".to_string());
+                att.error_message = Some("job cancelled".to_string());
+            }
+        }
+
+        let job = state.jobs.get_mut(&job_id).expect("job checked above");
+        job.status = JobStatus::Cancelled.as_str().to_string();
+        job.locked_at = None;
+        job.locked_by = None;
+        job.lock_expires_at = None;
+        job.updated_at = now;
+
+        Ok(())
     }
 
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {

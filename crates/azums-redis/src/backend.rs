@@ -57,6 +57,10 @@ impl RedisBackend {
 
 #[async_trait]
 impl StorageBackend for RedisBackend {
+    fn capabilities(&self) -> azums_core::BackendCapabilities {
+        azums_core::BackendCapabilities::redis()
+    }
+
     fn as_stream(&self) -> Option<&dyn StreamBackend> {
         Some(self)
     }
@@ -282,6 +286,18 @@ impl StorageBackend for RedisBackend {
         let mut results = Vec::with_capacity(job_ids.len());
 
         for &job_id in job_ids {
+            let job_id_str = job_id.to_string();
+            let json_str: Option<String> = conn.hget("azums:jobs", &job_id_str).await?;
+            let job = json_str
+                .as_deref()
+                .and_then(|json| serde_json::from_str::<Job>(json).ok())
+                .ok_or_else(|| anyhow::anyhow!("job {job_id} not found"))?;
+            if job.status != "running" || job.locked_by.as_deref() != Some(_worker_id) {
+                anyhow::bail!(
+                    "cannot start attempt for job {job_id}: expected running lease held by {_worker_id}"
+                );
+            }
+
             let attempt_id = Uuid::new_v4();
             let attempts_key = format!("azums:attempts:{}", job_id);
             let attempt_no: i32 = conn.incr(&attempts_key, 1).await?;
@@ -306,7 +322,16 @@ impl StorageBackend for RedisBackend {
             .await
         {
             if let Ok(mut job) = serde_json::from_str::<Job>(&json) {
+                if job.status != "running" || job.locked_by.as_deref() != Some(worker_id) {
+                    anyhow::bail!(
+                        "illegal job state transition to completed for job {job_id}: expected running lease held by {worker_id}"
+                    );
+                }
+
                 job.status = JobStatus::Succeeded.as_str().to_string();
+                job.locked_at = None;
+                job.locked_by = None;
+                job.lock_expires_at = None;
                 job.updated_at = Utc::now();
                 let updated_json = serde_json::to_string(&job)?;
                 let _: () = conn.hset("azums:jobs", &job_id_str, updated_json).await?;
@@ -351,6 +376,12 @@ impl StorageBackend for RedisBackend {
             .await
         {
             if let Ok(mut job) = serde_json::from_str::<Job>(&json) {
+                if job.status != "running" || job.locked_by.as_deref() != Some(worker_id) {
+                    anyhow::bail!(
+                        "illegal job state transition to retry_wait for job {job_id}: expected running lease held by {worker_id}"
+                    );
+                }
+
                 job.status = JobStatus::Queued.as_str().to_string();
                 job.run_at = next_run_at;
                 job.locked_at = None;
@@ -391,6 +422,12 @@ impl StorageBackend for RedisBackend {
             .await
         {
             if let Ok(mut job) = serde_json::from_str::<Job>(&json) {
+                if job.status != "running" || job.locked_by.as_deref() != Some(worker_id) {
+                    anyhow::bail!(
+                        "illegal job state transition to dlq for job {job_id}: expected running lease held by {worker_id}"
+                    );
+                }
+
                 job.status = JobStatus::Dlq.as_str().to_string();
                 job.dlq_reason_code = Some(reason_code.to_string());
                 job.dlq_at = Some(Utc::now());
@@ -453,6 +490,51 @@ impl StorageBackend for RedisBackend {
         }
 
         Ok(false)
+    }
+
+    async fn cancel_job(&self, job_id: Uuid, worker_id: Option<&str>) -> anyhow::Result<()> {
+        let mut conn = self.conn_mgr.clone();
+        let job_id_str = job_id.to_string();
+        let json_str: Option<String> = conn.hget("azums:jobs", &job_id_str).await?;
+
+        let mut job = match json_str {
+            Some(json) => serde_json::from_str::<Job>(&json)?,
+            None => anyhow::bail!("job {job_id} not found"),
+        };
+
+        match job.status.as_str() {
+            "queued" => {}
+            "running" => {
+                let Some(worker_id) = worker_id else {
+                    anyhow::bail!(
+                        "cannot cancel running job {job_id}: worker identity is required"
+                    );
+                };
+                if job.locked_by.as_deref() != Some(worker_id) {
+                    anyhow::bail!(
+                        "illegal job state transition to cancelled for job {job_id}: expected running lease held by {worker_id}"
+                    );
+                }
+
+                let proc_key = format!("azums:processing:{}:{}", job.queue, worker_id);
+                let _: () = conn.lrem(proc_key, 1, &job_id_str).await?;
+            }
+            "succeeded" | "dlq" | "canceled" => {
+                anyhow::bail!("cannot cancel terminal job {job_id}: status={}", job.status);
+            }
+            other => anyhow::bail!("cannot cancel job {job_id}: invalid status={other}"),
+        }
+
+        job.status = JobStatus::Cancelled.as_str().to_string();
+        job.locked_at = None;
+        job.locked_by = None;
+        job.lock_expires_at = None;
+        job.updated_at = Utc::now();
+
+        let updated_json = serde_json::to_string(&job)?;
+        let _: () = conn.hset("azums:jobs", &job_id_str, updated_json).await?;
+
+        Ok(())
     }
 
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {

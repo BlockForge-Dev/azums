@@ -19,8 +19,9 @@ pub use backend::{
 };
 pub use error::{Error, QueueError};
 pub use model::{
-    ConsumerGroupStatus, Event, Job, JobHandler, JobListItem, JobProcessor, JobStatus, NewEvent,
-    NewJob, QueueConfig, QueueOrdering,
+    BackendCapabilities, ConsumerGroupStatus, Event, Job, JobExecution, JobHandler,
+    JobLifecycleState, JobListItem, JobProcessor, JobStatus, NewEvent, NewJob, OrderingCapability,
+    Queue, QueueConfig, QueueOrdering, Worker,
 };
 
 /// Helper function to extract a human-readable panic message string from a panic payload.

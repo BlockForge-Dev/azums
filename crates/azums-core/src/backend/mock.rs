@@ -97,6 +97,10 @@ pub enum CallRecord {
         worker_id: String,
         lease_seconds: i64,
     },
+    CancelJob {
+        job_id: Uuid,
+        worker_id: Option<String>,
+    },
     GetJob(Uuid),
     ListJobs {
         queue: Option<String>,
@@ -186,6 +190,10 @@ impl MockBackend {
 
 #[async_trait]
 impl StorageBackend for MockBackend {
+    fn capabilities(&self) -> crate::model::BackendCapabilities {
+        self.inner.capabilities()
+    }
+
     fn as_stream(&self) -> Option<&dyn StreamBackend> {
         Some(self)
     }
@@ -443,6 +451,14 @@ impl StorageBackend for MockBackend {
         self.inner
             .extend_lease(job_id, worker_id, lease_seconds)
             .await
+    }
+
+    async fn cancel_job(&self, job_id: Uuid, worker_id: Option<&str>) -> anyhow::Result<()> {
+        self.calls.lock().unwrap().push(CallRecord::CancelJob {
+            job_id,
+            worker_id: worker_id.map(|id| id.to_string()),
+        });
+        self.inner.cancel_job(job_id, worker_id).await
     }
 
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {

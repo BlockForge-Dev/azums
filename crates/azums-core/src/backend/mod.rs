@@ -6,7 +6,7 @@ pub use memory::{MemoryAttempt, MemoryBackend};
 pub use mock::{CallRecord, MockBackend};
 pub use stream::StreamBackend;
 
-use crate::model::{Job, JobListItem, NewJob};
+use crate::model::{BackendCapabilities, Job, JobListItem, NewJob};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::pin::Pin;
@@ -21,6 +21,9 @@ pub type NotificationStream = Pin<Box<dyn futures_core::Stream<Item = ()> + Send
 /// Dead-Letter Queue (DLQ) routing, maintenance archiving, and health probes.
 #[async_trait]
 pub trait StorageBackend: Send + Sync {
+    /// Declares this backend's storage and coordination capabilities.
+    fn capabilities(&self) -> BackendCapabilities;
+
     /// Returns reference to StreamBackend if supported by this storage implementation.
     fn as_stream(&self) -> Option<&dyn StreamBackend> {
         None
@@ -146,6 +149,13 @@ pub trait StorageBackend: Send + Sync {
     ) -> anyhow::Result<bool> {
         Ok(true)
     }
+
+    /// Cancels a queued/scheduled job or a running job owned by `worker_id`.
+    ///
+    /// Queued and scheduled jobs may be cancelled without a worker ID. Running jobs require the
+    /// worker lease owner so terminality cannot be bypassed by another worker. Terminal jobs reject
+    /// cancellation.
+    async fn cancel_job(&self, job_id: Uuid, worker_id: Option<&str>) -> anyhow::Result<()>;
 
     /// Fetches a single job record by ID.
     async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>>;

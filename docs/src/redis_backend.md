@@ -33,6 +33,6 @@ let client = azums::quickstart("rediss://:secretpass@redis.prod.internal:6379/0"
 
 ## 3. High-Throughput Batch Leasing
 
-`RedisBackend` leverages `RPOPLPUSH` (or `LMOVE` in Redis 6.2+) to atomically claim jobs from `azums:queue:<queue>` to `azums:processing:<queue>:<worker_id>`. This guarantees zero job loss even if a worker host crashes mid-execution.
+`RedisBackend` leverages `RPOPLPUSH` (or `LMOVE` in Redis 6.2+) to atomically claim jobs from `azums:queue:<queue>` to `azums:processing:<queue>:<worker_id>`. If a worker host crashes mid-execution, the processing list keeps the leased job visible for later recovery.
 
 Expired locks are automatically reclaimed back to the queue via `backend.reap_expired_locks()`.

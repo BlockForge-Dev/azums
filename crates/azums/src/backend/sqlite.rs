@@ -6,7 +6,7 @@ use azums_core::{
 use chrono::{DateTime, Utc};
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-    SqlitePool,
+    Sqlite, SqlitePool, Transaction,
 };
 use std::{
     collections::HashMap,
@@ -78,10 +78,51 @@ impl SqliteBackend {
             let _ = tx.send(());
         }
     }
+
+    /// Inserts a new job using the caller's SQLite transaction.
+    ///
+    /// Use this when application data and queued work live in the same SQLite database and must
+    /// commit or roll back together. This method does not emit an immediate wake-up notification;
+    /// SQLite workers still use interval fallback and storage state as the source of truth.
+    pub async fn enqueue_in_tx(
+        &self,
+        tx: &mut Transaction<'_, Sqlite>,
+        job: NewJob,
+    ) -> anyhow::Result<Uuid> {
+        let job_id = Uuid::new_v4();
+        let now = Utc::now();
+
+        sqlx::query(
+            r#"
+            INSERT INTO jobs (
+                id, dataset_id, queue, job_type, payload_json,
+                run_at, status, priority, max_attempts,
+                created_at, updated_at
+            ) VALUES (?, 'default', ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
+            "#,
+        )
+        .bind(job_id)
+        .bind(&job.queue)
+        .bind(&job.job_type)
+        .bind(&job.payload_json)
+        .bind(job.run_at)
+        .bind(job.priority)
+        .bind(job.max_attempts)
+        .bind(now)
+        .bind(now)
+        .execute(&mut **tx)
+        .await?;
+
+        Ok(job_id)
+    }
 }
 
 #[async_trait]
 impl StorageBackend for SqliteBackend {
+    fn capabilities(&self) -> azums_core::BackendCapabilities {
+        azums_core::BackendCapabilities::sqlite()
+    }
+
     fn as_stream(&self) -> Option<&dyn StreamBackend> {
         Some(self)
     }
@@ -375,8 +416,123 @@ impl StorageBackend for SqliteBackend {
         Ok(res.rows_affected() > 0)
     }
 
-    async fn reap_expired_locks(&self) -> anyhow::Result<u64> {
+    async fn cancel_job(&self, job_id: Uuid, worker_id: Option<&str>) -> anyhow::Result<()> {
+        let mut tx = self.pool.begin().await?;
         let now = Utc::now();
+
+        let current: Option<(String, Option<String>)> =
+            sqlx::query_as("SELECT status, locked_by FROM jobs WHERE id = ?")
+                .bind(job_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+
+        let Some((status, locked_by)) = current else {
+            anyhow::bail!("job {job_id} not found");
+        };
+
+        match status.as_str() {
+            "queued" => {}
+            "running" => {
+                let Some(worker_id) = worker_id else {
+                    anyhow::bail!(
+                        "cannot cancel running job {job_id}: worker identity is required"
+                    );
+                };
+                if locked_by.as_deref() != Some(worker_id) {
+                    anyhow::bail!(
+                        "illegal job state transition to cancelled for job {job_id}: expected running lease held by {worker_id}"
+                    );
+                }
+            }
+            "succeeded" | "dlq" | "canceled" => {
+                anyhow::bail!("cannot cancel terminal job {job_id}: status={status}");
+            }
+            other => anyhow::bail!("cannot cancel job {job_id}: invalid status={other}"),
+        }
+
+        if status == "running" {
+            sqlx::query(
+                r#"
+                UPDATE job_attempts
+                SET status = 'failed',
+                    finished_at = ?,
+                    latency_ms = COALESCE(latency_ms, 0),
+                    error_code = 'CANCELLED',
+                    error_message = 'job cancelled'
+                WHERE id = (
+                    SELECT id
+                    FROM job_attempts
+                    WHERE job_id = ?
+                      AND status = 'running'
+                    ORDER BY attempt_no DESC
+                    LIMIT 1
+                )
+                "#,
+            )
+            .bind(now)
+            .bind(job_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'canceled',
+                locked_at = NULL,
+                locked_by = NULL,
+                lock_expires_at = NULL,
+                updated_at = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(now)
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    async fn reap_expired_locks(&self) -> anyhow::Result<u64> {
+        let mut tx = self.pool.begin().await?;
+        let now = Utc::now();
+
+        let expired: Vec<(String, Uuid)> = sqlx::query_as(
+            r#"
+            SELECT dataset_id, id
+            FROM jobs
+            WHERE status = 'running'
+              AND lock_expires_at IS NOT NULL
+              AND lock_expires_at <= ?
+            "#,
+        )
+        .bind(now)
+        .fetch_all(&mut *tx)
+        .await?;
+
+        for (dataset_id, job_id) in &expired {
+            sqlx::query(
+                r#"
+                UPDATE job_attempts
+                SET status = 'failed',
+                    finished_at = ?,
+                    latency_ms = COALESCE(latency_ms, 0),
+                    error_code = 'LEASE_EXPIRED',
+                    error_message = 'worker lease expired before ACK'
+                WHERE dataset_id = ?
+                  AND job_id = ?
+                  AND status = 'running'
+                "#,
+            )
+            .bind(now)
+            .bind(dataset_id)
+            .bind(job_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+
         let res = sqlx::query(
             r#"
             UPDATE jobs
@@ -386,8 +542,10 @@ impl StorageBackend for SqliteBackend {
         )
         .bind(now)
         .bind(now)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+
+        tx.commit().await?;
 
         Ok(res.rows_affected())
     }
@@ -407,6 +565,19 @@ impl StorageBackend for SqliteBackend {
         let mut results = Vec::with_capacity(job_ids.len());
 
         for &job_id in job_ids {
+            let claim_count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM jobs WHERE id = ? AND status = 'running' AND locked_by = ?",
+            )
+            .bind(job_id)
+            .bind(worker_id)
+            .fetch_one(&mut *tx)
+            .await?;
+            if claim_count != 1 {
+                anyhow::bail!(
+                    "cannot start attempt for job {job_id}: expected running lease held by {worker_id}"
+                );
+            }
+
             let max_attempt: Option<i32> =
                 sqlx::query_scalar("SELECT MAX(attempt_no) FROM job_attempts WHERE job_id = ?")
                     .bind(job_id)
@@ -442,36 +613,48 @@ impl StorageBackend for SqliteBackend {
         &self,
         job_id: Uuid,
         attempt_id: Uuid,
-        _worker_id: &str,
+        worker_id: &str,
         latency_ms: i32,
     ) -> anyhow::Result<()> {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now();
 
-        sqlx::query(
+        let attempt_res = sqlx::query(
             r#"
             UPDATE job_attempts
             SET status = 'succeeded', finished_at = ?, latency_ms = ?
-            WHERE id = ?
+            WHERE id = ? AND job_id = ? AND status = 'running'
             "#,
         )
         .bind(now)
         .bind(latency_ms)
         .bind(attempt_id)
+        .bind(job_id)
         .execute(&mut *tx)
         .await?;
+        if attempt_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "cannot complete attempt {attempt_id}: expected running attempt for job {job_id}"
+            );
+        }
 
-        sqlx::query(
+        let job_res = sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'succeeded', locked_at = NULL, locked_by = NULL, lock_expires_at = NULL, updated_at = ?
-            WHERE id = ?
+            WHERE id = ? AND status = 'running' AND locked_by = ?
             "#,
         )
         .bind(now)
         .bind(job_id)
+        .bind(worker_id)
         .execute(&mut *tx)
         .await?;
+        if job_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "illegal job state transition to completed for job {job_id}: expected running lease held by {worker_id}"
+            );
+        }
 
         tx.commit().await?;
         Ok(())
@@ -495,7 +678,7 @@ impl StorageBackend for SqliteBackend {
         &self,
         job_id: Uuid,
         attempt_id: Uuid,
-        _worker_id: &str,
+        worker_id: &str,
         latency_ms: i32,
         next_run_at: DateTime<Utc>,
         error_code: &str,
@@ -505,11 +688,11 @@ impl StorageBackend for SqliteBackend {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now();
 
-        sqlx::query(
+        let attempt_res = sqlx::query(
             r#"
             UPDATE job_attempts
             SET status = 'failed', finished_at = ?, latency_ms = ?, error_code = ?, error_message = ?
-            WHERE id = ?
+            WHERE id = ? AND job_id = ? AND status = 'running'
             "#,
         )
         .bind(now)
@@ -517,21 +700,33 @@ impl StorageBackend for SqliteBackend {
         .bind(error_code)
         .bind(error_message)
         .bind(attempt_id)
+        .bind(job_id)
         .execute(&mut *tx)
         .await?;
+        if attempt_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "cannot fail attempt {attempt_id}: expected running attempt for job {job_id}"
+            );
+        }
 
-        sqlx::query(
+        let job_res = sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'queued', run_at = ?, locked_at = NULL, locked_by = NULL, lock_expires_at = NULL, updated_at = ?
-            WHERE id = ?
+            WHERE id = ? AND status = 'running' AND locked_by = ?
             "#,
         )
         .bind(next_run_at)
         .bind(now)
         .bind(job_id)
+        .bind(worker_id)
         .execute(&mut *tx)
         .await?;
+        if job_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "illegal job state transition to retry_wait for job {job_id}: expected running lease held by {worker_id}"
+            );
+        }
 
         tx.commit().await?;
         Ok(())
@@ -542,7 +737,7 @@ impl StorageBackend for SqliteBackend {
         &self,
         job_id: Uuid,
         attempt_id: Uuid,
-        _worker_id: &str,
+        worker_id: &str,
         latency_ms: i32,
         reason_code: &str,
         error_code: &str,
@@ -552,11 +747,11 @@ impl StorageBackend for SqliteBackend {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now();
 
-        sqlx::query(
+        let attempt_res = sqlx::query(
             r#"
             UPDATE job_attempts
             SET status = 'failed', finished_at = ?, latency_ms = ?, error_code = ?, error_message = ?
-            WHERE id = ?
+            WHERE id = ? AND job_id = ? AND status = 'running'
             "#,
         )
         .bind(now)
@@ -564,22 +759,34 @@ impl StorageBackend for SqliteBackend {
         .bind(error_code)
         .bind(error_message)
         .bind(attempt_id)
+        .bind(job_id)
         .execute(&mut *tx)
         .await?;
+        if attempt_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "cannot fail attempt {attempt_id}: expected running attempt for job {job_id}"
+            );
+        }
 
-        sqlx::query(
+        let job_res = sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'dlq', dlq_reason_code = ?, dlq_at = ?, locked_at = NULL, locked_by = NULL, lock_expires_at = NULL, updated_at = ?
-            WHERE id = ?
+            WHERE id = ? AND status = 'running' AND locked_by = ?
             "#,
         )
         .bind(reason_code)
         .bind(now)
         .bind(now)
         .bind(job_id)
+        .bind(worker_id)
         .execute(&mut *tx)
         .await?;
+        if job_res.rows_affected() != 1 {
+            anyhow::bail!(
+                "illegal job state transition to dlq for job {job_id}: expected running lease held by {worker_id}"
+            );
+        }
 
         tx.commit().await?;
         Ok(())

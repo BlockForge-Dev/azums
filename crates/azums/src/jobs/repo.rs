@@ -3,7 +3,7 @@
 use crate::jobs::model::{Job, JobListItem, JobStatus, NewJob};
 use chrono::{DateTime, Utc};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 /// Repository providing atomic database operations for job queue management.
@@ -136,6 +136,48 @@ impl JobsRepo {
             .bind(&channel)
             .execute(&self.pool)
             .await;
+
+        Ok(id)
+    }
+
+    /// Inserts a new job using the caller's PostgreSQL transaction.
+    ///
+    /// Use this when an application state mutation and job enqueue must commit or roll back
+    /// together. The `pg_notify` call is executed inside the same transaction, so PostgreSQL only
+    /// delivers the wake-up notification if the transaction commits.
+    pub async fn enqueue_in_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        job: NewJob,
+    ) -> anyhow::Result<Uuid> {
+        let dataset_id = Self::dataset_id_for(&job.queue, job.run_at);
+        self.ensure_dataset_partition(&dataset_id).await?;
+        let channel = Self::notify_channel_name(&job.queue);
+
+        let id = sqlx::query_scalar::<_, Uuid>(
+            r#"
+            INSERT INTO jobs (
+                dataset_id, queue, job_type, payload_json, run_at, status, priority, max_attempts
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id
+            "#,
+        )
+        .bind(dataset_id)
+        .bind(&job.queue)
+        .bind(job.job_type)
+        .bind(job.payload_json)
+        .bind(job.run_at)
+        .bind(JobStatus::Queued.as_str())
+        .bind(job.priority)
+        .bind(job.max_attempts)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        let _ = sqlx::query("SELECT pg_notify($1, '')")
+            .bind(&channel)
+            .execute(&mut **tx)
+            .await?;
 
         Ok(id)
     }
@@ -820,6 +862,53 @@ impl JobsRepo {
     // ----------------------------
 
     pub async fn reap_expired_locks(&self) -> anyhow::Result<u64> {
+        let mut tx = self.pool.begin().await?;
+
+        let expired: Vec<(String, Uuid)> = sqlx::query_as(
+            r#"
+            SELECT dataset_id, id
+            FROM jobs
+            WHERE status = 'running'
+              AND lock_expires_at IS NOT NULL
+              AND lock_expires_at < now()
+            FOR UPDATE SKIP LOCKED
+            "#,
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        if expired.is_empty() {
+            tx.commit().await?;
+            return Ok(0);
+        }
+
+        let dataset_ids: Vec<String> = expired
+            .iter()
+            .map(|(dataset_id, _)| dataset_id.clone())
+            .collect();
+        let job_ids: Vec<Uuid> = expired.iter().map(|(_, job_id)| *job_id).collect();
+
+        sqlx::query(
+            r#"
+            UPDATE job_attempts a
+            SET status = 'failed',
+                finished_at = now(),
+                latency_ms = COALESCE(
+                  latency_ms,
+                  GREATEST(0, (EXTRACT(EPOCH FROM (now() - started_at)) * 1000)::int)
+                ),
+                error_code = 'LEASE_EXPIRED',
+                error_message = 'worker lease expired before ACK'
+            WHERE a.dataset_id = ANY($1)
+              AND a.job_id = ANY($2)
+              AND a.status = 'running'
+            "#,
+        )
+        .bind(&dataset_ids)
+        .bind(&job_ids)
+        .execute(&mut *tx)
+        .await?;
+
         let res = sqlx::query(
             r#"
             UPDATE jobs
@@ -833,8 +922,10 @@ impl JobsRepo {
               AND lock_expires_at < now()
             "#,
         )
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+
+        tx.commit().await?;
 
         Ok(res.rows_affected())
     }
@@ -863,6 +954,7 @@ impl JobsRepo {
                 updated_at = now()
             WHERE id = ANY($1)
               AND locked_by = $2
+              AND status = 'running'
             "#,
         )
         .bind(job_ids)
@@ -870,7 +962,15 @@ impl JobsRepo {
         .execute(&self.pool)
         .await?;
 
-        Ok(res.rows_affected())
+        let changed = res.rows_affected();
+        if changed != job_ids.len() as u64 {
+            anyhow::bail!(
+                "illegal job state transition to completed: expected {} running jobs leased by {worker_id}, updated {changed}",
+                job_ids.len()
+            );
+        }
+
+        Ok(changed)
     }
 
     /// Dataset-aware fast-path for partition-pruned successful batch updates.
@@ -895,6 +995,7 @@ impl JobsRepo {
             WHERE dataset_id = $1
               AND id = ANY($2)
               AND locked_by = $3
+              AND status = 'running'
             "#,
         )
         .bind(dataset_id)
@@ -903,11 +1004,19 @@ impl JobsRepo {
         .execute(&self.pool)
         .await?;
 
-        Ok(res.rows_affected())
+        let changed = res.rows_affected();
+        if changed != job_ids.len() as u64 {
+            anyhow::bail!(
+                "illegal job state transition to completed: expected {} running jobs in dataset {dataset_id} leased by {worker_id}, updated {changed}",
+                job_ids.len()
+            );
+        }
+
+        Ok(changed)
     }
 
     pub async fn mark_succeeded(&self, job_id: Uuid, worker_id: &str) -> anyhow::Result<()> {
-        sqlx::query(
+        let res = sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'succeeded',
@@ -917,12 +1026,18 @@ impl JobsRepo {
                 updated_at = now()
             WHERE id = $1
               AND locked_by = $2
+              AND status = 'running'
             "#,
         )
         .bind(job_id)
         .bind(worker_id)
         .execute(&self.pool)
         .await?;
+        if res.rows_affected() != 1 {
+            anyhow::bail!(
+                "illegal job state transition to completed for job {job_id}: expected running lease held by {worker_id}"
+            );
+        }
 
         Ok(())
     }
@@ -934,7 +1049,7 @@ impl JobsRepo {
         last_error_code: Option<&str>,
         last_error_message: Option<&str>,
     ) -> anyhow::Result<()> {
-        sqlx::query(
+        let res = sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'queued',
@@ -946,6 +1061,7 @@ impl JobsRepo {
                 last_error_code = $3,
                 last_error_message = $4
             WHERE id = $1
+              AND status = 'running'
             "#,
         )
         .bind(job_id)
@@ -954,6 +1070,11 @@ impl JobsRepo {
         .bind(last_error_message)
         .execute(&self.pool)
         .await?;
+        if res.rows_affected() != 1 {
+            anyhow::bail!(
+                "illegal job state transition to retry_wait for job {job_id}: expected running job"
+            );
+        }
 
         Ok(())
     }
@@ -965,7 +1086,7 @@ impl JobsRepo {
         last_error_code: Option<&str>,
         last_error_message: Option<&str>,
     ) -> anyhow::Result<()> {
-        sqlx::query(
+        let res = sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'failed',
@@ -977,6 +1098,7 @@ impl JobsRepo {
                 last_error_message = $4
             WHERE id = $1
               AND locked_by = $2
+              AND status = 'running'
             "#,
         )
         .bind(job_id)
@@ -985,6 +1107,11 @@ impl JobsRepo {
         .bind(last_error_message)
         .execute(&self.pool)
         .await?;
+        if res.rows_affected() != 1 {
+            anyhow::bail!(
+                "illegal job state transition to failed for job {job_id}: expected running lease held by {worker_id}"
+            );
+        }
 
         Ok(())
     }
@@ -997,7 +1124,7 @@ impl JobsRepo {
         last_error_code: Option<&str>,
         last_error_message: Option<&str>,
     ) -> anyhow::Result<()> {
-        sqlx::query(
+        let res = sqlx::query(
             r#"
             UPDATE jobs
             SET status = 'dlq',
@@ -1011,6 +1138,7 @@ impl JobsRepo {
                 last_error_message = $5
             WHERE id = $1
               AND locked_by = $2
+              AND status = 'running'
             "#,
         )
         .bind(job_id)
@@ -1020,7 +1148,88 @@ impl JobsRepo {
         .bind(last_error_message)
         .execute(&self.pool)
         .await?;
+        if res.rows_affected() != 1 {
+            anyhow::bail!(
+                "illegal job state transition to dlq for job {job_id}: expected running lease held by {worker_id}"
+            );
+        }
 
+        Ok(())
+    }
+
+    pub async fn cancel_job(&self, job_id: Uuid, worker_id: Option<&str>) -> anyhow::Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        let current: Option<(String, Option<String>)> =
+            sqlx::query_as("SELECT status, locked_by FROM jobs WHERE id = $1")
+                .bind(job_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+
+        let Some((status, locked_by)) = current else {
+            anyhow::bail!("job {job_id} not found");
+        };
+
+        match status.as_str() {
+            "queued" => {}
+            "running" => {
+                let Some(worker_id) = worker_id else {
+                    anyhow::bail!(
+                        "cannot cancel running job {job_id}: worker identity is required"
+                    );
+                };
+                if locked_by.as_deref() != Some(worker_id) {
+                    anyhow::bail!(
+                        "illegal job state transition to cancelled for job {job_id}: expected running lease held by {worker_id}"
+                    );
+                }
+            }
+            "succeeded" | "dlq" | "canceled" => {
+                anyhow::bail!("cannot cancel terminal job {job_id}: status={status}");
+            }
+            other => anyhow::bail!("cannot cancel job {job_id}: invalid status={other}"),
+        }
+
+        if status == "running" {
+            sqlx::query(
+                r#"
+                UPDATE job_attempts
+                SET status = 'failed',
+                    finished_at = now(),
+                    latency_ms = COALESCE(latency_ms, 0),
+                    error_code = 'CANCELLED',
+                    error_message = 'job cancelled'
+                WHERE id = (
+                    SELECT id
+                    FROM job_attempts
+                    WHERE job_id = $1
+                      AND status = 'running'
+                    ORDER BY attempt_no DESC
+                    LIMIT 1
+                )
+                "#,
+            )
+            .bind(job_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'canceled',
+                locked_at = NULL,
+                locked_by = NULL,
+                lock_expires_at = NULL,
+                updated_at = now()
+            WHERE id = $1
+            "#,
+        )
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
         Ok(())
     }
 

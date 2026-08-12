@@ -57,8 +57,8 @@ Because stream logs are durable append-only structures, consumers can inspect or
 let historical_events = stream.read_events(5000, 100).await?;
 ```
 
-### Idempotency & Exactly-Once Processing
-Achieve exactly-once end-to-end semantics by pairing stream log offset replay with database deduplication transactions using `sequence_no`:
+### Idempotency & External Side Effects
+Azums provides at-least-once stream replay. It does not guarantee exactly-once external side effects. If duplicate processing would be harmful, pair stream replay with application-level deduplication using `sequence_no`:
 
 ```sql
 INSERT INTO processed_stream_events (stream_name, consumer_group, sequence_no)

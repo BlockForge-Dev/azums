@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
 | **Framework Integrations** | ✅ Axum, Actix, Poem, Rocket (native extractors) | ❌ None built‑in | ✅ Flask, Django, FastAPI | ❌ None | ❌ None |
 | **Event Streams (Redis‑style)** | ✅ Durable stream logs with consumer groups & offsets | ✅ Native Redis Streams | ❌ Requires Celery Beat | ❌ No native streams | ❌ None |
 | **Dead‑Letter Queue (DLQ)** | ✅ Automatic with retry exhaustion, reason codes, and replay | ✅ | ✅ | ✅ | ✅ |
-| **Transactional Enqueue** | ✅ Enqueue inside DB transaction with zero dual‑write risk | ❌ Separate store | ❌ | ❌ | ❌ (to some extent) |
+| **Transactional Enqueue** | ✅ Backend-dependent; native for SQL backends | ❌ Separate store | ❌ | ❌ | ❌ (to some extent) |
 | **Embedded / Edge Support** | ✅ SQLite & in‑memory backends for single‑binary deployment | ❌ Requires Redis process | ❌ | ❌ | ❌ |
 | **Idle CPU Usage** | **0.0%** | Low | Medium | Low | High (polling) |
 | **Max Throughput (enqueue)** | **380,000 jobs/sec** (in‑memory) | ~5,000–10,000/sec | ~2,000–5,000/sec | ~5,000–10,000/sec | ~8,500/sec |
@@ -139,6 +139,9 @@ cargo bench -p azums
 - **[Docs.rs API Guide](https://docs.rs/azums)**: Comprehensive module documentation & inline examples.
 - **[Architecture & Technical Design (ARCHITECTURE.md)](./ARCHITECTURE.md)**: State machine, `FOR UPDATE SKIP LOCKED` leasing algorithm, phantom recovery, and partitioning.
 - **[Azums Low-Level Design (LLD + DSA)](./docs/architecture/LLD.md)**: Deep-dive architecture specs, data structures, and algorithm complexity.
+- **[Execution Semantics](./docs/src/semantics.md)**: Canonical guarantee matrix for scheduling, DLQ, idempotency, transactional enqueue, streams, consumer groups, replay, and cancellation.
+- **[Storage Backend Equivalence](./docs/src/backend_equivalence.md)**: Runtime capability model and compatibility matrix for Memory, SQLite, PostgreSQL, and Redis.
+- **[Transactional Integrity](./docs/src/transactional_integrity.md)**: Commit/rollback contract for SQL transactional enqueue.
 - **[Azums Architecture Book](https://blockforge-dev.github.io/azums/)**: FOR UPDATE SKIP LOCKED leasing, DLQ sequence diagrams, and table partitioning.
 
 ---
@@ -155,4 +158,3 @@ cargo bench -p azums
 Contributions are welcome! Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md).
 
 Licensed under either of [Apache License, Version 2.0](./LICENSE-APACHE) or [MIT License](./LICENSE-MIT) at your option.
-
