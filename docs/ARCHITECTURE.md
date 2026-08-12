@@ -90,7 +90,7 @@ Migrations live in `crates/postgresflow/migrations`.
 6. Outcome:
    - success: `status='succeeded'`
    - retryable failure: requeue with exponential backoff + jitter
-   - non-retryable or max attempts reached: `status='dlq'`
+   - permanent failure or max attempts reached: `status='dlq'`
 
 ## Correctness and Delivery Semantics
 - Leasing uses `FOR UPDATE SKIP LOCKED` to prevent dual lease.

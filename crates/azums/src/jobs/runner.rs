@@ -1,7 +1,7 @@
 use crate::jobs::{
     attempts::AttemptsRepo,
     repo::JobsRepo,
-    retry::{classify_error, next_delay_seconds, ErrorClass, RetryConfig},
+    retry::{classify_error, next_delay_seconds, RetryConfig},
 };
 use chrono::Utc;
 use rand::{rngs::StdRng, SeedableRng};
@@ -82,7 +82,7 @@ impl JobRunner {
 
         // 2) Decide retry vs DLQ
         let class = classify_error(error_code);
-        let can_retry = class == ErrorClass::Retryable && attempt_no < max_attempts;
+        let can_retry = class.is_retryable() && attempt_no < max_attempts;
 
         if can_retry {
             // retry: exponential backoff + jitter + cap
@@ -94,11 +94,8 @@ impl JobRunner {
                 .reschedule_for_retry(job_id, next_run_at, Some(error_code), Some(error_message))
                 .await?;
         } else {
-            // DLQ: retries exhausted OR non-retryable
-            let reason_code = match class {
-                ErrorClass::NonRetryable => "NON_RETRYABLE",
-                ErrorClass::Retryable => "MAX_ATTEMPTS_EXCEEDED", // retryable but ran out
-            };
+            // DLQ: retries exhausted or the failure class is terminal.
+            let reason_code = class.dlq_reason_code();
 
             self.jobs
                 .mark_dlq(

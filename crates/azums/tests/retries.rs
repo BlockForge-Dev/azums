@@ -151,7 +151,7 @@ async fn non_retryable_goes_to_dlq() {
             attempt.id,
             worker_id,
             10,
-            "BAD_PAYLOAD", // <- non-retryable (or whatever you classify as non-retryable)
+            "BAD_PAYLOAD",
             "bad payload",
             attempt.attempt_no,
             job.max_attempts,
@@ -163,5 +163,5 @@ async fn non_retryable_goes_to_dlq() {
     let updated = jobs.get_job(job.id).await.unwrap().unwrap();
     assert_eq!(updated.status, "dlq");
     assert!(updated.dlq_at.is_some());
-    assert_eq!(updated.dlq_reason_code.as_deref(), Some("NON_RETRYABLE"));
+    assert_eq!(updated.dlq_reason_code.as_deref(), Some("PERMANENT_ERROR"));
 }

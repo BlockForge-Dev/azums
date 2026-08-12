@@ -2,8 +2,7 @@ use crate::{
     backend::PostgresBackend,
     jobs::{
         model::{Job, NewJob},
-        retry::classify_error,
-        retry::{next_delay_seconds, ErrorClass, RetryConfig},
+        retry::{classify_error, next_delay_seconds, parse_handler_error, RetryConfig},
     },
 };
 use azums_core::StorageBackend;
@@ -402,7 +401,7 @@ impl QuickstartFlow {
                     let (err_code, err_msg) = if is_panic {
                         ("PANIC", err_str.trim_start_matches("PANIC: "))
                     } else if handler_opt.is_some() {
-                        ("HANDLER_ERROR", err_str.as_str())
+                        parse_handler_error(err_str.as_str())
                     } else {
                         ("UNKNOWN_JOB_TYPE", err_str.as_str())
                     };
@@ -452,7 +451,7 @@ impl QuickstartFlow {
         max_attempts: i32,
     ) -> anyhow::Result<()> {
         let class = classify_error(error_code);
-        let can_retry = class == ErrorClass::Retryable && attempt_no < max_attempts;
+        let can_retry = class.is_retryable() && attempt_no < max_attempts;
 
         if can_retry {
             let mut rng = StdRng::from_entropy();
@@ -472,10 +471,7 @@ impl QuickstartFlow {
                 )
                 .await
         } else {
-            let reason_code = match class {
-                ErrorClass::NonRetryable => "NON_RETRYABLE",
-                ErrorClass::Retryable => "MAX_ATTEMPTS_EXCEEDED",
-            };
+            let reason_code = class.dlq_reason_code();
 
             self.backend
                 .mark_dlq(

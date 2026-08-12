@@ -162,5 +162,5 @@ async fn non_retryable_goes_to_dlq_immediately() {
             .unwrap();
 
     assert_eq!(status, "dlq");
-    assert_eq!(reason.as_deref(), Some("NON_RETRYABLE"));
+    assert_eq!(reason.as_deref(), Some("PERMANENT_ERROR"));
 }

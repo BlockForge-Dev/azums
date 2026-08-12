@@ -17,8 +17,8 @@ This page is the canonical contract for Azums behavior. Use the labels below whe
 | Job execution delivery | **Guaranteed** | Azums provides **at-least-once execution** for jobs that are successfully enqueued, runnable, not canceled, and have available workers. |
 | Exactly-once external side effects | **Unspecified** | Azums does **not** guarantee exactly-once calls to external systems such as email, payment APIs, webhooks, LLM providers, or user handlers. |
 | Scheduling | **Guaranteed** for eligibility; **backend-dependent** for wake-up latency | A job with `run_at` in the future is not eligible for leasing until `run_at <= now()` according to the backend clock. Azums does not guarantee execution exactly at `run_at`. |
-| Retries | **Guaranteed** | Retryable failures are rescheduled until `max_attempts` is reached. Backoff and jitter are computed by Azums retry policy. |
-| DLQ transition | **Guaranteed** | A non-retryable failure or exhausted retry budget moves the job to `dlq` with a reason code and timestamp where the backend supports persisted job metadata. |
+| Retries | **Guaranteed** | Retryable, timeout, and system-failure classes are rescheduled until `max_attempts` is reached. Backoff and jitter are computed by Azums retry policy. |
+| DLQ transition | **Guaranteed** | Permanent failures, panics, and exhausted retry budgets move the job to `dlq` with a reason code and timestamp where the backend supports persisted job metadata. |
 | Idempotency | **Unspecified** | Azums does not deduplicate jobs or external side effects by payload, job type, stream payload, request ID, or business key. Applications must provide their own idempotency keys and dedupe storage. |
 | Transactional enqueue | **Backend-dependent** | PostgreSQL and SQLite can participate in database transaction semantics. Redis and In-Memory enqueue are atomic inside their own backend operations but are not ACID transactions with the application database. |
 | Job leasing exclusivity | **Guaranteed** | A runnable job is leased to at most one worker at a time. Expired leases can be reaped and made runnable again. |
@@ -52,8 +52,9 @@ Azums moves jobs to the Dead-Letter Queue when retry cannot or should not contin
 Guaranteed:
 
 - Retry exhaustion moves the job to `status = 'dlq'`.
-- Non-retryable error classes move the job to `status = 'dlq'` immediately.
-- DLQ jobs carry a reason code such as `MAX_ATTEMPTS_EXCEEDED` or `NON_RETRYABLE`.
+- Permanent error classes move the job to `status = 'dlq'` immediately.
+- Panics move the job to `status = 'dlq'` immediately with panic information where available.
+- DLQ jobs carry a reason code such as `MAX_ATTEMPTS_EXCEEDED`, `PERMANENT_ERROR`, or `PANIC`.
 - Attempt history is preserved until retention or maintenance removes it.
 - DLQ jobs can be replayed as new queued jobs.
 

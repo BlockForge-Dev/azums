@@ -20,16 +20,88 @@ impl Default for RetryConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorClass {
     Retryable,
-    NonRetryable,
+    Permanent,
+    Timeout,
+    Panic,
+    Cancelled,
+    SystemFailure,
 }
 
 pub fn classify_error(code: &str) -> ErrorClass {
-    match code {
-        "TIMEOUT" | "DEPENDENCY_DOWN" | "RATE_LIMIT" | "DB_DEADLOCK" | "SERIALIZATION" => {
-            ErrorClass::Retryable
+    match code.trim().to_uppercase().as_str() {
+        "TIMEOUT" => ErrorClass::Timeout,
+        "PANIC" => ErrorClass::Panic,
+        "CANCELLED" | "CANCELED" => ErrorClass::Cancelled,
+        "BAD_PAYLOAD" | "UNKNOWN_JOB_TYPE" | "PERMANENT" | "PERMANENT_ERROR" => {
+            ErrorClass::Permanent
         }
-        "BAD_PAYLOAD" | "UNKNOWN_JOB_TYPE" => ErrorClass::NonRetryable,
+        "DEPENDENCY_DOWN" | "DB_DEADLOCK" | "SERIALIZATION" | "RATE_LIMIT" | "DB_DISCONNECT"
+        | "SYSTEM_FAILURE" | "LEASE_EXPIRED" => ErrorClass::SystemFailure,
         _ => ErrorClass::Retryable,
+    }
+}
+
+impl ErrorClass {
+    pub fn is_retryable(self) -> bool {
+        matches!(
+            self,
+            ErrorClass::Retryable | ErrorClass::Timeout | ErrorClass::SystemFailure
+        )
+    }
+
+    pub fn dlq_reason_code(self) -> &'static str {
+        match self {
+            ErrorClass::Permanent => "PERMANENT_ERROR",
+            ErrorClass::Panic => "PANIC",
+            ErrorClass::Cancelled => "CANCELLED",
+            ErrorClass::Timeout | ErrorClass::Retryable | ErrorClass::SystemFailure => {
+                "MAX_ATTEMPTS_EXCEEDED"
+            }
+        }
+    }
+}
+
+pub fn parse_handler_error(message: &str) -> (&'static str, &str) {
+    let Some((code, rest)) = message.split_once(':') else {
+        return ("HANDLER_ERROR", message);
+    };
+
+    let code = code.trim().to_uppercase();
+    let known = matches!(
+        code.as_str(),
+        "TIMEOUT"
+            | "BAD_PAYLOAD"
+            | "PERMANENT"
+            | "PERMANENT_ERROR"
+            | "DEPENDENCY_DOWN"
+            | "DB_DEADLOCK"
+            | "SERIALIZATION"
+            | "RATE_LIMIT"
+            | "DB_DISCONNECT"
+            | "SYSTEM_FAILURE"
+            | "CANCELLED"
+            | "CANCELED"
+    );
+
+    if known {
+        let canonical = match code.as_str() {
+            "PERMANENT" => "PERMANENT_ERROR",
+            "CANCELED" => "CANCELLED",
+            "TIMEOUT" => "TIMEOUT",
+            "BAD_PAYLOAD" => "BAD_PAYLOAD",
+            "PERMANENT_ERROR" => "PERMANENT_ERROR",
+            "DEPENDENCY_DOWN" => "DEPENDENCY_DOWN",
+            "DB_DEADLOCK" => "DB_DEADLOCK",
+            "SERIALIZATION" => "SERIALIZATION",
+            "RATE_LIMIT" => "RATE_LIMIT",
+            "DB_DISCONNECT" => "DB_DISCONNECT",
+            "SYSTEM_FAILURE" => "SYSTEM_FAILURE",
+            "CANCELLED" => "CANCELLED",
+            _ => "HANDLER_ERROR",
+        };
+        (canonical, rest.trim())
+    } else {
+        ("HANDLER_ERROR", message)
     }
 }
 
