@@ -22,6 +22,7 @@
 - [Fuzzing & Input Hardening](fuzzing_input_hardening.md)
 - [Performance Engineering](performance_engineering.md)
 - [Performance Regression Protection](performance_regression_protection.md)
+- [Developer Experience & Integration](developer_experience.md)
 - [Redis Storage Backend](redis_backend.md)
 - [Low-Level Design & DSA](LLD.md)
 - [Job Lifecycle](job_lifecycle.md)

@@ -90,9 +90,29 @@ impl QuickstartFlow {
         &self.backend
     }
 
+    /// Returns the default queue name used by this client.
+    pub fn queue(&self) -> &str {
+        &self.queue
+    }
+
+    /// Returns the worker identity used by this client when running jobs.
+    pub fn worker_id(&self) -> &str {
+        &self.worker_id
+    }
+
     /// Returns the storage guarantees and feature support declared by the active backend.
     pub fn capabilities(&self) -> azums_core::BackendCapabilities {
         self.backend.capabilities()
+    }
+
+    /// Fetches a job by ID for simple inspection and debugging.
+    pub async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {
+        self.backend.get_job(job_id).await
+    }
+
+    /// Replays a previously stored job into the queue.
+    pub async fn replay_job(&self, job_id: Uuid) -> anyhow::Result<Uuid> {
+        self.backend.replay_job(job_id, None, None).await
     }
 
     /// Returns a [`StreamHandle`](crate::StreamHandle) for high-level Redis-style stream log operations.

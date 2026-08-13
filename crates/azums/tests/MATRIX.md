@@ -129,3 +129,17 @@ Regression guard:
 - Fails on >5% p50/p99 latency regression by default.
 - Fails on >10% allocation or memory increase when those counters are measured.
 - Emits explicit `PERF_GUARD_SKIP` lines for nullable/unmeasured CPU, allocation, or memory counters.
+
+---
+
+## Developer Experience
+
+Covered by:
+
+- tests/m16_developer_experience.rs::m16_install_enqueue_process_retry_inspect_path_is_one_client
+- crates/azums/examples/install_enqueue_process_retry_inspect.rs
+
+Properties:
+
+- New users can install, enqueue, process, retry, inspect, replay, and use stream consumer groups through one client.
+- Advanced users can progressively access backend capabilities and storage-specific APIs without rewriting business handlers.

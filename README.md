@@ -51,6 +51,14 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+For the progressive install → enqueue → process → retry → inspect path, run:
+
+```bash
+cargo run -p azums --example install_enqueue_process_retry_inspect
+```
+
+Then read [Developer Experience & Integration](./docs/src/developer_experience.md).
+
 ---
 
 ## 🆚 Why azums over other job queues?
@@ -147,6 +155,7 @@ cargo bench -p azums
 - **[Transactional Integrity](./docs/src/transactional_integrity.md)**: Commit/rollback contract for SQL transactional enqueue.
 - **[Retry, Failure Classification & DLQ](./docs/src/failure_handling.md)**: Deterministic failure classes, backoff policy, DLQ inspection, and replay.
 - **[Idempotency & Duplicate Execution](./docs/src/idempotency.md)**: Enqueue dedupe keys and application-side side-effect idempotency.
+- **[Developer Experience & Integration](./docs/src/developer_experience.md)**: Install-to-inspect adoption path and integration notes.
 - **[Azums Architecture Book](https://blockforge-dev.github.io/azums/)**: FOR UPDATE SKIP LOCKED leasing, DLQ sequence diagrams, and table partitioning.
 
 ---
