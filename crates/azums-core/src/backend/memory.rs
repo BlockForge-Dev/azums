@@ -62,6 +62,12 @@ impl MemoryBackend {
         state.stream_offsets.clear();
     }
 
+    #[doc(hidden)]
+    pub fn attempts_snapshot(&self) -> Vec<MemoryAttempt> {
+        let state = self.state.read().unwrap();
+        state.attempts.values().cloned().collect()
+    }
+
     fn notify_queue(&self, queue: &str) {
         let notifiers = self.notifiers.read().unwrap();
         if let Some(tx) = notifiers.get(queue) {

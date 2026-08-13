@@ -18,6 +18,7 @@
 - [Scheduling & Time Semantics](time_semantics.md)
 - [Durable Event Streaming](event_streaming.md)
 - [Chaos Engineering](chaos_engineering.md)
+- [Property-Based Testing](property_testing.md)
 - [Redis Storage Backend](redis_backend.md)
 - [Low-Level Design & DSA](LLD.md)
 - [Job Lifecycle](job_lifecycle.md)

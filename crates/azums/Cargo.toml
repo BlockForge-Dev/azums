@@ -50,6 +50,7 @@ testcontainers = "0.15"
 serial_test = "3"
 dotenvy = "0.15"
 criterion = { version = "0.5", features = ["async_tokio"] }
+proptest = "1"
 
 [[bench]]
 name = "throughput"

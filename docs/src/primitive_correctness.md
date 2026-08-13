@@ -44,6 +44,7 @@ Legend:
 | Replay | Create new work from old work or read stream history. | Replay creates new work and preserves original history. | `replay_job`, `read_events` | Integration: replay tests, stream replay tests | PG, SQLite, Redis, Memory |
 | DLQ inspection | Inspect terminal failed work. | Original job row, payload, attempt history, workers, errors, timestamps, and reason code remain reconstructable until retention removes them. | `get_job`, `job_attempts`, timeline, replay | Integration/failure: DLQ inspection and replay | PG |
 | Idempotency | Duplicate enqueue protection belongs to Azums when `idempotency_key` is provided; duplicate side-effect protection belongs to the application. | Same key creates one logical job; duplicate delivery can still occur after crash/retry/replay. | `idempotency_key`, documented side-effect pattern, `sequence_no`, job IDs | Integration/failure: duplicate enqueue test, crash-after-side-effect idempotency test, stream offset monotonic tests | PG, SQLite, Redis, Memory |
+| Property generation | Generate lifecycle programs rather than only curated examples. | Generated jobs, transitions, leases, attempts, retries, schedules, duplicate keys, workers, and rollbacks preserve the same invariants as hand-written tests. | `proptest` integration tests | Property/failure: M12 generated lifecycle, transition, and SQLite rollback properties | Memory and SQLite automated; PG/Redis generated profiles are environment-dependent |
 
 ## Coordination Primitives
 

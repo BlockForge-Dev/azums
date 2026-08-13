@@ -63,6 +63,25 @@ Notes:
 
 ---
 
+## Property-Based Testing
+
+Covered by:
+
+- tests/m12_property_based.rs::m12_generated_lifecycle_programs_preserve_core_invariants
+- tests/m12_property_based.rs::m12_generated_lifecycle_state_transitions_are_exact
+- tests/m12_property_based.rs::m12_sqlite_generated_rollbacks_leave_no_durable_job
+
+Properties:
+
+- No illegal state transition.
+- No duplicate valid lease.
+- Attempts never decrease.
+- Terminal jobs remain terminal.
+- Rollback produces no durable job.
+- Duplicate enqueue operations with an idempotency key produce one logical job.
+
+---
+
 ## Load & Cost
 
 Status:
