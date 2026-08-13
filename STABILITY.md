@@ -1,10 +1,17 @@
 # API Stability Policy
 
-Azums follows [Semantic Versioning](https://semver.org/). Until version 1.0, minor releases **may** contain breaking changes to **unstable** APIs. Stable APIs will follow semver strictly even before 1.0.
+Azums follows [Semantic Versioning](https://semver.org/). Until version 1.0, minor releases **may**
+contain breaking changes to **unstable** APIs. Stable APIs will follow semver strictly even before
+1.0.
+
+1.0 is allowed only after the [M21 Stable Release Gate](docs/src/stable_release.md) passes for the
+exact release commit. Azums treats 1.0 as a stable-semantics declaration, not as a feature-count
+milestone.
 
 ## Stable APIs
 
-These types and functions are considered stable. Breaking changes to these will require a minor version bump (pre-1.0) or a major version bump (post-1.0), with a deprecation period where feasible.
+These types and functions are considered stable. Breaking changes to these will require a minor
+version bump (pre-1.0) or a major version bump (post-1.0), with a deprecation period where feasible.
 
 | Item | Module |
 |------|--------|
@@ -34,7 +41,8 @@ These types and functions are considered stable. Breaking changes to these will 
 
 ## Unstable APIs
 
-These modules are marked with `⚠️ Unstable API` in their doc comments. Their interfaces may change in any minor version before 1.0 without a deprecation period.
+These modules are marked with `Unstable API` in their doc comments. Their interfaces may change in
+any minor version before 1.0 without a deprecation period.
 
 | Module | Reason |
 |--------|--------|
@@ -46,7 +54,7 @@ These modules are marked with `⚠️ Unstable API` in their doc comments. Their
 
 ## How to Identify Unstable APIs
 
-1. **Doc comments:** Unstable modules carry a `⚠️ Unstable API` warning in their documentation.
+1. **Doc comments:** Unstable modules carry an `Unstable API` warning in their documentation.
 2. **This document:** The tables above are the canonical reference.
 
 ## Reporting Breakage

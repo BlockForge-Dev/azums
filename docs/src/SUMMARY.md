@@ -73,3 +73,4 @@
 
 - [Low-Level Design & DSA](LLD.md)
 - [M20 Release Candidate Evidence](release_candidate.md)
+- [M21 Stable Release Gate](stable_release.md)
