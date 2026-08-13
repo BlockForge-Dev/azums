@@ -59,3 +59,5 @@ cargo bench -p azums --benches
 ```
 
 Use Criterion for regression detection and `azums-perf` for end-to-end comparison across backend, worker, and workload dimensions.
+
+For automatic regression thresholds, see [Performance Regression Protection](performance_regression_protection.md).

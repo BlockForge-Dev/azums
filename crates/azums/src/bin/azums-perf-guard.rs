@@ -1,0 +1,267 @@
+use serde::Deserialize;
+use std::{collections::HashMap, env, fs, path::PathBuf};
+
+#[derive(Debug, Deserialize)]
+struct PerfReport {
+    results: Vec<ScenarioReport>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ScenarioReport {
+    backend: String,
+    workload: String,
+    workers: usize,
+    throughput_jobs_per_sec: f64,
+    latency: LatencyReport,
+    resources: ResourceReport,
+}
+
+#[derive(Debug, Deserialize)]
+struct LatencyReport {
+    p50_ms: f64,
+    p99_ms: f64,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResourceReport {
+    allocations: Option<u64>,
+    cpu: Option<String>,
+    ram_bytes: Option<u64>,
+}
+
+#[derive(Debug)]
+struct Thresholds {
+    throughput_regression: f64,
+    latency_regression: f64,
+    allocation_regression: f64,
+    memory_regression: f64,
+}
+
+#[derive(Debug)]
+struct Regression {
+    key: String,
+    metric: &'static str,
+    baseline: f64,
+    current: f64,
+    change_pct: f64,
+    threshold_pct: f64,
+}
+
+fn main() -> anyhow::Result<()> {
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 3 {
+        eprintln!(
+            "usage: azums-perf-guard <baseline m14_report.json> <current m14_report.json>\n\
+             thresholds: AZUMS_PERF_MAX_THROUGHPUT_REGRESSION=0.05, \
+             AZUMS_PERF_MAX_LATENCY_REGRESSION=0.05, \
+             AZUMS_PERF_MAX_ALLOCATION_REGRESSION=0.10, \
+             AZUMS_PERF_MAX_MEMORY_REGRESSION=0.10"
+        );
+        std::process::exit(2);
+    }
+
+    let baseline = load_report(PathBuf::from(&args[1]))?;
+    let current = load_report(PathBuf::from(&args[2]))?;
+    let thresholds = Thresholds::from_env();
+    let regressions = compare_reports(&baseline, &current, &thresholds);
+
+    if regressions.is_empty() {
+        println!(
+            "PERF_GUARD_OK compared={} regressions=0",
+            current.results.len()
+        );
+        return Ok(());
+    }
+
+    for regression in &regressions {
+        eprintln!(
+            "PERF_REGRESSION key={} metric={} baseline={:.6} current={:.6} change={:.2}% threshold={:.2}%",
+            regression.key,
+            regression.metric,
+            regression.baseline,
+            regression.current,
+            regression.change_pct * 100.0,
+            regression.threshold_pct * 100.0,
+        );
+    }
+
+    anyhow::bail!(
+        "{} performance regression(s) exceeded thresholds",
+        regressions.len()
+    )
+}
+
+fn load_report(path: PathBuf) -> anyhow::Result<PerfReport> {
+    Ok(serde_json::from_slice(&fs::read(&path)?)?)
+}
+
+fn compare_reports(
+    baseline: &PerfReport,
+    current: &PerfReport,
+    thresholds: &Thresholds,
+) -> Vec<Regression> {
+    let baseline = baseline
+        .results
+        .iter()
+        .map(|result| (scenario_key(result), result))
+        .collect::<HashMap<_, _>>();
+
+    let mut regressions = Vec::new();
+    for current_result in &current.results {
+        let key = scenario_key(current_result);
+        let Some(baseline_result) = baseline.get(&key) else {
+            println!("PERF_GUARD_SKIP key={key} reason=missing-baseline");
+            continue;
+        };
+
+        compare_lower_is_worse(
+            &mut regressions,
+            &key,
+            "throughput_jobs_per_sec",
+            baseline_result.throughput_jobs_per_sec,
+            current_result.throughput_jobs_per_sec,
+            thresholds.throughput_regression,
+        );
+        compare_higher_is_worse(
+            &mut regressions,
+            &key,
+            "latency.p50_ms",
+            baseline_result.latency.p50_ms,
+            current_result.latency.p50_ms,
+            thresholds.latency_regression,
+        );
+        compare_higher_is_worse(
+            &mut regressions,
+            &key,
+            "latency.p99_ms",
+            baseline_result.latency.p99_ms,
+            current_result.latency.p99_ms,
+            thresholds.latency_regression,
+        );
+
+        compare_optional_higher_is_worse(
+            &mut regressions,
+            &key,
+            "resources.allocations",
+            baseline_result
+                .resources
+                .allocations
+                .map(|value| value as f64),
+            current_result
+                .resources
+                .allocations
+                .map(|value| value as f64),
+            thresholds.allocation_regression,
+        );
+        compare_optional_higher_is_worse(
+            &mut regressions,
+            &key,
+            "resources.ram_bytes",
+            baseline_result
+                .resources
+                .ram_bytes
+                .map(|value| value as f64),
+            current_result.resources.ram_bytes.map(|value| value as f64),
+            thresholds.memory_regression,
+        );
+
+        if baseline_result.resources.cpu.is_none() || current_result.resources.cpu.is_none() {
+            println!("PERF_GUARD_SKIP key={key} metric=resources.cpu reason=not-measured");
+        }
+    }
+
+    regressions
+}
+
+fn compare_lower_is_worse(
+    regressions: &mut Vec<Regression>,
+    key: &str,
+    metric: &'static str,
+    baseline: f64,
+    current: f64,
+    threshold: f64,
+) {
+    if baseline <= 0.0 {
+        println!("PERF_GUARD_SKIP key={key} metric={metric} reason=zero-baseline");
+        return;
+    }
+    let change = (baseline - current) / baseline;
+    if change > threshold {
+        regressions.push(Regression {
+            key: key.to_string(),
+            metric,
+            baseline,
+            current,
+            change_pct: change,
+            threshold_pct: threshold,
+        });
+    }
+}
+
+fn compare_higher_is_worse(
+    regressions: &mut Vec<Regression>,
+    key: &str,
+    metric: &'static str,
+    baseline: f64,
+    current: f64,
+    threshold: f64,
+) {
+    if baseline <= 0.0 {
+        println!("PERF_GUARD_SKIP key={key} metric={metric} reason=zero-baseline");
+        return;
+    }
+    let change = (current - baseline) / baseline;
+    if change > threshold {
+        regressions.push(Regression {
+            key: key.to_string(),
+            metric,
+            baseline,
+            current,
+            change_pct: change,
+            threshold_pct: threshold,
+        });
+    }
+}
+
+fn compare_optional_higher_is_worse(
+    regressions: &mut Vec<Regression>,
+    key: &str,
+    metric: &'static str,
+    baseline: Option<f64>,
+    current: Option<f64>,
+    threshold: f64,
+) {
+    match (baseline, current) {
+        (Some(baseline), Some(current)) => {
+            compare_higher_is_worse(regressions, key, metric, baseline, current, threshold);
+        }
+        _ => {
+            println!("PERF_GUARD_SKIP key={key} metric={metric} reason=not-measured");
+        }
+    }
+}
+
+fn scenario_key(result: &ScenarioReport) -> String {
+    format!("{}|{}|{}", result.backend, result.workload, result.workers)
+}
+
+impl Thresholds {
+    fn from_env() -> Self {
+        Self {
+            throughput_regression: env_parse("AZUMS_PERF_MAX_THROUGHPUT_REGRESSION", 0.05),
+            latency_regression: env_parse("AZUMS_PERF_MAX_LATENCY_REGRESSION", 0.05),
+            allocation_regression: env_parse("AZUMS_PERF_MAX_ALLOCATION_REGRESSION", 0.10),
+            memory_regression: env_parse("AZUMS_PERF_MAX_MEMORY_REGRESSION", 0.10),
+        }
+    }
+}
+
+fn env_parse<T>(name: &str, default: T) -> T
+where
+    T: std::str::FromStr,
+{
+    env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<T>().ok())
+        .unwrap_or(default)
+}

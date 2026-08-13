@@ -120,3 +120,12 @@ Artifacts:
 - `target/azums-perf/m14_report.json`
 - `target/azums-perf/m14_report.md`
 - tests/m14_performance_harness.rs::m14_perf_binary_emits_reproducible_reports
+- tests/m15_performance_regression_guard.rs::m15_perf_guard_passes_matching_reports_and_fails_meaningful_regressions
+
+Regression guard:
+
+- `azums-perf-guard <baseline m14_report.json> <current m14_report.json>`
+- Fails on >5% throughput regression by default.
+- Fails on >5% p50/p99 latency regression by default.
+- Fails on >10% allocation or memory increase when those counters are measured.
+- Emits explicit `PERF_GUARD_SKIP` lines for nullable/unmeasured CPU, allocation, or memory counters.

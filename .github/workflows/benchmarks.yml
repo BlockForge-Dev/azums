@@ -59,11 +59,47 @@ jobs:
         run: |
           cargo bench --benches --all-features
 
+      - name: Run M14 Performance Matrix
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgresflow_dev
+          REDIS_URL: redis://127.0.0.1:6379
+          AZUMS_PERF_BACKENDS: memory,sqlite,postgres,redis
+          AZUMS_PERF_JOBS: 10000
+          AZUMS_PERF_ITERATIONS: 5
+          AZUMS_PERF_OUTPUT_DIR: target/azums-perf
+        run: |
+          cargo run -p azums --release --bin azums-perf
+
+      - name: Download Performance Baseline
+        uses: actions/download-artifact@v4
+        with:
+          name: azums-perf-baseline
+          path: target/azums-perf-baseline
+        continue-on-error: true
+
+      - name: Guard Performance Regressions
+        run: |
+          if [ -f target/azums-perf-baseline/m14_report.json ]; then
+            cargo run -p azums --bin azums-perf-guard -- \
+              target/azums-perf-baseline/m14_report.json \
+              target/azums-perf/m14_report.json
+          else
+            echo "PERF_GUARD_SKIP reason=missing-baseline-artifact"
+          fi
+
       - name: Prepare Dashboard Artifact
         run: |
           mkdir -p target/dashboard
           cp -r docs/benchmarks/* target/dashboard/
           cp -r target/criterion target/dashboard/criterion || true
+          cp -r target/azums-perf target/dashboard/azums-perf || true
+
+      - name: Upload Performance Baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: azums-perf-baseline
+          path: target/azums-perf/m14_report.json
+          if-no-files-found: error
 
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'

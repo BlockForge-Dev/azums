@@ -93,6 +93,10 @@ required-features = ["cli"]
 name = "azums-perf"
 path = "src/bin/azums-perf.rs"
 
+[[bin]]
+name = "azums-perf-guard"
+path = "src/bin/azums-perf-guard.rs"
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
