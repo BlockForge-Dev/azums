@@ -14,7 +14,7 @@ Legend:
 
 | Primitive | Definition | Invariant | Implementation | Test evidence | Backend coverage |
 |---|---|---|---|---|---|
-| Job identity | Every job has a unique `Uuid` identity. | Job IDs are immutable and identify one durable work item. Replay creates a new ID. | `Job::new`, backend `enqueue`, `replay_job` | Unit: `test_core_job_creation_and_typed_payload`; integration: `replay_creates_new_job_with_lineage`; failure: missing job errors in replay/cancel paths | PG, SQLite, Redis, Memory |
+| Job identity | Every job has a unique `Uuid` identity. | Job IDs are immutable and identify one durable work item. Replay creates a new ID. Enqueue idempotency returns an existing ID instead of creating duplicate logical work. | `Job::new`, backend `enqueue`, `idempotency_key`, `replay_job` | Unit: `test_core_job_creation_and_typed_payload`; integration: `duplicate_enqueue_attempts_with_same_key_create_one_logical_job`, `replay_creates_new_job_with_lineage`; failure: missing job errors in replay/cancel paths | PG, SQLite, Redis, Memory |
 | Job type | Handler routing key. | A job type is preserved from enqueue through attempts and replay. | `Job.job_type`, `NewJob.job_type` | Unit: core job creation; integration: quickstart/API audit; failure: unknown job type routes to retry/DLQ through runner classification | PG, SQLite, Redis, Memory |
 | Payload | JSON work input. | Payload is stored unchanged and typed decoding failures are explicit errors. | `payload_json`, `Job::payload_typed` | Unit: payload typed success/failure; integration: quickstart handlers | PG, SQLite, Redis, Memory |
 | Metadata | Operational fields: replay lineage, error summary, DLQ reason, timestamps, locks. | Metadata is written only by the transition that owns it. | `Job` fields, `JobAttempt`, timeline | Integration: timeline, DLQ, replay, maintenance; failure: invalid transitions reject writes | PG, SQLite, Redis, Memory |
@@ -42,7 +42,7 @@ Legend:
 | Recovery | Reclaim abandoned running work. | Recovered jobs are re-eligible only after lease expiry. | `reap_expired_locks` | Failure: worker crash, phantom recovery | PG, SQLite, Redis, Memory |
 | Replay | Create new work from old work or read stream history. | Replay creates new work and preserves original history. | `replay_job`, `read_events` | Integration: replay tests, stream replay tests | PG, SQLite, Redis, Memory |
 | DLQ inspection | Inspect terminal failed work. | Original job row, payload, attempt history, workers, errors, timestamps, and reason code remain reconstructable until retention removes them. | `get_job`, `job_attempts`, timeline, replay | Integration/failure: DLQ inspection and replay | PG |
-| Idempotency | Duplicate side-effect protection belongs to the application. | Azums does not deduplicate external effects; it exposes IDs and sequence numbers for dedupe. | documented semantics, `sequence_no`, job IDs | Unit/integration: stream offset monotonic tests; failure semantics documented in `semantics.md` | PG, SQLite, Redis, Memory |
+| Idempotency | Duplicate enqueue protection belongs to Azums when `idempotency_key` is provided; duplicate side-effect protection belongs to the application. | Same key creates one logical job; duplicate delivery can still occur after crash/retry/replay. | `idempotency_key`, documented side-effect pattern, `sequence_no`, job IDs | Integration/failure: duplicate enqueue test, crash-after-side-effect idempotency test, stream offset monotonic tests | PG, SQLite, Redis, Memory |
 
 ## Coordination Primitives
 

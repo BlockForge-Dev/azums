@@ -4,6 +4,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS jobs (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 
+  idempotency_key text NULL,
   queue        text NOT NULL,
   job_type     text NOT NULL,
   payload_json jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -38,3 +39,7 @@ EXECUTE FUNCTION set_updated_at();
 -- runnable scan index (future-proof for leasing + scheduling)
 CREATE INDEX IF NOT EXISTS jobs_runnable_idx
   ON jobs (queue, status, run_at, priority DESC, created_at);
+
+CREATE UNIQUE INDEX IF NOT EXISTS jobs_idempotency_key_uq
+  ON jobs (idempotency_key)
+  WHERE idempotency_key IS NOT NULL;

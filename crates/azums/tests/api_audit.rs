@@ -59,6 +59,7 @@ async fn test_payload_typed_and_client_processor() -> anyhow::Result<()> {
             queue: "default".into(),
             job_type: "send_email".into(),
             payload_json: serde_json::json!({"to": "alice@example.com", "subject": "Welcome!"}),
+            idempotency_key: None,
             run_at: chrono::Utc::now(),
             priority: 0,
             max_attempts: 5,

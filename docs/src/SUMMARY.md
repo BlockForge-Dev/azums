@@ -13,6 +13,7 @@
 - [Storage Backend Equivalence](backend_equivalence.md)
 - [Transactional Integrity](transactional_integrity.md)
 - [Retry, Failure Classification & DLQ](failure_handling.md)
+- [Idempotency & Duplicate Execution](idempotency.md)
 - [Redis Storage Backend](redis_backend.md)
 - [Low-Level Design & DSA](LLD.md)
 - [Job Lifecycle](job_lifecycle.md)

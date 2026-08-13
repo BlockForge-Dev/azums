@@ -51,6 +51,7 @@ BEGIN
       dataset_id text NOT NULL DEFAULT 'legacy',
       id uuid NOT NULL DEFAULT gen_random_uuid(),
 
+      idempotency_key text NULL,
       queue text NOT NULL,
       job_type text NOT NULL,
       payload_json jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -166,6 +167,10 @@ CREATE INDEX IF NOT EXISTS jobs_lock_expiry_idx
 
 CREATE INDEX IF NOT EXISTS jobs_replay_of_idx
   ON jobs(replay_of_job_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS jobs_idempotency_key_uq
+  ON jobs(dataset_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS jobs_created_at_id_desc_idx
   ON jobs(created_at DESC, id DESC);

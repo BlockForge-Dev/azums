@@ -98,10 +98,22 @@ impl StorageBackend for MemoryBackend {
         let job_id = Uuid::new_v4();
         let now = Utc::now();
         let queue_name = job.queue.clone();
+        let mut state = self.state.write().unwrap();
+
+        if let Some(key) = &job.idempotency_key {
+            if let Some(existing) = state
+                .jobs
+                .values()
+                .find(|existing| existing.idempotency_key.as_deref() == Some(key.as_str()))
+            {
+                return Ok(existing.id);
+            }
+        }
 
         let job_entity = Job {
             dataset_id: "default".to_string(),
             replay_of_job_id: None,
+            idempotency_key: job.idempotency_key,
             id: job_id,
             queue: job.queue,
             job_type: job.job_type,
@@ -119,10 +131,8 @@ impl StorageBackend for MemoryBackend {
             updated_at: now,
         };
 
-        {
-            let mut state = self.state.write().unwrap();
-            state.jobs.insert(job_id, job_entity);
-        }
+        state.jobs.insert(job_id, job_entity);
+        drop(state);
 
         self.notify_queue(&queue_name);
         Ok(job_id)
@@ -650,6 +660,7 @@ impl StorageBackend for MemoryBackend {
             })
             .map(|j| JobListItem {
                 id: j.id,
+                idempotency_key: j.idempotency_key.clone(),
                 queue: j.queue.clone(),
                 job_type: j.job_type.clone(),
                 status: j.status.clone(),
@@ -698,6 +709,7 @@ impl StorageBackend for MemoryBackend {
         let new_job = Job {
             dataset_id: "default".to_string(),
             replay_of_job_id: Some(job_id),
+            idempotency_key: None,
             id: new_id,
             queue: target_queue,
             job_type: src.job_type,

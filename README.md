@@ -143,6 +143,7 @@ cargo bench -p azums
 - **[Storage Backend Equivalence](./docs/src/backend_equivalence.md)**: Runtime capability model and compatibility matrix for Memory, SQLite, PostgreSQL, and Redis.
 - **[Transactional Integrity](./docs/src/transactional_integrity.md)**: Commit/rollback contract for SQL transactional enqueue.
 - **[Retry, Failure Classification & DLQ](./docs/src/failure_handling.md)**: Deterministic failure classes, backoff policy, DLQ inspection, and replay.
+- **[Idempotency & Duplicate Execution](./docs/src/idempotency.md)**: Enqueue dedupe keys and application-side side-effect idempotency.
 - **[Azums Architecture Book](https://blockforge-dev.github.io/azums/)**: FOR UPDATE SKIP LOCKED leasing, DLQ sequence diagrams, and table partitioning.
 
 ---

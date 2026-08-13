@@ -35,6 +35,7 @@ proptest! {
                             queue: "default".to_string(),
                             job_type,
                             payload_json: json!({"val": val}),
+                            idempotency_key: None,
                             run_at: Utc::now(),
                             priority: 0,
                             max_attempts: 1, // Fail immediately goes to DLQ

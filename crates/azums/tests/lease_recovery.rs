@@ -18,7 +18,7 @@ async fn sqlite_job_by_type(backend: &SqliteBackend, job_type: &str) -> anyhow::
     sqlx::query_as::<_, Job>(
         r#"
         SELECT
-            dataset_id, replay_of_job_id, id, queue, job_type,
+            dataset_id, replay_of_job_id, idempotency_key, id, queue, job_type,
             payload_json, run_at, status, priority, max_attempts,
             locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
             created_at, updated_at

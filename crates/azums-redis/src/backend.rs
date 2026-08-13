@@ -82,12 +82,25 @@ impl StorageBackend for RedisBackend {
     }
 
     async fn enqueue(&self, job: NewJob) -> anyhow::Result<Uuid> {
+        let mut conn = self.conn_mgr.clone();
         let job_id = Uuid::new_v4();
         let now = Utc::now();
+        let idempotency_key = job.idempotency_key.clone();
+
+        if let Some(key) = &idempotency_key {
+            let claimed: bool = conn
+                .hset_nx("azums:idempotency", key, job_id.to_string())
+                .await?;
+            if !claimed {
+                let existing: String = conn.hget("azums:idempotency", key).await?;
+                return Ok(Uuid::parse_str(&existing)?);
+            }
+        }
 
         let job_entity = Job {
             dataset_id: "default".to_string(),
             replay_of_job_id: None,
+            idempotency_key,
             id: job_id,
             queue: job.queue.clone(),
             job_type: job.job_type,
@@ -106,7 +119,6 @@ impl StorageBackend for RedisBackend {
         };
 
         let json_str = serde_json::to_string(&job_entity)?;
-        let mut conn = self.conn_mgr.clone();
 
         let _: () = conn
             .hset("azums:jobs", job_id.to_string(), json_str)
@@ -573,6 +585,7 @@ impl StorageBackend for RedisBackend {
 
                 items.push(JobListItem {
                     id: job.id,
+                    idempotency_key: job.idempotency_key,
                     queue: job.queue,
                     job_type: job.job_type,
                     status: job.status,
@@ -615,6 +628,7 @@ impl StorageBackend for RedisBackend {
         let new_job = Job {
             dataset_id: "default".to_string(),
             replay_of_job_id: Some(job_id),
+            idempotency_key: None,
             id: new_id,
             queue: target_queue.clone(),
             job_type: src.job_type,

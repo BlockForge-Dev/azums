@@ -92,16 +92,20 @@ impl SqliteBackend {
         let job_id = Uuid::new_v4();
         let now = Utc::now();
 
-        sqlx::query(
+        let id = sqlx::query_scalar::<_, Uuid>(
             r#"
             INSERT INTO jobs (
-                id, dataset_id, queue, job_type, payload_json,
+                id, dataset_id, replay_of_job_id, idempotency_key, queue, job_type, payload_json,
                 run_at, status, priority, max_attempts,
                 created_at, updated_at
-            ) VALUES (?, 'default', ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
+            ) VALUES (?, 'default', NULL, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
+            ON CONFLICT(idempotency_key) WHERE idempotency_key IS NOT NULL
+            DO UPDATE SET idempotency_key = excluded.idempotency_key
+            RETURNING id
             "#,
         )
         .bind(job_id)
+        .bind(&job.idempotency_key)
         .bind(&job.queue)
         .bind(&job.job_type)
         .bind(&job.payload_json)
@@ -110,10 +114,10 @@ impl SqliteBackend {
         .bind(job.max_attempts)
         .bind(now)
         .bind(now)
-        .execute(&mut **tx)
+        .fetch_one(&mut **tx)
         .await?;
 
-        Ok(job_id)
+        Ok(id)
     }
 }
 
@@ -138,6 +142,7 @@ impl StorageBackend for SqliteBackend {
                 id BLOB PRIMARY KEY,
                 dataset_id TEXT NOT NULL DEFAULT 'default',
                 replay_of_job_id BLOB,
+                idempotency_key TEXT,
                 queue TEXT NOT NULL DEFAULT 'default',
                 job_type TEXT NOT NULL,
                 payload_json TEXT NOT NULL DEFAULT '{}',
@@ -159,6 +164,10 @@ impl StorageBackend for SqliteBackend {
 
             CREATE INDEX IF NOT EXISTS idx_jobs_fifo
                 ON jobs (queue, status, run_at, priority DESC, created_at ASC, id ASC);
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency_key
+                ON jobs (idempotency_key)
+                WHERE idempotency_key IS NOT NULL;
 
             CREATE TABLE IF NOT EXISTS job_attempts (
                 id BLOB PRIMARY KEY,
@@ -215,6 +224,19 @@ impl StorageBackend for SqliteBackend {
         .execute(&self.pool)
         .await?;
 
+        let _ = sqlx::query("ALTER TABLE jobs ADD COLUMN idempotency_key TEXT")
+            .execute(&self.pool)
+            .await;
+        sqlx::query(
+            r#"
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency_key
+                ON jobs (idempotency_key)
+                WHERE idempotency_key IS NOT NULL
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
     }
 
@@ -228,16 +250,20 @@ impl StorageBackend for SqliteBackend {
         let now = Utc::now();
         let queue_name = job.queue.clone();
 
-        sqlx::query(
+        let id = sqlx::query_scalar::<_, Uuid>(
             r#"
             INSERT INTO jobs (
-                id, dataset_id, queue, job_type, payload_json,
+                id, dataset_id, replay_of_job_id, idempotency_key, queue, job_type, payload_json,
                 run_at, status, priority, max_attempts,
                 created_at, updated_at
-            ) VALUES (?, 'default', ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
+            ) VALUES (?, 'default', NULL, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
+            ON CONFLICT(idempotency_key) WHERE idempotency_key IS NOT NULL
+            DO UPDATE SET idempotency_key = excluded.idempotency_key
+            RETURNING id
             "#,
         )
         .bind(job_id)
+        .bind(&job.idempotency_key)
         .bind(&job.queue)
         .bind(&job.job_type)
         .bind(&job.payload_json)
@@ -246,11 +272,11 @@ impl StorageBackend for SqliteBackend {
         .bind(job.max_attempts)
         .bind(now)
         .bind(now)
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
 
         self.notify_queue(&queue_name);
-        Ok(job_id)
+        Ok(id)
     }
 
     async fn subscribe(&self, queue: &str) -> anyhow::Result<NotificationStream> {
@@ -313,7 +339,7 @@ impl StorageBackend for SqliteBackend {
         let sql = format!(
             r#"
             SELECT
-                dataset_id, replay_of_job_id, id, queue, job_type,
+                dataset_id, replay_of_job_id, idempotency_key, id, queue, job_type,
                 payload_json, run_at, status, priority, max_attempts,
                 locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
                 created_at, updated_at
@@ -802,7 +828,7 @@ impl StorageBackend for SqliteBackend {
         let jobs = sqlx::query_as::<_, Job>(
             r#"
             SELECT
-                dataset_id, replay_of_job_id, id, queue, job_type,
+                dataset_id, replay_of_job_id, idempotency_key, id, queue, job_type,
                 payload_json, run_at, status, priority, max_attempts,
                 locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
                 created_at, updated_at
@@ -885,7 +911,7 @@ impl StorageBackend for SqliteBackend {
         let job = sqlx::query_as::<_, Job>(
             r#"
             SELECT
-                dataset_id, replay_of_job_id, id, queue, job_type,
+                dataset_id, replay_of_job_id, idempotency_key, id, queue, job_type,
                 payload_json, run_at, status, priority, max_attempts,
                 locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
                 created_at, updated_at
@@ -914,7 +940,7 @@ impl StorageBackend for SqliteBackend {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         NULL AS last_error_code, NULL AS last_error_message,
                         dlq_reason_code, created_at, updated_at
@@ -934,7 +960,7 @@ impl StorageBackend for SqliteBackend {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         NULL AS last_error_code, NULL AS last_error_message,
                         dlq_reason_code, created_at, updated_at
@@ -953,7 +979,7 @@ impl StorageBackend for SqliteBackend {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         NULL AS last_error_code, NULL AS last_error_message,
                         dlq_reason_code, created_at, updated_at
@@ -972,7 +998,7 @@ impl StorageBackend for SqliteBackend {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         NULL AS last_error_code, NULL AS last_error_message,
                         dlq_reason_code, created_at, updated_at
@@ -1001,7 +1027,7 @@ impl StorageBackend for SqliteBackend {
         let src = sqlx::query_as::<_, Job>(
             r#"
             SELECT
-                dataset_id, replay_of_job_id, id, queue, job_type,
+                dataset_id, replay_of_job_id, idempotency_key, id, queue, job_type,
                 payload_json, run_at, status, priority, max_attempts,
                 locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
                 created_at, updated_at

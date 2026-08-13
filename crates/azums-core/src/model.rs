@@ -146,6 +146,7 @@ impl BackendCapabilities {
 #[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
 pub struct JobListItem {
     pub id: Uuid,
+    pub idempotency_key: Option<String>,
     pub queue: String,
     pub job_type: String,
     pub status: String,
@@ -185,6 +186,7 @@ pub struct JobListItem {
 pub struct Job {
     pub dataset_id: String,
     pub replay_of_job_id: Option<Uuid>,
+    pub idempotency_key: Option<String>,
 
     pub id: Uuid,
     pub queue: String,
@@ -224,6 +226,7 @@ impl Job {
         Self {
             dataset_id: "default".to_string(),
             replay_of_job_id: None,
+            idempotency_key: None,
             id: Uuid::new_v4(),
             queue: "default".to_string(),
             job_type: job_type.into(),
@@ -257,6 +260,15 @@ impl Job {
     /// Sets maximum retry attempts before moving job to Dead-Letter Queue (DLQ).
     pub fn max_attempts(mut self, max_attempts: i32) -> Self {
         self.max_attempts = max_attempts;
+        self
+    }
+
+    /// Sets an application-provided enqueue idempotency key.
+    ///
+    /// Backends that support idempotent enqueue return the existing logical job ID when another
+    /// enqueue uses the same key.
+    pub fn idempotency_key(mut self, idempotency_key: impl Into<String>) -> Self {
+        self.idempotency_key = Some(idempotency_key.into());
         self
     }
 
@@ -323,6 +335,7 @@ pub struct NewJob {
     pub queue: String,
     pub job_type: String,
     pub payload_json: Value,
+    pub idempotency_key: Option<String>,
     pub run_at: DateTime<Utc>,
     pub priority: i32,
     pub max_attempts: i32,
@@ -348,6 +361,7 @@ impl From<Job> for NewJob {
             queue: job.queue,
             job_type: job.job_type,
             payload_json: job.payload,
+            idempotency_key: job.idempotency_key,
             run_at: job.run_at,
             priority: job.priority,
             max_attempts: job.max_attempts,

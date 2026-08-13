@@ -42,6 +42,7 @@ pub struct BackendCapabilities {
 | Capability | Memory | SQLite | PostgreSQL | Redis |
 |---|---|---|---|---|
 | One job API | Yes | Yes | Yes | Yes |
+| Enqueue idempotency key | Yes, process-local | Yes, SQLite unique index | Yes, SQL unique index | Yes, Redis idempotency hash |
 | Transactional enqueue | No | Yes, embedded SQL transaction via `enqueue_in_tx` | Yes, SQL transaction via `enqueue_in_tx` | No, Redis atomic operation only |
 | Durable jobs | No, process-local | Yes, with file-backed DB | Yes | Yes, with Redis persistence configured |
 | Notifications | Yes, in-process broadcast | Yes, in-process broadcast plus interval fallback | Yes, LISTEN/NOTIFY | Yes, Pub/Sub plus interval fallback |
@@ -86,7 +87,7 @@ The same function can run with:
 
 These semantics are portable across all backends:
 
-- Job identity, type, payload, queue, priority, schedule, status, timestamps, retry budget, and replay lineage.
+- Job identity, idempotency key, type, payload, queue, priority, schedule, status, timestamps, retry budget, and replay lineage.
 - At-least-once execution.
 - Worker lease ownership before attempts and terminal mutations.
 - Retry, DLQ, cancellation, and replay APIs.

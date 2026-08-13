@@ -114,13 +114,17 @@ impl JobsRepo {
         let id = sqlx::query_scalar::<_, Uuid>(
             r#"
             INSERT INTO jobs (
-                dataset_id, queue, job_type, payload_json, run_at, status, priority, max_attempts
+                dataset_id, idempotency_key,
+                queue, job_type, payload_json, run_at, status, priority, max_attempts
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (dataset_id, idempotency_key) WHERE idempotency_key IS NOT NULL
+            DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
             RETURNING id
             "#,
         )
         .bind(dataset_id)
+        .bind(&job.idempotency_key)
         .bind(&job.queue)
         .bind(job.job_type)
         .bind(job.payload_json)
@@ -157,13 +161,17 @@ impl JobsRepo {
         let id = sqlx::query_scalar::<_, Uuid>(
             r#"
             INSERT INTO jobs (
-                dataset_id, queue, job_type, payload_json, run_at, status, priority, max_attempts
+                dataset_id, idempotency_key,
+                queue, job_type, payload_json, run_at, status, priority, max_attempts
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (dataset_id, idempotency_key) WHERE idempotency_key IS NOT NULL
+            DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
             RETURNING id
             "#,
         )
         .bind(dataset_id)
+        .bind(&job.idempotency_key)
         .bind(&job.queue)
         .bind(job.job_type)
         .bind(job.payload_json)
@@ -206,6 +214,7 @@ impl JobsRepo {
             queue: queue.to_string(),
             job_type: job_type.to_string(),
             payload_json,
+            idempotency_key: None,
             run_at: Utc::now(),
             priority: 0,
             max_attempts: 25,
@@ -238,6 +247,7 @@ impl JobsRepo {
             queue: queue.to_string(),
             job_type: job_type.to_string(),
             payload_json,
+            idempotency_key: None,
             run_at: Utc::now() + chrono::Duration::seconds(delay_secs),
             priority: 0,
             max_attempts: 25,
@@ -272,6 +282,7 @@ impl JobsRepo {
             queue: queue.to_string(),
             job_type: job_type.to_string(),
             payload_json,
+            idempotency_key: None,
             run_at,
             priority: 0,
             max_attempts: 25,
@@ -340,7 +351,7 @@ impl JobsRepo {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
@@ -364,7 +375,7 @@ impl JobsRepo {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
@@ -385,7 +396,7 @@ impl JobsRepo {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
@@ -408,7 +419,7 @@ impl JobsRepo {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
@@ -428,7 +439,7 @@ impl JobsRepo {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
@@ -451,7 +462,7 @@ impl JobsRepo {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
@@ -471,7 +482,7 @@ impl JobsRepo {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
@@ -492,7 +503,7 @@ impl JobsRepo {
                 sqlx::query_as::<_, JobListItem>(
                     r#"
                     SELECT
-                        id, queue, job_type, status,
+                        id, idempotency_key, queue, job_type, status,
                         run_at, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,

@@ -19,7 +19,8 @@ This page is the canonical contract for Azums behavior. Use the labels below whe
 | Scheduling | **Guaranteed** for eligibility; **backend-dependent** for wake-up latency | A job with `run_at` in the future is not eligible for leasing until `run_at <= now()` according to the backend clock. Azums does not guarantee execution exactly at `run_at`. |
 | Retries | **Guaranteed** | Retryable, timeout, and system-failure classes are rescheduled until `max_attempts` is reached. Backoff and jitter are computed by Azums retry policy. |
 | DLQ transition | **Guaranteed** | Permanent failures, panics, and exhausted retry budgets move the job to `dlq` with a reason code and timestamp where the backend supports persisted job metadata. |
-| Idempotency | **Unspecified** | Azums does not deduplicate jobs or external side effects by payload, job type, stream payload, request ID, or business key. Applications must provide their own idempotency keys and dedupe storage. |
+| Enqueue idempotency | **Guaranteed** with `idempotency_key`; otherwise **unspecified** | Enqueue attempts with the same non-null key return one logical job ID. Without a key, Azums does not deduplicate by payload, job type, request ID, or business key. |
+| Exactly-once external side effects | **Unspecified** | Handlers may run more than once after crashes, timeouts, retries, lease expiry, or replay. Applications must protect external side effects with their own idempotency keys or dedupe storage. |
 | Transactional enqueue | **Backend-dependent** | PostgreSQL and SQLite can participate in database transaction semantics. Redis and In-Memory enqueue are atomic inside their own backend operations but are not ACID transactions with the application database. |
 | Job leasing exclusivity | **Guaranteed** | A runnable job is leased to at most one worker at a time. Expired leases can be reaped and made runnable again. |
 | Worker crash recovery | **Guaranteed** after lease expiry/reap | If a worker dies after leasing and before ACK, the job can be retried after its lease expires and recovery runs. Backends with durable attempts record the abandoned attempt as `LEASE_EXPIRED`. The handler may already have performed partial external work. |
@@ -66,21 +67,22 @@ Not guaranteed:
 
 ## Idempotency Semantics
 
-Azums is an at-least-once system. Handlers and stream consumers must be idempotent if duplicate execution would be harmful.
+Azums is an at-least-once system. `idempotency_key` deduplicates producer enqueue attempts into one logical job, but handlers and stream consumers must still be idempotent if duplicate execution would be harmful.
 
 Guaranteed:
 
 - Each enqueued job receives a unique Azums job ID.
+- Enqueue attempts with the same non-null `idempotency_key` return the same logical job ID.
 - Each stream event receives a monotonically increasing sequence number.
 - Consumer-group acknowledgments move forward monotonically.
 
 Not guaranteed:
 
-- No automatic deduplication by payload or business key.
+- No automatic deduplication by payload, job type, request ID, or business key.
 - No exactly-once external calls.
 - No protection from a handler being invoked again after a crash, timeout, expired lease, retry, manual replay, or operator action.
 - No guarantee that handler success is durable until Azums ACKs the attempt and job state transition in storage.
-- No automatic idempotency across job replay; replay intentionally creates a new job.
+- No automatic idempotency across job replay; replay intentionally creates a new job and clears the source job's idempotency key.
 
 Recommended application pattern:
 
@@ -193,7 +195,7 @@ Azums does not guarantee:
 - Global ordering across queues, streams, partitions, or workers.
 - Completion order under parallel execution.
 - Millisecond-precise scheduled execution.
-- Automatic deduplication by payload, business key, idempotency key, or request ID.
+- Automatic deduplication by payload, business key, or request ID.
 - Atomic commits across Azums plus arbitrary external services.
 - Permanent retention of jobs, attempts, DLQ entries, stream events, offsets, metrics, or archives.
 - Automatic alerting, compensation, refunds, rollback, or human approval workflows.
