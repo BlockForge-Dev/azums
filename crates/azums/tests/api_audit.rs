@@ -61,6 +61,9 @@ async fn test_payload_typed_and_client_processor() -> anyhow::Result<()> {
             payload_json: serde_json::json!({"to": "alice@example.com", "subject": "Welcome!"}),
             idempotency_key: None,
             run_at: chrono::Utc::now(),
+            deadline_at: None,
+            timeout_seconds: None,
+            recurring_interval_seconds: None,
             priority: 0,
             max_attempts: 5,
         }])

@@ -183,7 +183,7 @@ impl StorageBackend for PostgresBackend {
             );
         }
 
-        let job_res = sqlx::query(
+        let completed_job = sqlx::query_as::<_, Job>(
             r#"
             UPDATE jobs
             SET status = 'succeeded',
@@ -194,16 +194,60 @@ impl StorageBackend for PostgresBackend {
             WHERE id = $1
               AND locked_by = $2
               AND status = 'running'
+            RETURNING *
             "#,
         )
         .bind(job_id)
         .bind(worker_id)
-        .execute(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await?;
-        if job_res.rows_affected() != 1 {
+        let Some(completed_job) = completed_job else {
             anyhow::bail!(
                 "illegal job state transition to completed for job {job_id}: expected running lease held by {worker_id}"
             );
+        };
+
+        if let Some(interval_seconds) = completed_job.recurring_interval_seconds {
+            let next_run_at =
+                completed_job.run_at + chrono::Duration::seconds(interval_seconds.max(1));
+            let next_deadline_at = completed_job
+                .deadline_at
+                .map(|deadline| deadline + chrono::Duration::seconds(interval_seconds.max(1)));
+            let next_dataset_id =
+                crate::jobs::JobsRepo::dataset_id_for(&completed_job.queue, next_run_at);
+            self.jobs_repo
+                .ensure_dataset_partition(&next_dataset_id)
+                .await?;
+
+            sqlx::query(
+                r#"
+                INSERT INTO jobs (
+                    dataset_id, replay_of_job_id, idempotency_key,
+                    queue, job_type, payload_json, run_at,
+                    deadline_at, timeout_seconds, recurring_interval_seconds,
+                    status, priority, max_attempts
+                )
+                VALUES (
+                    $1, $2, NULL,
+                    $3, $4, $5, $6,
+                    $7, $8, $9,
+                    'queued', $10, $11
+                )
+                "#,
+            )
+            .bind(next_dataset_id)
+            .bind(completed_job.id)
+            .bind(&completed_job.queue)
+            .bind(&completed_job.job_type)
+            .bind(&completed_job.payload)
+            .bind(next_run_at)
+            .bind(next_deadline_at)
+            .bind(completed_job.timeout_seconds)
+            .bind(completed_job.recurring_interval_seconds)
+            .bind(completed_job.priority)
+            .bind(completed_job.max_attempts)
+            .execute(&mut *tx)
+            .await?;
         }
 
         tx.commit().await?;

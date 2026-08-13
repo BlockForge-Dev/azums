@@ -37,6 +37,9 @@ proptest! {
                             payload_json: json!({"val": val}),
                             idempotency_key: None,
                             run_at: Utc::now(),
+                            deadline_at: None,
+                            timeout_seconds: None,
+                            recurring_interval_seconds: None,
                             priority: 0,
                             max_attempts: 1, // Fail immediately goes to DLQ
                         };

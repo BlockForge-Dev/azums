@@ -166,6 +166,12 @@ pub struct JobListItem {
     pub status: String,
 
     pub run_at: DateTime<Utc>,
+    #[serde(default)]
+    pub deadline_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub timeout_seconds: Option<i64>,
+    #[serde(default)]
+    pub recurring_interval_seconds: Option<i64>,
     pub priority: i32,
     pub max_attempts: i32,
 
@@ -208,6 +214,12 @@ pub struct Job {
     #[cfg_attr(feature = "sqlx", sqlx(rename = "payload_json"))]
     pub payload: Value,
     pub run_at: DateTime<Utc>,
+    #[serde(default)]
+    pub deadline_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub timeout_seconds: Option<i64>,
+    #[serde(default)]
+    pub recurring_interval_seconds: Option<i64>,
     pub status: String,
     pub priority: i32,
     pub max_attempts: i32,
@@ -246,6 +258,9 @@ impl Job {
             job_type: job_type.into(),
             payload,
             run_at: now,
+            deadline_at: None,
+            timeout_seconds: None,
+            recurring_interval_seconds: None,
             status: JobStatus::Queued.as_str().to_string(),
             priority: 0,
             max_attempts: 25,
@@ -289,6 +304,33 @@ impl Job {
     /// Sets scheduled execution timestamp (`run_at`).
     pub fn run_at(mut self, run_at: DateTime<Utc>) -> Self {
         self.run_at = run_at;
+        self
+    }
+
+    /// Sets the latest timestamp at which this job may start execution.
+    ///
+    /// If the backend clock is already past this value when workers try to lease the job, Azums
+    /// moves the job to DLQ with `DEADLINE_EXCEEDED` instead of executing it late.
+    pub fn deadline_at(mut self, deadline_at: DateTime<Utc>) -> Self {
+        self.deadline_at = Some(deadline_at);
+        self
+    }
+
+    /// Sets a per-attempt handler timeout in seconds.
+    ///
+    /// Worker runtimes that execute handlers enforce this as a handler execution timeout and route
+    /// timeout failures through normal retry/DLQ classification.
+    pub fn timeout_seconds(mut self, timeout_seconds: i64) -> Self {
+        self.timeout_seconds = Some(timeout_seconds.max(0));
+        self
+    }
+
+    /// Sets fixed-interval recurring execution in seconds.
+    ///
+    /// After a successful occurrence, Azums enqueues the next occurrence as a new logical job with
+    /// `run_at = previous_run_at + recurring_interval_seconds`.
+    pub fn recurring_interval_seconds(mut self, interval_seconds: i64) -> Self {
+        self.recurring_interval_seconds = Some(interval_seconds.max(1));
         self
     }
 
@@ -351,6 +393,12 @@ pub struct NewJob {
     pub payload_json: Value,
     pub idempotency_key: Option<String>,
     pub run_at: DateTime<Utc>,
+    #[serde(default)]
+    pub deadline_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub timeout_seconds: Option<i64>,
+    #[serde(default)]
+    pub recurring_interval_seconds: Option<i64>,
     pub priority: i32,
     pub max_attempts: i32,
 }
@@ -377,6 +425,9 @@ impl From<Job> for NewJob {
             payload_json: job.payload,
             idempotency_key: job.idempotency_key,
             run_at: job.run_at,
+            deadline_at: job.deadline_at,
+            timeout_seconds: job.timeout_seconds,
+            recurring_interval_seconds: job.recurring_interval_seconds,
             priority: job.priority,
             max_attempts: job.max_attempts,
         }

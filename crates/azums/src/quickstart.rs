@@ -364,8 +364,32 @@ impl QuickstartFlow {
                 Some(handler) => {
                     let handler_clone = handler.clone();
                     let job_clone = job.clone();
-                    let task_res =
-                        tokio::task::spawn(async move { (handler_clone)(job_clone).await }).await;
+                    let timeout_seconds = job.timeout_seconds;
+                    let mut task =
+                        tokio::task::spawn(async move { (handler_clone)(job_clone).await });
+                    let task_res = if let Some(timeout_seconds) = timeout_seconds {
+                        tokio::select! {
+                            task_res = &mut task => task_res,
+                            _ = tokio::time::sleep(std::time::Duration::from_secs(timeout_seconds.max(0) as u64)) => {
+                                task.abort();
+                                let _ = heartbeat_tx.send(());
+                                let latency_ms = start.elapsed().as_millis() as i32;
+                                return self
+                                    .handle_failure(
+                                        job.id,
+                                        attempt_id,
+                                        latency_ms,
+                                        "TIMEOUT",
+                                        "job attempt exceeded timeout_seconds",
+                                        attempt_no,
+                                        job.max_attempts,
+                                    )
+                                    .await;
+                            }
+                        }
+                    } else {
+                        task.await
+                    };
                     match task_res {
                         Ok(res) => res,
                         Err(join_err) => {

@@ -16,7 +16,10 @@ This page is the canonical contract for Azums behavior. Use the labels below whe
 |---|---|---|
 | Job execution delivery | **Guaranteed** | Azums provides **at-least-once execution** for jobs that are successfully enqueued, runnable, not canceled, and have available workers. |
 | Exactly-once external side effects | **Unspecified** | Azums does **not** guarantee exactly-once calls to external systems such as email, payment APIs, webhooks, LLM providers, or user handlers. |
-| Scheduling | **Guaranteed** for eligibility; **backend-dependent** for wake-up latency | A job with `run_at` in the future is not eligible for leasing until `run_at <= now()` according to the backend clock. Azums does not guarantee execution exactly at `run_at`. |
+| Scheduling | **Guaranteed** for eligibility; **backend-dependent** for wake-up latency and clock source | A job with `run_at` in the future is not eligible for leasing until `run_at <= now()` according to the backend time source. Azums does not guarantee execution exactly at `run_at`. |
+| Deadline | **Guaranteed** | A runnable job whose `deadline_at` has already passed is moved to DLQ with `DEADLINE_EXCEEDED` instead of being executed late. |
+| Handler timeout | **Guaranteed** in Azums worker runtime | A job with `timeout_seconds` fails the attempt with `TIMEOUT` if the handler exceeds the timeout, then follows normal retry/DLQ policy. |
+| Recurring execution | **Guaranteed** for fixed interval recurrence | After successful ACK, a job with `recurring_interval_seconds` enqueues the next occurrence as a new logical job scheduled from the prior `run_at`. Calendar/DST-aware recurrence is unspecified. |
 | Retries | **Guaranteed** | Retryable, timeout, and system-failure classes are rescheduled until `max_attempts` is reached. Backoff and jitter are computed by Azums retry policy. |
 | DLQ transition | **Guaranteed** | Permanent failures, panics, and exhausted retry budgets move the job to `dlq` with a reason code and timestamp where the backend supports persisted job metadata. |
 | Enqueue idempotency | **Guaranteed** with `idempotency_key`; otherwise **unspecified** | Enqueue attempts with the same non-null key return one logical job ID. Without a key, Azums does not deduplicate by payload, job type, request ID, or business key. |
@@ -48,6 +51,10 @@ A job is eligible to be leased when all of these are true:
 - policy gates such as in-flight limits and retry-rate limits allow leasing
 
 Azums guarantees that workers do not intentionally lease future jobs before `run_at`. It does not guarantee millisecond-precise execution at `run_at`; actual execution depends on worker availability, database latency, queue depth, policy throttling, backend notification behavior, and handler runtime.
+
+`deadline_at` is a latest-start guard. If workers were down and restart after the deadline has passed, the job is not run late; it is DLQed with `DEADLINE_EXCEEDED`.
+
+`recurring_interval_seconds` schedules from the previous occurrence's `run_at`, not from wall-clock completion time. Azums does not automatically create every missed occurrence after downtime.
 
 ## Concurrency, Ordering & Backpressure Semantics
 

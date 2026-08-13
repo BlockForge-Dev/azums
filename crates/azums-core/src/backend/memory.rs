@@ -119,6 +119,9 @@ impl StorageBackend for MemoryBackend {
             job_type: job.job_type,
             payload: job.payload_json,
             run_at: job.run_at,
+            deadline_at: job.deadline_at,
+            timeout_seconds: job.timeout_seconds,
+            recurring_interval_seconds: job.recurring_interval_seconds,
             status: JobStatus::Queued.as_str().to_string(),
             priority: job.priority,
             max_attempts: job.max_attempts,
@@ -178,6 +181,27 @@ impl StorageBackend for MemoryBackend {
     ) -> anyhow::Result<Vec<Job>> {
         let mut state = self.state.write().unwrap();
         let now = Utc::now();
+
+        let expired_deadlines: Vec<Uuid> = state
+            .jobs
+            .values()
+            .filter(|j| {
+                j.queue == queue
+                    && j.status == "queued"
+                    && j.run_at <= now
+                    && j.deadline_at.is_some_and(|deadline| deadline < now)
+            })
+            .map(|j| j.id)
+            .collect();
+
+        for job_id in expired_deadlines {
+            if let Some(job) = state.jobs.get_mut(&job_id) {
+                job.status = JobStatus::Dlq.as_str().to_string();
+                job.dlq_reason_code = Some("DEADLINE_EXCEEDED".to_string());
+                job.dlq_at = Some(now);
+                job.updated_at = now;
+            }
+        }
 
         let mut candidates: Vec<Job> = state
             .jobs
@@ -338,6 +362,29 @@ impl StorageBackend for MemoryBackend {
         let mut state = self.state.write().unwrap();
         let now = Utc::now();
 
+        let recurring_job = state.jobs.get(&job_id).and_then(|job| {
+            job.recurring_interval_seconds.map(|interval| {
+                let mut next = job.clone();
+                let next_run_at = job.run_at + chrono::Duration::seconds(interval);
+                next.id = Uuid::new_v4();
+                next.replay_of_job_id = Some(job.id);
+                next.idempotency_key = None;
+                next.run_at = next_run_at;
+                next.deadline_at = job
+                    .deadline_at
+                    .map(|deadline| deadline + chrono::Duration::seconds(interval));
+                next.status = JobStatus::Queued.as_str().to_string();
+                next.locked_at = None;
+                next.locked_by = None;
+                next.lock_expires_at = None;
+                next.dlq_reason_code = None;
+                next.dlq_at = None;
+                next.created_at = now;
+                next.updated_at = now;
+                next
+            })
+        });
+
         let job = state
             .jobs
             .get_mut(&job_id)
@@ -368,6 +415,14 @@ impl StorageBackend for MemoryBackend {
         job.locked_by = None;
         job.lock_expires_at = None;
         job.updated_at = now;
+
+        if let Some(next) = recurring_job {
+            let queue_name = next.queue.clone();
+            state.jobs.insert(next.id, next);
+            drop(state);
+            self.notify_queue(&queue_name);
+            return Ok(());
+        }
 
         Ok(())
     }
@@ -665,6 +720,9 @@ impl StorageBackend for MemoryBackend {
                 job_type: j.job_type.clone(),
                 status: j.status.clone(),
                 run_at: j.run_at,
+                deadline_at: j.deadline_at,
+                timeout_seconds: j.timeout_seconds,
+                recurring_interval_seconds: j.recurring_interval_seconds,
                 priority: j.priority,
                 max_attempts: j.max_attempts,
                 last_error_code: None,
@@ -722,6 +780,9 @@ impl StorageBackend for MemoryBackend {
             job_type: src.job_type,
             payload: src.payload,
             run_at: target_run_at,
+            deadline_at: src.deadline_at,
+            timeout_seconds: src.timeout_seconds,
+            recurring_interval_seconds: src.recurring_interval_seconds,
             status: JobStatus::Queued.as_str().to_string(),
             priority: src.priority,
             max_attempts: src.max_attempts,

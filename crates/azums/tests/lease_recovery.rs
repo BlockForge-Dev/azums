@@ -19,7 +19,8 @@ async fn sqlite_job_by_type(backend: &SqliteBackend, job_type: &str) -> anyhow::
         r#"
         SELECT
             dataset_id, replay_of_job_id, idempotency_key, id, queue, job_type,
-            payload_json, run_at, status, priority, max_attempts,
+            payload_json, run_at, deadline_at, timeout_seconds, recurring_interval_seconds,
+            status, priority, max_attempts,
             locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
             created_at, updated_at
         FROM jobs
@@ -78,6 +79,7 @@ fn run_sqlite_child_crash_mode(mode: &str, starts_attempt: bool) -> anyhow::Resu
             .env("AZUMS_M5_CHILD_READY", &ready_path)
             .status()?;
         assert!(!status.success(), "child should crash before claim");
+        wait_for_marker(&ready_path)?;
     } else {
         let mut child = Command::new(&exe)
             .arg("--exact")
@@ -218,6 +220,7 @@ async fn sqlite_lease_recovery_child() -> anyhow::Result<()> {
     let job_id = backend.enqueue(Job::new(&mode, json!({})).into()).await?;
 
     if mode == "before_claim" {
+        std::fs::write(&ready_path, b"ready")?;
         std::process::exit(9);
     }
 

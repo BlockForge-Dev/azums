@@ -96,9 +96,10 @@ impl SqliteBackend {
             r#"
             INSERT INTO jobs (
                 id, dataset_id, replay_of_job_id, idempotency_key, queue, job_type, payload_json,
-                run_at, status, priority, max_attempts,
+                run_at, deadline_at, timeout_seconds, recurring_interval_seconds,
+                status, priority, max_attempts,
                 created_at, updated_at
-            ) VALUES (?, 'default', NULL, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
+            ) VALUES (?, 'default', NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
             ON CONFLICT(idempotency_key) WHERE idempotency_key IS NOT NULL
             DO UPDATE SET idempotency_key = excluded.idempotency_key
             RETURNING id
@@ -110,6 +111,9 @@ impl SqliteBackend {
         .bind(&job.job_type)
         .bind(&job.payload_json)
         .bind(job.run_at)
+        .bind(job.deadline_at)
+        .bind(job.timeout_seconds)
+        .bind(job.recurring_interval_seconds)
         .bind(job.priority)
         .bind(job.max_attempts)
         .bind(now)
@@ -147,6 +151,9 @@ impl StorageBackend for SqliteBackend {
                 job_type TEXT NOT NULL,
                 payload_json TEXT NOT NULL DEFAULT '{}',
                 run_at TEXT NOT NULL,
+                deadline_at TEXT,
+                timeout_seconds INTEGER,
+                recurring_interval_seconds INTEGER,
                 status TEXT NOT NULL DEFAULT 'queued',
                 priority INTEGER NOT NULL DEFAULT 0,
                 max_attempts INTEGER NOT NULL DEFAULT 25,
@@ -164,6 +171,10 @@ impl StorageBackend for SqliteBackend {
 
             CREATE INDEX IF NOT EXISTS idx_jobs_fifo
                 ON jobs (queue, status, run_at, priority DESC, created_at ASC, id ASC);
+
+            CREATE INDEX IF NOT EXISTS idx_jobs_deadline
+                ON jobs (queue, status, deadline_at)
+                WHERE deadline_at IS NOT NULL;
 
             CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency_key
                 ON jobs (idempotency_key)
@@ -192,6 +203,9 @@ impl StorageBackend for SqliteBackend {
                 job_type TEXT NOT NULL,
                 payload_json TEXT NOT NULL DEFAULT '{}',
                 run_at TEXT NOT NULL,
+                deadline_at TEXT,
+                timeout_seconds INTEGER,
+                recurring_interval_seconds INTEGER,
                 status TEXT NOT NULL,
                 priority INTEGER NOT NULL,
                 max_attempts INTEGER NOT NULL,
@@ -227,11 +241,39 @@ impl StorageBackend for SqliteBackend {
         let _ = sqlx::query("ALTER TABLE jobs ADD COLUMN idempotency_key TEXT")
             .execute(&self.pool)
             .await;
+        let _ = sqlx::query("ALTER TABLE jobs ADD COLUMN deadline_at TEXT")
+            .execute(&self.pool)
+            .await;
+        let _ = sqlx::query("ALTER TABLE jobs ADD COLUMN timeout_seconds INTEGER")
+            .execute(&self.pool)
+            .await;
+        let _ = sqlx::query("ALTER TABLE jobs ADD COLUMN recurring_interval_seconds INTEGER")
+            .execute(&self.pool)
+            .await;
+        let _ = sqlx::query("ALTER TABLE jobs_archive ADD COLUMN deadline_at TEXT")
+            .execute(&self.pool)
+            .await;
+        let _ = sqlx::query("ALTER TABLE jobs_archive ADD COLUMN timeout_seconds INTEGER")
+            .execute(&self.pool)
+            .await;
+        let _ =
+            sqlx::query("ALTER TABLE jobs_archive ADD COLUMN recurring_interval_seconds INTEGER")
+                .execute(&self.pool)
+                .await;
         sqlx::query(
             r#"
             CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency_key
                 ON jobs (idempotency_key)
                 WHERE idempotency_key IS NOT NULL
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            r#"
+            CREATE INDEX IF NOT EXISTS idx_jobs_deadline
+                ON jobs (queue, status, deadline_at)
+                WHERE deadline_at IS NOT NULL
             "#,
         )
         .execute(&self.pool)
@@ -329,6 +371,28 @@ impl StorageBackend for SqliteBackend {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now();
 
+        sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'dlq',
+                dlq_reason_code = 'DEADLINE_EXCEEDED',
+                dlq_at = ?,
+                updated_at = ?
+            WHERE queue = ?
+              AND status = 'queued'
+              AND run_at <= ?
+              AND deadline_at IS NOT NULL
+              AND deadline_at < ?
+            "#,
+        )
+        .bind(now)
+        .bind(now)
+        .bind(queue)
+        .bind(now)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
         let order_sql = match ordering {
             azums_core::QueueOrdering::Fifo => {
                 "ORDER BY priority DESC, run_at ASC, created_at ASC, id ASC"
@@ -340,7 +404,7 @@ impl StorageBackend for SqliteBackend {
             r#"
             SELECT
                 dataset_id, replay_of_job_id, idempotency_key, id, queue, job_type,
-                payload_json, run_at, status, priority, max_attempts,
+                payload_json, run_at, deadline_at, timeout_seconds, recurring_interval_seconds, status, priority, max_attempts,
                 locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
                 created_at, updated_at
             FROM jobs
@@ -664,22 +728,63 @@ impl StorageBackend for SqliteBackend {
             );
         }
 
-        let job_res = sqlx::query(
+        let completed_job = sqlx::query_as::<_, Job>(
             r#"
             UPDATE jobs
             SET status = 'succeeded', locked_at = NULL, locked_by = NULL, lock_expires_at = NULL, updated_at = ?
             WHERE id = ? AND status = 'running' AND locked_by = ?
+            RETURNING
+                dataset_id, replay_of_job_id, idempotency_key, id, queue, job_type,
+                payload_json, run_at, deadline_at, timeout_seconds, recurring_interval_seconds,
+                status, priority, max_attempts,
+                locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
+                created_at, updated_at
             "#,
         )
         .bind(now)
         .bind(job_id)
         .bind(worker_id)
-        .execute(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await?;
-        if job_res.rows_affected() != 1 {
+        let Some(completed_job) = completed_job else {
             anyhow::bail!(
                 "illegal job state transition to completed for job {job_id}: expected running lease held by {worker_id}"
             );
+        };
+
+        if let Some(interval_seconds) = completed_job.recurring_interval_seconds {
+            let interval_seconds = interval_seconds.max(1);
+            let next_run_at = completed_job.run_at + chrono::Duration::seconds(interval_seconds);
+            let next_deadline_at = completed_job
+                .deadline_at
+                .map(|deadline| deadline + chrono::Duration::seconds(interval_seconds));
+            let next_id = Uuid::new_v4();
+
+            sqlx::query(
+                r#"
+                INSERT INTO jobs (
+                    id, dataset_id, replay_of_job_id, idempotency_key, queue, job_type, payload_json,
+                    run_at, deadline_at, timeout_seconds, recurring_interval_seconds,
+                    status, priority, max_attempts, created_at, updated_at
+                )
+                VALUES (?, 'default', ?, NULL, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
+                "#,
+            )
+            .bind(next_id)
+            .bind(completed_job.id)
+            .bind(&completed_job.queue)
+            .bind(&completed_job.job_type)
+            .bind(&completed_job.payload)
+            .bind(next_run_at)
+            .bind(next_deadline_at)
+            .bind(completed_job.timeout_seconds)
+            .bind(completed_job.recurring_interval_seconds)
+            .bind(completed_job.priority)
+            .bind(completed_job.max_attempts)
+            .bind(now)
+            .bind(now)
+            .execute(&mut *tx)
+            .await?;
         }
 
         tx.commit().await?;
@@ -829,7 +934,7 @@ impl StorageBackend for SqliteBackend {
             r#"
             SELECT
                 dataset_id, replay_of_job_id, idempotency_key, id, queue, job_type,
-                payload_json, run_at, status, priority, max_attempts,
+                payload_json, run_at, deadline_at, timeout_seconds, recurring_interval_seconds, status, priority, max_attempts,
                 locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
                 created_at, updated_at
             FROM jobs
@@ -852,9 +957,9 @@ impl StorageBackend for SqliteBackend {
                 r#"
                 INSERT INTO jobs_archive (
                     id, dataset_id, replay_of_job_id, queue, job_type,
-                    payload_json, run_at, status, priority, max_attempts,
+                    payload_json, run_at, deadline_at, timeout_seconds, recurring_interval_seconds, status, priority, max_attempts,
                     dlq_reason_code, dlq_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#,
             )
             .bind(j.id)
@@ -864,6 +969,9 @@ impl StorageBackend for SqliteBackend {
             .bind(&j.job_type)
             .bind(&j.payload)
             .bind(j.run_at)
+            .bind(j.deadline_at)
+            .bind(j.timeout_seconds)
+            .bind(j.recurring_interval_seconds)
             .bind(&j.status)
             .bind(j.priority)
             .bind(j.max_attempts)
@@ -912,7 +1020,7 @@ impl StorageBackend for SqliteBackend {
             r#"
             SELECT
                 dataset_id, replay_of_job_id, idempotency_key, id, queue, job_type,
-                payload_json, run_at, status, priority, max_attempts,
+                payload_json, run_at, deadline_at, timeout_seconds, recurring_interval_seconds, status, priority, max_attempts,
                 locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
                 created_at, updated_at
             FROM jobs WHERE id = ?
@@ -941,7 +1049,7 @@ impl StorageBackend for SqliteBackend {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         NULL AS last_error_code, NULL AS last_error_message,
                         dlq_reason_code, created_at, updated_at
                     FROM jobs
@@ -961,7 +1069,7 @@ impl StorageBackend for SqliteBackend {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         NULL AS last_error_code, NULL AS last_error_message,
                         dlq_reason_code, created_at, updated_at
                     FROM jobs
@@ -980,7 +1088,7 @@ impl StorageBackend for SqliteBackend {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         NULL AS last_error_code, NULL AS last_error_message,
                         dlq_reason_code, created_at, updated_at
                     FROM jobs
@@ -999,7 +1107,7 @@ impl StorageBackend for SqliteBackend {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         NULL AS last_error_code, NULL AS last_error_message,
                         dlq_reason_code, created_at, updated_at
                     FROM jobs
@@ -1028,7 +1136,7 @@ impl StorageBackend for SqliteBackend {
             r#"
             SELECT
                 dataset_id, replay_of_job_id, idempotency_key, id, queue, job_type,
-                payload_json, run_at, status, priority, max_attempts,
+                payload_json, run_at, deadline_at, timeout_seconds, recurring_interval_seconds, status, priority, max_attempts,
                 locked_at, locked_by, lock_expires_at, dlq_reason_code, dlq_at,
                 created_at, updated_at
             FROM jobs WHERE id = ?
@@ -1047,7 +1155,7 @@ impl StorageBackend for SqliteBackend {
             r#"
             INSERT INTO jobs (
                 id, dataset_id, replay_of_job_id, queue, job_type,
-                payload_json, run_at, status, priority, max_attempts,
+                payload_json, run_at, deadline_at, timeout_seconds, recurring_interval_seconds, status, priority, max_attempts,
                 created_at, updated_at
             ) VALUES (?, 'default', ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
             "#,

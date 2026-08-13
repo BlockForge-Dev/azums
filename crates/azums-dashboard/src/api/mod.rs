@@ -449,6 +449,9 @@ pub async fn enqueue_job(
             payload_json,
             idempotency_key: None,
             run_at: run_at.unwrap_or_else(Utc::now),
+            deadline_at: None,
+            timeout_seconds: None,
+            recurring_interval_seconds: None,
             priority: priority.unwrap_or(0),
             max_attempts,
         })

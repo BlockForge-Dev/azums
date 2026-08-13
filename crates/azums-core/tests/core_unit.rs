@@ -123,6 +123,9 @@ async fn test_in_memory_backend_edge_cases() -> anyhow::Result<()> {
         payload_json: json!({"data": 123}),
         idempotency_key: None,
         run_at: Utc::now(),
+        deadline_at: None,
+        timeout_seconds: None,
+        recurring_interval_seconds: None,
         priority: 100,
         max_attempts: 2,
     };
@@ -209,6 +212,9 @@ async fn memory_backend_rejects_invalid_terminal_state_transitions() -> anyhow::
             payload_json: json!({}),
             idempotency_key: None,
             run_at: Utc::now(),
+            deadline_at: None,
+            timeout_seconds: None,
+            recurring_interval_seconds: None,
             priority: 0,
             max_attempts: 1,
         })
@@ -268,6 +274,9 @@ async fn memory_backend_cancel_primitive_enforces_ownership_and_terminality() ->
             payload_json: json!({}),
             idempotency_key: None,
             run_at: Utc::now(),
+            deadline_at: None,
+            timeout_seconds: None,
+            recurring_interval_seconds: None,
             priority: 0,
             max_attempts: 1,
         })
@@ -285,6 +294,9 @@ async fn memory_backend_cancel_primitive_enforces_ownership_and_terminality() ->
             payload_json: json!({}),
             idempotency_key: None,
             run_at: Utc::now(),
+            deadline_at: None,
+            timeout_seconds: None,
+            recurring_interval_seconds: None,
             priority: 0,
             max_attempts: 1,
         })

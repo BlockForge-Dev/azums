@@ -65,6 +65,9 @@ impl JobQueue {
                 payload_json,
                 idempotency_key: None,
                 run_at: Utc::now(),
+                deadline_at: None,
+                timeout_seconds: None,
+                recurring_interval_seconds: None,
                 priority: 0,
                 max_attempts: 25,
             })
@@ -103,6 +106,9 @@ impl JobQueue {
                 payload_json,
                 idempotency_key: None,
                 run_at,
+                deadline_at: None,
+                timeout_seconds: None,
+                recurring_interval_seconds: None,
                 priority: 0,
                 max_attempts: 25,
             })

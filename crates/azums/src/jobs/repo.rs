@@ -51,7 +51,7 @@ impl JobsRepo {
         }
     }
 
-    fn dataset_id_for(queue: &str, at: DateTime<Utc>) -> String {
+    pub(crate) fn dataset_id_for(queue: &str, at: DateTime<Utc>) -> String {
         format!(
             "{}_{}",
             Self::sanitize_dataset_queue(queue),
@@ -59,7 +59,7 @@ impl JobsRepo {
         )
     }
 
-    async fn ensure_dataset_partition(&self, dataset_id: &str) -> anyhow::Result<()> {
+    pub(crate) async fn ensure_dataset_partition(&self, dataset_id: &str) -> anyhow::Result<()> {
         match sqlx::query("SELECT public.ensure_jobs_dataset_partition($1)")
             .bind(dataset_id)
             .execute(&self.pool)
@@ -115,9 +115,11 @@ impl JobsRepo {
             r#"
             INSERT INTO jobs (
                 dataset_id, idempotency_key,
-                queue, job_type, payload_json, run_at, status, priority, max_attempts
+                queue, job_type, payload_json, run_at,
+                deadline_at, timeout_seconds, recurring_interval_seconds,
+                status, priority, max_attempts
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             ON CONFLICT (dataset_id, idempotency_key) WHERE idempotency_key IS NOT NULL
             DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
             RETURNING id
@@ -162,9 +164,11 @@ impl JobsRepo {
             r#"
             INSERT INTO jobs (
                 dataset_id, idempotency_key,
-                queue, job_type, payload_json, run_at, status, priority, max_attempts
+                queue, job_type, payload_json, run_at,
+                deadline_at, timeout_seconds, recurring_interval_seconds,
+                status, priority, max_attempts
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             ON CONFLICT (dataset_id, idempotency_key) WHERE idempotency_key IS NOT NULL
             DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
             RETURNING id
@@ -176,6 +180,9 @@ impl JobsRepo {
         .bind(job.job_type)
         .bind(job.payload_json)
         .bind(job.run_at)
+        .bind(job.deadline_at)
+        .bind(job.timeout_seconds)
+        .bind(job.recurring_interval_seconds)
         .bind(JobStatus::Queued.as_str())
         .bind(job.priority)
         .bind(job.max_attempts)
@@ -216,6 +223,9 @@ impl JobsRepo {
             payload_json,
             idempotency_key: None,
             run_at: Utc::now(),
+            deadline_at: None,
+            timeout_seconds: None,
+            recurring_interval_seconds: None,
             priority: 0,
             max_attempts: 25,
         })
@@ -249,6 +259,9 @@ impl JobsRepo {
             payload_json,
             idempotency_key: None,
             run_at: Utc::now() + chrono::Duration::seconds(delay_secs),
+            deadline_at: None,
+            timeout_seconds: None,
+            recurring_interval_seconds: None,
             priority: 0,
             max_attempts: 25,
         })
@@ -284,6 +297,9 @@ impl JobsRepo {
             payload_json,
             idempotency_key: None,
             run_at,
+            deadline_at: None,
+            timeout_seconds: None,
+            recurring_interval_seconds: None,
             priority: 0,
             max_attempts: 25,
         })
@@ -352,7 +368,7 @@ impl JobsRepo {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
                         created_at, updated_at
@@ -376,7 +392,7 @@ impl JobsRepo {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
                         created_at, updated_at
@@ -397,7 +413,7 @@ impl JobsRepo {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
                         created_at, updated_at
@@ -420,7 +436,7 @@ impl JobsRepo {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
                         created_at, updated_at
@@ -440,7 +456,7 @@ impl JobsRepo {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
                         created_at, updated_at
@@ -463,7 +479,7 @@ impl JobsRepo {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
                         created_at, updated_at
@@ -483,7 +499,7 @@ impl JobsRepo {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
                         created_at, updated_at
@@ -504,7 +520,7 @@ impl JobsRepo {
                     r#"
                     SELECT
                         id, idempotency_key, queue, job_type, status,
-                        run_at, priority, max_attempts,
+                        run_at, deadline_at, timeout_seconds, recurring_interval_seconds, priority, max_attempts,
                         last_error_code, last_error_message,
                         dlq_reason_code,
                         created_at, updated_at
@@ -603,6 +619,24 @@ impl JobsRepo {
     ) -> anyhow::Result<Vec<Job>> {
         let batch_size = batch_size.clamp(1, 4096);
         let mut tx = self.pool.begin().await?;
+
+        sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'dlq',
+                dlq_reason_code = 'DEADLINE_EXCEEDED',
+                dlq_at = now(),
+                updated_at = now()
+            WHERE queue = $1
+              AND status = 'queued'
+              AND run_at <= now()
+              AND deadline_at IS NOT NULL
+              AND deadline_at < now()
+            "#,
+        )
+        .bind(queue)
+        .execute(&mut *tx)
+        .await?;
 
         // 0) Load queue policy (defaults: basically unlimited)
         let policy = sqlx::query_as::<_, (i32, i32, i32)>(
@@ -1271,17 +1305,21 @@ impl JobsRepo {
             r#"
             INSERT INTO jobs (
                 dataset_id,
-                queue, job_type, payload_json, run_at, status, priority, max_attempts,
+                queue, job_type, payload_json, run_at,
+                deadline_at, timeout_seconds, recurring_interval_seconds,
+                status, priority, max_attempts,
                 locked_at, locked_by, lock_expires_at,
                 dlq_reason_code, dlq_at,
                 replay_of_job_id
             )
             VALUES (
                 $1,
-                $2, $3, $4, $5, 'queued', $6, $7,
+                $2, $3, $4, $5,
+                $6, $7, $8,
+                'queued', $9, $10,
                 NULL, NULL, NULL,
                 NULL, NULL,
-                $8
+                $11
             )
             RETURNING id
             "#,
@@ -1291,6 +1329,9 @@ impl JobsRepo {
         .bind(src.job_type)
         .bind(src.payload)
         .bind(new_run_at)
+        .bind(src.deadline_at)
+        .bind(src.timeout_seconds)
+        .bind(src.recurring_interval_seconds)
         .bind(src.priority)
         .bind(src.max_attempts)
         .bind(src.id)

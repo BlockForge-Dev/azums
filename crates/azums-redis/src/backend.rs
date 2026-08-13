@@ -106,6 +106,9 @@ impl StorageBackend for RedisBackend {
             job_type: job.job_type,
             payload: job.payload_json,
             run_at: job.run_at,
+            deadline_at: job.deadline_at,
+            timeout_seconds: job.timeout_seconds,
+            recurring_interval_seconds: job.recurring_interval_seconds,
             status: JobStatus::Queued.as_str().to_string(),
             priority: job.priority,
             max_attempts: job.max_attempts,
@@ -209,6 +212,17 @@ impl StorageBackend for RedisBackend {
                     if job.run_at > now {
                         // Put back at head if run_at is in the future
                         let _: () = conn.lpush(&queue_key, &job_id_str).await?;
+                        let _: () = conn.lrem(&processing_key, 1, &job_id_str).await?;
+                        continue;
+                    }
+                    if job.deadline_at.is_some_and(|deadline| deadline < now) {
+                        job.status = JobStatus::Dlq.as_str().to_string();
+                        job.dlq_reason_code = Some("DEADLINE_EXCEEDED".to_string());
+                        job.dlq_at = Some(now);
+                        job.updated_at = now;
+
+                        let updated_json = serde_json::to_string(&job)?;
+                        let _: () = conn.hset("azums:jobs", &job_id_str, updated_json).await?;
                         let _: () = conn.lrem(&processing_key, 1, &job_id_str).await?;
                         continue;
                     }
@@ -344,12 +358,42 @@ impl StorageBackend for RedisBackend {
                 job.locked_at = None;
                 job.locked_by = None;
                 job.lock_expires_at = None;
-                job.updated_at = Utc::now();
+                let now = Utc::now();
+                job.updated_at = now;
+                let next_job = job.recurring_interval_seconds.map(|interval| {
+                    let mut next = job.clone();
+                    let interval = interval.max(1);
+                    next.id = Uuid::new_v4();
+                    next.replay_of_job_id = Some(job.id);
+                    next.idempotency_key = None;
+                    next.run_at = job.run_at + chrono::Duration::seconds(interval);
+                    next.deadline_at = job
+                        .deadline_at
+                        .map(|deadline| deadline + chrono::Duration::seconds(interval));
+                    next.status = JobStatus::Queued.as_str().to_string();
+                    next.locked_at = None;
+                    next.locked_by = None;
+                    next.lock_expires_at = None;
+                    next.dlq_reason_code = None;
+                    next.dlq_at = None;
+                    next.created_at = now;
+                    next.updated_at = now;
+                    next
+                });
                 let updated_json = serde_json::to_string(&job)?;
                 let _: () = conn.hset("azums:jobs", &job_id_str, updated_json).await?;
 
                 let proc_key = format!("azums:processing:{}:{}", job.queue, worker_id);
                 let _: () = conn.lrem(proc_key, 1, &job_id_str).await?;
+
+                if let Some(next) = next_job {
+                    let next_id = next.id.to_string();
+                    let queue_key = format!("azums:queue:{}", next.queue);
+                    let next_json = serde_json::to_string(&next)?;
+                    let _: () = conn.hset("azums:jobs", &next_id, next_json).await?;
+                    let _: () = conn.rpush(queue_key, next_id).await?;
+                    self.notify_queue_local(&next.queue);
+                }
             }
         }
 
@@ -590,6 +634,9 @@ impl StorageBackend for RedisBackend {
                     job_type: job.job_type,
                     status: job.status,
                     run_at: job.run_at,
+                    deadline_at: job.deadline_at,
+                    timeout_seconds: job.timeout_seconds,
+                    recurring_interval_seconds: job.recurring_interval_seconds,
                     priority: job.priority,
                     max_attempts: job.max_attempts,
                     last_error_code: None,
@@ -634,6 +681,9 @@ impl StorageBackend for RedisBackend {
             job_type: src.job_type,
             payload: src.payload,
             run_at: target_run_at,
+            deadline_at: src.deadline_at,
+            timeout_seconds: src.timeout_seconds,
+            recurring_interval_seconds: src.recurring_interval_seconds,
             status: JobStatus::Queued.as_str().to_string(),
             priority: src.priority,
             max_attempts: src.max_attempts,
