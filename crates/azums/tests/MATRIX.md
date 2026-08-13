@@ -82,6 +82,30 @@ Properties:
 
 ---
 
+## Fuzzing & Input Hardening
+
+Covered by:
+
+- tests/m13_fuzz_hardening.rs::m13_public_input_boundaries_survive_generated_garbage
+- tests/m13_fuzz_hardening.rs::m13_malformed_serialized_data_rejects_without_panic
+
+Boundaries:
+
+- Job payloads, job types, queues, idempotency metadata, streams, event types, malformed serialized jobs/events, status parsing, typed payload decoding, lease APIs, stream APIs.
+
+Properties:
+
+- No panic.
+- No unbounded allocation from generated input.
+- No infinite loop.
+- Committed jobs remain readable.
+- Storage never produces unknown job statuses.
+- Lease batches do not contain duplicate jobs.
+- Terminal jobs do not retain live leases.
+- Malformed serialized data rejects cleanly.
+
+---
+
 ## Load & Cost
 
 Status:
