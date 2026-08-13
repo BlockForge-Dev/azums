@@ -11,7 +11,7 @@
 
 `azums` is an enterprise-grade, transactional background job queue and streaming framework designed for Rust web applications, CLI tools, AI agents, and microservices. Built on top of PostgreSQL, SQLite, Redis, and In-Memory storage backends with native extractors for **Axum**, **Actix Web**, **Poem**, and **Rocket**.
 
-All backends benchmarked on every commit to main. Zero idle CPU, sub-millisecond wake-up, up to 380k jobs/sec.
+Performance claims are benchmark-derived and reproducible through `azums-perf` and Criterion. See benchmark artifacts for backend, workload, worker count, and machine conditions before comparing numbers.
 
 ---
 
@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
 | **Transactional Enqueue** | ✅ Backend-dependent; native for SQL backends | ❌ Separate store | ❌ | ❌ | ❌ (to some extent) |
 | **Embedded / Edge Support** | ✅ SQLite & in‑memory backends for single‑binary deployment | ❌ Requires Redis process | ❌ | ❌ | ❌ |
 | **Idle CPU Usage** | **0.0%** | Low | Medium | Low | High (polling) |
-| **Max Throughput (enqueue)** | **380,000 jobs/sec** (in‑memory) | ~5,000–10,000/sec | ~2,000–5,000/sec | ~5,000–10,000/sec | ~8,500/sec |
+| **Max Throughput (enqueue)** | Benchmark-derived; see M14 report / dashboard | ~5,000–10,000/sec | ~2,000–5,000/sec | ~5,000–10,000/sec | ~8,500/sec |
 | **Licensing** | MIT / Apache 2.0 | MIT | BSD | LGPL / Pro | MIT |
 | **Open Source Dashboard** | 🚧 Coming as separate crate | ✅ Built‑in | ✅ Flower | ✅ Sidekiq UI | ❌ None |
 | **Managed Cloud Offering** | 🚧 Beta planned | ✅ (via Redis Enterprise) | ✅ (Celery Cloud) | ✅ (Sidekiq Pro) | ❌ |
@@ -120,9 +120,12 @@ async fn create_user(queue: JobQueue, Json(payload): Json<UserPayload>) -> impl 
 
 ## ⚡ Performance & Micro-Benchmarks
 
-`azums` is built for maximum throughput with minimal overhead. Run Criterion benchmarks locally:
+`azums` is built for maximum throughput with minimal overhead. Run the reproducible M14 harness and Criterion micro-benchmarks locally:
 
 ```bash
+# Run the M14 matrix harness
+cargo run -p azums --release --bin azums-perf
+
 # Run Criterion micro-benchmarks
 cargo bench -p azums
 ```

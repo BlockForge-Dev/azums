@@ -56,6 +56,7 @@ Legend:
 | Consumer groups | Stream offset coordination by group. | Offsets advance monotonically and never move backward. | `stream_offsets`, Redis hash, memory map | Integration: stream ack and consumer group tests | PG, SQLite, Redis, Memory |
 | Partitioning | Dataset routing for hot job sets. | Job rows route by queue and scheduled time bucket where backend supports partitions. | `dataset_id_for`, partition migrations | Integration: replay/lease tests preserve dataset behavior; docs define backend limits | PG primary, SQLite/Redis/Memory use default dataset |
 | Backpressure | Make overload behavior explicit. | Default overload becomes backlog, not silent loss. PostgreSQL policy gates throttle execution leases without dropping jobs. | `BackendCapabilities::backpressure`, queue policies, policy decisions | Integration/failure: M8 backlog test, M8 PostgreSQL policy test, storm control and policy timeline tests | PG execution rate limits; SQLite/Redis/Memory backlog-only |
+| Performance evidence | Benchmark end-to-end throughput, latency percentiles, workers, workload shapes, and backend conditions. | Performance claims must be reproducible, independently runnable, statistically sampled, and explicit about missing resource counters or skipped backends. | `azums-perf`, Criterion benches, benchmark dashboard artifacts | Benchmark: M14 report JSON/Markdown and existing Criterion benchmark suite | Memory/SQLite default; PG/Redis when service URLs are configured |
 
 ## Event Primitives
 

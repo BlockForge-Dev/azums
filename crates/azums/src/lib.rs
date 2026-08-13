@@ -8,8 +8,8 @@
 //! row-level FOR UPDATE SKIP LOCKED leasing, dead-letter queues (DLQ), exponential backoff retries,
 //! and time-partitioned storage tables.
 //!
-//! *All backends benchmarked on every commit to main. Zero idle CPU, sub-millisecond wake-up, up to 380k jobs/sec.*
-//! See [Live Benchmark Dashboard](https://blockforge-dev.github.io/azums/).
+//! *Performance claims are benchmark-derived and reproducible through `azums-perf` and Criterion.*
+//! See [Live Benchmark Dashboard](https://blockforge-dev.github.io/azums/) for current measured results and conditions.
 //!
 //! ---
 //!

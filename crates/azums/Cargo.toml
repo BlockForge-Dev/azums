@@ -89,6 +89,10 @@ name = "azumsctl"
 path = "src/bin/azumsctl.rs"
 required-features = ["cli"]
 
+[[bin]]
+name = "azums-perf"
+path = "src/bin/azums-perf.rs"
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

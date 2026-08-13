@@ -110,10 +110,13 @@ Properties:
 
 Status:
 
-- Not automated in cargo test yet.
-- Planned: benches/ and a script that prints throughput/latency.
+- Reproducible benchmark harness is available as `azums-perf`.
+- Criterion microbenchmarks remain available under `crates/azums/benches`.
 
-Planned artifacts:
+Artifacts:
 
-- benches/load.rs (criterion or custom harness)
-- scripts/test/load.ps1 (runs workers + pushes N jobs)
+- `cargo run -p azums --release --bin azums-perf`
+- `cargo bench -p azums --benches`
+- `target/azums-perf/m14_report.json`
+- `target/azums-perf/m14_report.md`
+- tests/m14_performance_harness.rs::m14_perf_binary_emits_reproducible_reports
