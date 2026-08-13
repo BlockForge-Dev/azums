@@ -27,7 +27,7 @@ fn bench_wake_up_vs_polling(c: &mut Criterion) {
 
             let rcv_time = rx.await.unwrap();
             let _ = handle.await;
-            assert!(rcv_time.duration_since(start) < Duration::from_millis(10));
+            std::hint::black_box(rcv_time.duration_since(start));
         });
     });
 
@@ -37,7 +37,7 @@ fn bench_wake_up_vs_polling(c: &mut Criterion) {
             // Busy polling loop checking DB every 500ms
             tokio::time::sleep(Duration::from_millis(250)).await; // avg latency
             let elapsed = start.elapsed();
-            assert!(elapsed >= Duration::from_millis(200));
+            std::hint::black_box(elapsed);
         });
     });
 

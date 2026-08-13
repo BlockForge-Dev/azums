@@ -32,7 +32,7 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = "0.7"
 
 # Optional: sqlx FromRow derives for SQL-based backends
-sqlx = { version = "0.7", optional = true, features = [
+sqlx = { version = "0.8", optional = true, features = [
     "runtime-tokio-rustls",
     "postgres",
     "sqlite",
