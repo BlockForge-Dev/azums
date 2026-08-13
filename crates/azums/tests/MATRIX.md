@@ -49,13 +49,17 @@ Covered by:
 
 Covered by:
 
+- tests/chaos.rs::m11_memory_randomized_chaos_ci_matrix
+- tests/chaos.rs::m11_sqlite_contention_chaos_ci_matrix
+- tests/chaos.rs::m11_memory_randomized_chaos_10000_plus (ignored long-run profile)
 - tests/leasing.rs::lease_expires_then_other_worker_can_claim
 - tests/leasing.rs::leasing_two_workers_never_claim_same_job
 - tests/reliability_worker_crash.rs
 
 Notes:
 
-- DB restart chaos test is not automated yet (script planned).
+- The default chaos test suite covers randomized in-process failures and SQLite contention.
+- Live PostgreSQL restart, Redis restart, and network partition tests are environment-dependent and must not be reported as guaranteed unless the runner controls those services.
 
 ---
 
