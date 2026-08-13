@@ -1,0 +1,310 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>M20 Release Candidate Evidence - Azums Guide &amp; Reference</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "navy";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item affix "><a href="introduction.html">Introduction</a></li><li class="chapter-item affix "><a href="quickstart.html">Zero-Config Quickstart</a></li><li class="chapter-item affix "><a href="architecture_book.html">The Azums Architecture Book</a></li><li class="chapter-item affix "><li class="part-title">Part I - Philosophy</li><li class="chapter-item "><a href="architecture.html"><strong aria-hidden="true">1.</strong> Architecture Overview</a></li><li class="chapter-item "><a href="semantics.html"><strong aria-hidden="true">2.</strong> Execution Semantics</a></li><li class="chapter-item "><a href="primitive_correctness.html"><strong aria-hidden="true">3.</strong> Primitive Correctness Audit</a></li><li class="chapter-item affix "><li class="part-title">Part II - Execution Model</li><li class="chapter-item "><a href="job_lifecycle.html"><strong aria-hidden="true">4.</strong> Job Lifecycle</a></li><li class="chapter-item "><a href="time_semantics.html"><strong aria-hidden="true">5.</strong> Scheduling & Time Semantics</a></li><li class="chapter-item "><a href="replay_semantics.html"><strong aria-hidden="true">6.</strong> Replay Semantics</a></li><li class="chapter-item affix "><li class="part-title">Part III - Core Primitives</li><li class="chapter-item "><a href="backend_equivalence.html"><strong aria-hidden="true">7.</strong> Storage Backend Equivalence</a></li><li class="chapter-item "><a href="transactional_integrity.html"><strong aria-hidden="true">8.</strong> Transactional Integrity</a></li><li class="chapter-item "><a href="idempotency.html"><strong aria-hidden="true">9.</strong> Idempotency & Duplicate Execution</a></li><li class="chapter-item affix "><li class="part-title">Part IV - Reliability</li><li class="chapter-item "><a href="leasing.html"><strong aria-hidden="true">10.</strong> Lease Recovery</a></li><li class="chapter-item "><a href="chaos_engineering.html"><strong aria-hidden="true">11.</strong> Chaos Engineering</a></li><li class="chapter-item "><a href="property_testing.html"><strong aria-hidden="true">12.</strong> Property-Based Testing</a></li><li class="chapter-item "><a href="fuzzing_input_hardening.html"><strong aria-hidden="true">13.</strong> Fuzzing & Input Hardening</a></li><li class="chapter-item affix "><li class="part-title">Part V - Storage Backends</li><li class="chapter-item "><a href="redis_backend.html"><strong aria-hidden="true">14.</strong> Redis Storage Backend</a></li><li class="chapter-item "><a href="partitioning.html"><strong aria-hidden="true">15.</strong> Dataset Partitioning Strategy</a></li><li class="chapter-item affix "><li class="part-title">Part VI - Coordination</li><li class="chapter-item "><a href="concurrency_backpressure.html"><strong aria-hidden="true">16.</strong> Concurrency, Ordering & Backpressure</a></li><li class="chapter-item "><a href="ordering.html"><strong aria-hidden="true">17.</strong> Ordering Guarantees</a></li><li class="chapter-item "><a href="instant_wakeup.html"><strong aria-hidden="true">18.</strong> Event-Driven Instant Wake-Up</a></li><li class="chapter-item affix "><li class="part-title">Part VII - Event Streaming</li><li class="chapter-item "><a href="streams.html"><strong aria-hidden="true">19.</strong> Redis-Style Event Streams</a></li><li class="chapter-item "><a href="event_streaming.html"><strong aria-hidden="true">20.</strong> Durable Event Streaming</a></li><li class="chapter-item affix "><li class="part-title">Part VIII - Performance</li><li class="chapter-item "><a href="performance_engineering.html"><strong aria-hidden="true">21.</strong> Performance Engineering</a></li><li class="chapter-item "><a href="performance_regression_protection.html"><strong aria-hidden="true">22.</strong> Performance Regression Protection</a></li><li class="chapter-item "><a href="../PERFORMANCE_TUNING.html"><strong aria-hidden="true">23.</strong> Performance Tuning Guide</a></li><li class="chapter-item "><a href="../benchmarks/index.html"><strong aria-hidden="true">24.</strong> Interactive Benchmark Dashboard</a></li><li class="chapter-item affix "><li class="part-title">Part IX - Failure Engineering</li><li class="chapter-item "><a href="failure_handling.html"><strong aria-hidden="true">25.</strong> Retry, Failure Classification & DLQ</a></li><li class="chapter-item affix "><li class="part-title">Part X - Integrations</li><li class="chapter-item "><a href="developer_experience.html"><strong aria-hidden="true">26.</strong> Developer Experience & Integration</a></li><li class="chapter-item "><a href="admin_api.html"><strong aria-hidden="true">27.</strong> Admin API & Web UI</a></li><li class="chapter-item affix "><li class="part-title">Part XI - Operations</li><li class="chapter-item "><a href="production_readiness.html"><strong aria-hidden="true">28.</strong> Production Readiness</a></li><li class="chapter-item "><a href="production_deployment.html"><strong aria-hidden="true">29.</strong> Production Deployment Guide</a></li><li class="chapter-item "><a href="failure_recovery_runbook.html"><strong aria-hidden="true">30.</strong> Failure And Recovery Runbook</a></li><li class="chapter-item "><a href="observability.html"><strong aria-hidden="true">31.</strong> Observability</a></li><li class="chapter-item "><a href="comparison.html"><strong aria-hidden="true">32.</strong> Feature Comparison Matrix</a></li><li class="chapter-item affix "><li class="part-title">Part XII - Internals</li><li class="chapter-item "><a href="LLD.html"><strong aria-hidden="true">33.</strong> Low-Level Design & DSA</a></li><li class="chapter-item expanded "><a href="release_candidate.html" class="active"><strong aria-hidden="true">34.</strong> M20 Release Candidate Evidence</a></li><li class="chapter-item "><a href="stable_release.html"><strong aria-hidden="true">35.</strong> M21 Stable Release Gate</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Azums Guide &amp; Reference</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/BlockForge-Dev/azums" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/BlockForge-Dev/azums/edit/main/docs/src/release_candidate.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="m20-release-candidate-evidence"><a class="header" href="#m20-release-candidate-evidence">M20 Release Candidate Evidence</a></h1>
+<p>M20 freezes features and proves documented guarantees against the available test and audit gates.</p>
+<p>Result: no known violation of a documented Azums guarantee was found.</p>
+<p>RC caveats:</p>
+<ul>
+<li><code>cargo audit</code> passes with a scoped ignore for <code>RUSTSEC-2023-0071</code>: the vulnerable <code>rsa</code> crate is
+present only through SQLx's optional MySQL backend in <code>Cargo.lock</code>; Azums enables PostgreSQL and
+SQLite SQLx features, and <code>cargo tree --workspace --all-features --target all</code> shows no active
+path to <code>rsa</code> or <code>sqlx-mysql</code>.</li>
+<li>Redis Criterion benchmarks are opt-in behind <code>AZUMS_BENCH_REDIS=1</code> and require <code>REDIS_URL</code>. The
+default full Criterion sweep completes without trying to benchmark a local Redis instance.</li>
+<li><code>cargo semver-checks --workspace --baseline-rev HEAD~1</code> exceeded the command budget. The primary
+public crate check, <code>cargo semver-checks -p azums --baseline-rev HEAD~1</code>, passed.</li>
+</ul>
+<h2 id="rc-fixes-found-by-the-proof-run"><a class="header" href="#rc-fixes-found-by-the-proof-run">RC Fixes Found By The Proof Run</a></h2>
+<p>The first RC pass found two API compatibility issues in examples/docs:</p>
+<ul>
+<li><code>crates/azums/examples/full_features.rs</code> constructed <code>NewJob</code> directly with stale fields.</li>
+<li><code>crates/azums/src/jobs/repo.rs</code> had a doctest constructing <code>NewJob</code> directly with stale fields.</li>
+</ul>
+<p>Both were changed to use the stable <code>Job</code> builder path.</p>
+<p>The blocker cleanup pass also:</p>
+<ul>
+<li>upgraded SQLx from <code>0.7</code> to <code>0.8.6</code></li>
+<li>made the Redis throughput benchmark opt-in by default</li>
+<li>removed timing assertions from Criterion benchmark loops</li>
+<li>installed and ran <code>cargo-audit</code></li>
+<li>installed and ran <code>cargo-semver-checks</code> for the primary <code>azums</code> crate</li>
+</ul>
+<h2 id="command-evidence"><a class="header" href="#command-evidence">Command Evidence</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Gate</th><th>Command</th><th>Result</th></tr></thead><tbody>
+<tr><td>Full test suite</td><td><code>cargo test --workspace</code></td><td>PASS</td></tr>
+<tr><td>Full integration suite</td><td>Included in <code>cargo test --workspace</code>; PostgreSQL/Redis tests ran where services were reachable</td><td>PASS</td></tr>
+<tr><td>Full chaos suite</td><td><code>cargo test -p azums --test chaos</code> plus <code>AZUMS_CHAOS_SCENARIOS=10000 cargo test -p azums --test chaos m11_memory_randomized_chaos_10000_plus -- --ignored</code></td><td>PASS</td></tr>
+<tr><td>Full fuzz suite</td><td><code>cargo test -p azums --test m13_fuzz_hardening</code></td><td>PASS</td></tr>
+<tr><td>Full property suite</td><td><code>cargo test -p azums --test m12_property_based</code>; <code>cargo test -p azums-core --test proptest_queue</code></td><td>PASS</td></tr>
+<tr><td>Full benchmark suite</td><td><code>cargo bench -p azums --benches</code></td><td>PASS; Redis benchmark skipped unless <code>AZUMS_BENCH_REDIS=1</code></td></tr>
+<tr><td>Reproducible benchmark harness</td><td><code>cargo test -p azums --test m14_performance_harness</code></td><td>PASS</td></tr>
+<tr><td>Performance regression guard</td><td><code>cargo test -p azums --test m15_performance_regression_guard</code></td><td>PASS</td></tr>
+<tr><td>Documentation build</td><td><code>mdbook build docs</code></td><td>PASS with pre-existing benchmark HTML warnings</td></tr>
+<tr><td>Dependency audit</td><td><code>cargo audit</code></td><td>PASS with documented inactive optional-dependency ignore</td></tr>
+<tr><td>API compatibility checks</td><td><code>cargo test -p azums --test api_audit</code>; <code>cargo test -p azums --test matrix_guard</code>; doctests in <code>cargo test --workspace</code>; <code>cargo semver-checks -p azums --baseline-rev HEAD~1</code></td><td>PASS</td></tr>
+<tr><td>Future incompatibility check</td><td><code>cargo check --workspace</code> after SQLx 0.8.6 upgrade</td><td>PASS; old <code>sqlx-postgres 0.7.4</code> warning removed from current build</td></tr>
+</tbody></table>
+</div>
+<h2 id="guarantee-to-test-matrix"><a class="header" href="#guarantee-to-test-matrix">Guarantee To Test Matrix</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Guarantee</th><th>Test evidence</th><th>RC status</th></tr></thead><tbody>
+<tr><td>Invalid lifecycle transitions are rejected.</td><td><code>azums-core/tests/core_unit.rs</code>; <code>azums/tests/m12_property_based.rs</code></td><td>PASS</td></tr>
+<tr><td>Terminal states remain terminal.</td><td><code>azums-core/tests/core_unit.rs</code>; <code>azums/tests/m12_property_based.rs</code>; <code>azums/tests/chaos.rs</code></td><td>PASS</td></tr>
+<tr><td>Every durable attempt can be reconstructed while retained.</td><td><code>azums/tests/attempts.rs</code>; <code>azums/tests/timeline.rs</code>; <code>azums/tests/m17_observability.rs</code></td><td>PASS</td></tr>
+<tr><td>At-least-once execution and lease recovery preserve committed jobs.</td><td><code>azums/tests/lease_recovery.rs</code>; <code>azums/tests/reliability_worker_crash.rs</code>; long M11 chaos profile</td><td>PASS</td></tr>
+<tr><td>Transactional enqueue keeps SQL app state and job state aligned across commit/rollback boundaries.</td><td><code>azums/tests/transactional_enqueue.rs</code>; <code>azums/tests/m12_property_based.rs</code></td><td>PASS</td></tr>
+<tr><td>Retry and DLQ lifecycle is deterministic for classified failures.</td><td><code>azums/tests/retries.rs</code>; <code>azums/tests/dlq.rs</code>; <code>azums/tests/failure_semantics.rs</code></td><td>PASS</td></tr>
+<tr><td>Idempotency keys collapse duplicate enqueue attempts into one logical job where supported.</td><td><code>azums/tests/idempotency.rs</code>; <code>azums/tests/m12_property_based.rs</code></td><td>PASS</td></tr>
+<tr><td>Scheduling does not lease before documented eligibility time.</td><td><code>azums/tests/scheduling.rs</code>; <code>azums/tests/m9_time_semantics.rs</code></td><td>PASS</td></tr>
+<tr><td>Queue isolation, ordering, priority, and backpressure behavior remain predictable under concurrency.</td><td><code>azums/tests/m8_concurrency_backpressure.rs</code>; <code>azums/tests/fifo_ordering.rs</code>; <code>azums/tests/storm_control.rs</code></td><td>PASS</td></tr>
+<tr><td>Event stream offsets, ACK, consumer groups, replay, and retention are unambiguous.</td><td><code>azums/tests/streams.rs</code>; <code>azums/tests/m10_streaming.rs</code></td><td>PASS</td></tr>
+<tr><td>Public input boundaries reject malformed data without panics or invalid state.</td><td><code>azums/tests/m13_fuzz_hardening.rs</code></td><td>PASS</td></tr>
+<tr><td>Production failures are explainable without reading source code.</td><td><code>azums/tests/m17_observability.rs</code>; <code>azums/tests/m19_production_readiness.rs</code></td><td>PASS</td></tr>
+<tr><td>Beginner install, enqueue, process, retry, inspect path works.</td><td><code>azums/tests/m16_developer_experience.rs</code>; <code>azums/examples/install_enqueue_process_retry_inspect.rs</code> built in workspace tests</td><td>PASS</td></tr>
+<tr><td>Performance claims are reproducible and regression-guarded.</td><td><code>azums/tests/m14_performance_harness.rs</code>; <code>azums/tests/m15_performance_regression_guard.rs</code>; <code>cargo bench -p azums --benches</code></td><td>PASS</td></tr>
+</tbody></table>
+</div>
+<h2 id="follow-up-items"><a class="header" href="#follow-up-items">Follow-Up Items</a></h2>
+<p>These are not release blockers:</p>
+<ul>
+<li>Run Redis-specific Criterion benchmarks explicitly with <code>AZUMS_BENCH_REDIS=1</code> and <code>REDIS_URL</code> in
+infrastructure that owns the Redis service and timing budget.</li>
+<li>Run <code>cargo semver-checks --workspace --baseline-rev HEAD~1</code> in CI with a longer wall-clock budget
+if every workspace support crate needs automated semver checks.</li>
+<li>Periodically revisit <code>.cargo/audit.toml</code> and remove the <code>RUSTSEC-2023-0071</code> ignore if SQLx stops
+locking the optional MySQL <code>rsa</code> dependency or Azums adds MySQL support.</li>
+</ul>
+<p>Release candidate evidence says:</p>
+<blockquote>
+<p>No known violation of a documented guarantee.</p>
+</blockquote>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="LLD.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="stable_release.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="LLD.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="stable_release.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>
