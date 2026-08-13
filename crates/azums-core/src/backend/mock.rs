@@ -1,5 +1,8 @@
 use crate::{
-    backend::{memory::MemoryBackend, NotificationStream, StorageBackend, StreamBackend},
+    backend::{
+        memory::MemoryBackend, JobExplanation, NotificationStream, ObservabilityBackend,
+        QueueMetrics, StorageBackend, StreamBackend,
+    },
     model::{ConsumerGroupStatus, Event, Job, JobListItem, NewEvent, NewJob},
 };
 use async_trait::async_trait;
@@ -199,6 +202,10 @@ impl StorageBackend for MockBackend {
     }
 
     fn as_stream(&self) -> Option<&dyn StreamBackend> {
+        Some(self)
+    }
+
+    fn as_observability(&self) -> Option<&dyn ObservabilityBackend> {
         Some(self)
     }
 
@@ -502,6 +509,25 @@ impl StorageBackend for MockBackend {
         self.inner
             .replay_job(job_id, override_queue, override_run_at)
             .await
+    }
+}
+
+#[async_trait]
+impl ObservabilityBackend for MockBackend {
+    async fn explain_job(&self, job_id: Uuid) -> anyhow::Result<Option<JobExplanation>> {
+        if let Some(observability) = self.inner.as_observability() {
+            observability.explain_job(job_id).await
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn queue_metrics(&self, queue: Option<&str>) -> anyhow::Result<Vec<QueueMetrics>> {
+        if let Some(observability) = self.inner.as_observability() {
+            observability.queue_metrics(queue).await
+        } else {
+            Ok(Vec::new())
+        }
     }
 }
 

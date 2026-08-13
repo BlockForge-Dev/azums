@@ -115,6 +115,104 @@ impl QuickstartFlow {
         self.backend.replay_job(job_id, None, None).await
     }
 
+    /// Reconstructs the observable lifecycle for one job.
+    ///
+    /// Backends with native observability return attempt history and latency data. Other backends
+    /// fall back to the current durable job row so callers still get stable fields.
+    pub async fn explain_job(
+        &self,
+        job_id: Uuid,
+    ) -> anyhow::Result<Option<azums_core::JobExplanation>> {
+        if let Some(observability) = self.backend.as_observability() {
+            return observability.explain_job(job_id).await;
+        }
+
+        Ok(self.get_job(job_id).await?.map(fallback_job_explanation))
+    }
+
+    /// Returns queue-level metrics using backend-native counters where available.
+    pub async fn queue_metrics(
+        &self,
+        queue: Option<&str>,
+    ) -> anyhow::Result<Vec<azums_core::QueueMetrics>> {
+        if let Some(observability) = self.backend.as_observability() {
+            return observability.queue_metrics(queue).await;
+        }
+
+        self.fallback_queue_metrics(queue).await
+    }
+
+    /// Returns metrics for all queues visible to this client.
+    pub async fn metrics_snapshot(&self) -> anyhow::Result<Vec<azums_core::QueueMetrics>> {
+        self.queue_metrics(None).await
+    }
+
+    /// Builds one structured log event for the latest known state of a job.
+    pub async fn job_log_event(&self, job_id: Uuid) -> anyhow::Result<Option<serde_json::Value>> {
+        let Some(explanation) = self.explain_job(job_id).await? else {
+            return Ok(None);
+        };
+
+        let latest = explanation.events.last();
+        Ok(Some(serde_json::json!({
+            "job_id": explanation.job_id,
+            "attempt": latest.and_then(|event| event.attempt),
+            "worker_id": explanation.last_worker_id,
+            "queue": explanation.queue,
+            "duration": latest.and_then(|event| event.duration_ms),
+            "duration_ms": latest.and_then(|event| event.duration_ms),
+            "status": explanation.status,
+            "retry_count": explanation.retry_count,
+            "error": explanation.last_error,
+            "trace_id": explanation.trace_id,
+            "summary": explanation.summary,
+        })))
+    }
+
+    async fn fallback_queue_metrics(
+        &self,
+        queue: Option<&str>,
+    ) -> anyhow::Result<Vec<azums_core::QueueMetrics>> {
+        let items = self.backend.list_jobs(queue, None, 500, None, None).await?;
+        let now = chrono::Utc::now();
+        let mut by_queue: HashMap<String, Vec<azums_core::JobListItem>> = HashMap::new();
+
+        for item in items {
+            by_queue.entry(item.queue.clone()).or_default().push(item);
+        }
+
+        if let Some(queue) = queue {
+            by_queue.entry(queue.to_string()).or_default();
+        }
+
+        let mut rows = Vec::with_capacity(by_queue.len());
+        for (queue_name, jobs) in by_queue {
+            rows.push(azums_core::QueueMetrics {
+                at: now,
+                queue: queue_name,
+                jobs_total: jobs.len() as u64,
+                jobs_completed: jobs
+                    .iter()
+                    .filter(|job| matches!(job.status.as_str(), "succeeded" | "completed"))
+                    .count() as u64,
+                jobs_failed: 0,
+                jobs_retried: 0,
+                jobs_dlq: jobs.iter().filter(|job| job.status == "dlq").count() as u64,
+                queue_depth: jobs
+                    .iter()
+                    .filter(|job| job.status == "queued" && job.run_at <= now)
+                    .count() as u64,
+                execution_latency_ms_avg: 0.0,
+                claim_latency_ms_avg: 0.0,
+                retry_latency_ms_avg: 0.0,
+                worker_count: 0,
+            });
+        }
+
+        rows.sort_by(|a, b| a.queue.cmp(&b.queue));
+        Ok(rows)
+    }
+
     /// Returns a [`StreamHandle`](crate::StreamHandle) for high-level Redis-style stream log operations.
     pub fn stream(&self, name: impl Into<String>) -> crate::stream_handle::StreamHandle {
         crate::stream_handle::StreamHandle::new(self.backend.clone(), name)
@@ -530,6 +628,56 @@ impl QuickstartFlow {
                 )
                 .await
         }
+    }
+}
+
+fn fallback_job_explanation(job: Job) -> azums_core::JobExplanation {
+    let trace_id = azums_core::backend::observability::trace_id_from_job(&job);
+    let summary = match job.status.as_str() {
+        "queued" if job.run_at > chrono::Utc::now() => {
+            format!("Job is waiting until {}.", job.run_at)
+        }
+        "queued" => "Job is queued and eligible when ordering and priority allow it.".to_string(),
+        "running" => match &job.locked_by {
+            Some(worker_id) => format!("Job is running on worker {worker_id}."),
+            None => "Job is running without a recorded worker identity.".to_string(),
+        },
+        "succeeded" | "completed" => "Job completed.".to_string(),
+        "dlq" => {
+            let reason = job
+                .dlq_reason_code
+                .clone()
+                .unwrap_or_else(|| "UNKNOWN".to_string());
+            format!("Job is in DLQ: {reason}.")
+        }
+        "canceled" | "cancelled" => "Job was cancelled.".to_string(),
+        other => format!("Job is in backend-specific status '{other}'."),
+    };
+
+    let event = azums_core::JobObservationEvent {
+        at: job.updated_at,
+        job_id: job.id,
+        attempt: None,
+        worker_id: job.locked_by.clone(),
+        queue: job.queue.clone(),
+        duration_ms: None,
+        status: job.status.clone(),
+        retry_count: 0,
+        error: job.dlq_reason_code.clone(),
+        trace_id: trace_id.clone(),
+    };
+
+    azums_core::JobExplanation {
+        job_id: job.id,
+        job_type: job.job_type,
+        queue: job.queue,
+        status: job.status,
+        retry_count: 0,
+        last_worker_id: job.locked_by,
+        last_error: job.dlq_reason_code,
+        trace_id,
+        events: vec![event],
+        summary,
     }
 }
 

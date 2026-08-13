@@ -1,11 +1,14 @@
 use crate::{
-    backend::{NotificationStream, StorageBackend, StreamBackend},
+    backend::{
+        observability::{trace_id_from_job, JobExplanation, JobObservationEvent},
+        NotificationStream, ObservabilityBackend, QueueMetrics, StorageBackend, StreamBackend,
+    },
     model::{ConsumerGroupStatus, Event, Job, JobListItem, JobStatus, NewEvent, NewJob},
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
 };
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
@@ -92,6 +95,11 @@ impl StorageBackend for MemoryBackend {
     fn as_stream(&self) -> Option<&dyn StreamBackend> {
         Some(self)
     }
+
+    fn as_observability(&self) -> Option<&dyn ObservabilityBackend> {
+        Some(self)
+    }
+
     async fn run_migrations(&self) -> anyhow::Result<()> {
         Ok(())
     }
@@ -805,6 +813,221 @@ impl StorageBackend for MemoryBackend {
         drop(state);
         self.notify_queue(&target_queue_clone);
         Ok(new_id)
+    }
+}
+
+fn attempt_error(attempt: &MemoryAttempt) -> Option<String> {
+    match (&attempt.error_code, &attempt.error_message) {
+        (Some(code), Some(message)) => Some(format!("{code}: {message}")),
+        (Some(code), None) => Some(code.clone()),
+        (None, Some(message)) => Some(message.clone()),
+        (None, None) => None,
+    }
+}
+
+fn job_summary(job: &Job, attempts: &[MemoryAttempt]) -> String {
+    let attempt_count = attempts.len();
+    match job.status.as_str() {
+        "queued" if job.run_at > Utc::now() => {
+            format!("Job is waiting until {}.", job.run_at)
+        }
+        "queued" => "Job is queued and eligible when ordering and priority allow it.".to_string(),
+        "running" => match &job.locked_by {
+            Some(worker_id) => format!("Job is running on worker {worker_id}."),
+            None => "Job is running without a recorded worker identity.".to_string(),
+        },
+        "succeeded" | "completed" => {
+            format!("Job completed after {attempt_count} attempt(s).")
+        }
+        "dlq" => {
+            let reason = job
+                .dlq_reason_code
+                .clone()
+                .unwrap_or_else(|| "UNKNOWN".to_string());
+            format!("Job is in DLQ after {attempt_count} attempt(s): {reason}.")
+        }
+        "canceled" | "cancelled" => "Job was cancelled.".to_string(),
+        other => format!("Job is in backend-specific status '{other}'."),
+    }
+}
+
+fn avg_i64(values: impl Iterator<Item = i64>) -> f64 {
+    let mut count = 0_u64;
+    let mut sum = 0_i64;
+    for value in values {
+        count += 1;
+        sum += value;
+    }
+    if count == 0 {
+        0.0
+    } else {
+        sum as f64 / count as f64
+    }
+}
+
+#[async_trait]
+impl ObservabilityBackend for MemoryBackend {
+    async fn explain_job(&self, job_id: Uuid) -> anyhow::Result<Option<JobExplanation>> {
+        let state = self.state.read().unwrap();
+        let Some(job) = state
+            .jobs
+            .get(&job_id)
+            .or_else(|| state.archive.get(&job_id))
+            .cloned()
+        else {
+            return Ok(None);
+        };
+
+        let mut attempts: Vec<MemoryAttempt> = state
+            .attempts
+            .values()
+            .filter(|attempt| attempt.job_id == job_id)
+            .cloned()
+            .collect();
+        attempts.sort_by_key(|attempt| attempt.attempt_no);
+
+        let trace_id = trace_id_from_job(&job);
+        let retry_count = attempts
+            .iter()
+            .filter(|attempt| attempt.status == "failed")
+            .count() as i32;
+        let last_worker_id = attempts.last().map(|attempt| attempt.worker_id.clone());
+        let last_error = attempts.iter().rev().find_map(attempt_error);
+
+        let mut events = Vec::with_capacity(attempts.len() + 1);
+        events.push(JobObservationEvent {
+            at: job.created_at,
+            job_id,
+            attempt: None,
+            worker_id: None,
+            queue: job.queue.clone(),
+            duration_ms: None,
+            status: "queued".to_string(),
+            retry_count: 0,
+            error: None,
+            trace_id: trace_id.clone(),
+        });
+
+        for attempt in &attempts {
+            events.push(JobObservationEvent {
+                at: attempt.finished_at.unwrap_or(attempt.started_at),
+                job_id,
+                attempt: Some(attempt.attempt_no),
+                worker_id: Some(attempt.worker_id.clone()),
+                queue: job.queue.clone(),
+                duration_ms: attempt.latency_ms,
+                status: attempt.status.clone(),
+                retry_count: (attempt.attempt_no - 1).max(0),
+                error: attempt_error(attempt),
+                trace_id: trace_id.clone(),
+            });
+        }
+
+        Ok(Some(JobExplanation {
+            job_id,
+            job_type: job.job_type.clone(),
+            queue: job.queue.clone(),
+            status: job.status.clone(),
+            retry_count,
+            last_worker_id,
+            last_error,
+            trace_id,
+            events,
+            summary: job_summary(&job, &attempts),
+        }))
+    }
+
+    async fn queue_metrics(&self, queue: Option<&str>) -> anyhow::Result<Vec<QueueMetrics>> {
+        let state = self.state.read().unwrap();
+        let now = Utc::now();
+        let mut queues: HashSet<String> = state
+            .jobs
+            .values()
+            .filter(|job| queue.map_or(true, |target| job.queue == target))
+            .map(|job| job.queue.clone())
+            .collect();
+
+        if let Some(queue) = queue {
+            queues.insert(queue.to_string());
+        }
+
+        let mut rows = Vec::with_capacity(queues.len());
+        for queue_name in queues {
+            let jobs: Vec<&Job> = state
+                .jobs
+                .values()
+                .filter(|job| job.queue == queue_name)
+                .collect();
+            let attempts: Vec<&MemoryAttempt> = state
+                .attempts
+                .values()
+                .filter(|attempt| {
+                    state
+                        .jobs
+                        .get(&attempt.job_id)
+                        .or_else(|| state.archive.get(&attempt.job_id))
+                        .is_some_and(|job| job.queue == queue_name)
+                })
+                .collect();
+            let workers: HashSet<String> = jobs
+                .iter()
+                .filter(|job| job.status == "running")
+                .filter_map(|job| job.locked_by.clone())
+                .collect();
+
+            let retry_latency = attempts.iter().filter_map(|attempt| {
+                let finished_at = attempt.finished_at?;
+                let job = state
+                    .jobs
+                    .get(&attempt.job_id)
+                    .or_else(|| state.archive.get(&attempt.job_id))?;
+                let millis = (job.run_at - finished_at).num_milliseconds();
+                (millis > 0).then_some(millis)
+            });
+
+            rows.push(QueueMetrics {
+                at: now,
+                queue: queue_name,
+                jobs_total: jobs.len() as u64,
+                jobs_completed: jobs
+                    .iter()
+                    .filter(|job| matches!(job.status.as_str(), "succeeded" | "completed"))
+                    .count() as u64,
+                jobs_failed: attempts
+                    .iter()
+                    .filter(|attempt| attempt.status == "failed")
+                    .count() as u64,
+                jobs_retried: attempts
+                    .iter()
+                    .filter(|attempt| attempt.status == "failed")
+                    .filter(|attempt| {
+                        state
+                            .jobs
+                            .get(&attempt.job_id)
+                            .is_some_and(|job| job.status == "queued")
+                    })
+                    .count() as u64,
+                jobs_dlq: jobs.iter().filter(|job| job.status == "dlq").count() as u64,
+                queue_depth: jobs
+                    .iter()
+                    .filter(|job| job.status == "queued" && job.run_at <= now)
+                    .count() as u64,
+                execution_latency_ms_avg: avg_i64(
+                    attempts
+                        .iter()
+                        .filter_map(|attempt| attempt.latency_ms.map(i64::from)),
+                ),
+                claim_latency_ms_avg: avg_i64(jobs.iter().filter_map(|job| {
+                    job.locked_at
+                        .map(|locked_at| (locked_at - job.created_at).num_milliseconds())
+                })),
+                retry_latency_ms_avg: avg_i64(retry_latency),
+                worker_count: workers.len() as u64,
+            });
+        }
+
+        rows.sort_by(|a, b| a.queue.cmp(&b.queue));
+        Ok(rows)
     }
 }
 

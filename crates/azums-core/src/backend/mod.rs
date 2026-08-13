@@ -1,9 +1,11 @@
 pub mod memory;
 pub mod mock;
+pub mod observability;
 pub mod stream;
 
 pub use memory::{MemoryAttempt, MemoryBackend};
 pub use mock::{CallRecord, MockBackend};
+pub use observability::{JobExplanation, JobObservationEvent, ObservabilityBackend, QueueMetrics};
 pub use stream::StreamBackend;
 
 use crate::model::{BackendCapabilities, Job, JobListItem, NewJob};
@@ -26,6 +28,11 @@ pub trait StorageBackend: Send + Sync {
 
     /// Returns reference to StreamBackend if supported by this storage implementation.
     fn as_stream(&self) -> Option<&dyn StreamBackend> {
+        None
+    }
+
+    /// Returns reference to backend-native observability data if supported.
+    fn as_observability(&self) -> Option<&dyn ObservabilityBackend> {
         None
     }
 

@@ -14,8 +14,8 @@ pub mod error;
 pub mod model;
 
 pub use backend::{
-    CallRecord, MemoryAttempt, MemoryBackend, MockBackend, NotificationStream, StorageBackend,
-    StreamBackend,
+    CallRecord, JobExplanation, JobObservationEvent, MemoryAttempt, MemoryBackend, MockBackend,
+    NotificationStream, ObservabilityBackend, QueueMetrics, StorageBackend, StreamBackend,
 };
 pub use error::{Error, QueueError};
 pub use model::{
