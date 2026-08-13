@@ -63,6 +63,9 @@
 
 # Part XI - Operations
 
+- [Production Readiness](production_readiness.md)
+- [Production Deployment Guide](production_deployment.md)
+- [Failure And Recovery Runbook](failure_recovery_runbook.md)
 - [Observability](observability.md)
 - [Feature Comparison Matrix](comparison.md)
 

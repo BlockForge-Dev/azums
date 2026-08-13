@@ -1,5 +1,12 @@
 # Operations Runbook
 
+This root-level runbook is retained as a short pointer. The production handoff now lives in the
+mdBook:
+
+- [Production Readiness](src/production_readiness.md)
+- [Production Deployment Guide](src/production_deployment.md)
+- [Failure And Recovery Runbook](src/failure_recovery_runbook.md)
+
 ## Runtime Topology
 - `db`: Postgres / Redis / SQLite
 - `azums`: background job processing worker node
