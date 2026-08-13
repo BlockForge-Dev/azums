@@ -119,6 +119,33 @@ impl StreamRepo {
         Ok(events)
     }
 
+    /// Prunes retained stream events without deleting entries needed by known consumer groups.
+    pub async fn prune_events(&self, stream: &str, through_seq: i64) -> anyhow::Result<u64> {
+        let res = sqlx::query(
+            r#"
+            WITH retention AS (
+                SELECT LEAST(
+                    $2::bigint,
+                    COALESCE(
+                        (SELECT MIN(last_acked_seq) FROM stream_offsets WHERE stream_name = $1),
+                        $2::bigint
+                    )
+                ) AS cutoff
+            )
+            DELETE FROM stream_events
+            USING retention
+            WHERE stream_name = $1
+              AND sequence_no <= retention.cutoff
+            "#,
+        )
+        .bind(stream)
+        .bind(through_seq)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(res.rows_affected())
+    }
+
     /// Returns offset status for consumer groups registered on a stream log.
     pub async fn consumer_group_info(
         &self,

@@ -888,6 +888,26 @@ impl StreamBackend for MemoryBackend {
         }
     }
 
+    async fn prune_events(&self, stream: &str, through_seq: i64) -> anyhow::Result<u64> {
+        let mut state = self.state.write().unwrap();
+        let min_offset = state
+            .stream_offsets
+            .values()
+            .filter(|status| status.stream_name == stream)
+            .map(|status| status.last_acked_seq)
+            .min()
+            .unwrap_or(through_seq);
+        let cutoff = through_seq.min(min_offset);
+
+        let Some(log) = state.streams.get_mut(stream) else {
+            return Ok(0);
+        };
+
+        let before = log.len();
+        log.retain(|event| event.sequence_no > cutoff);
+        Ok((before - log.len()) as u64)
+    }
+
     async fn consumer_group_info(&self, stream: &str) -> anyhow::Result<Vec<ConsumerGroupStatus>> {
         let state = self.state.read().unwrap();
         let info: Vec<ConsumerGroupStatus> = state

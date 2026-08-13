@@ -33,6 +33,10 @@ pub enum CallRecord {
         after_seq: i64,
         limit: i64,
     },
+    PruneEventsStream {
+        stream: String,
+        through_seq: i64,
+    },
     ConsumerGroupInfoStream(String),
     LeaseJobsBatch {
         queue: String,
@@ -567,6 +571,21 @@ impl StreamBackend for MockBackend {
             sb.read_events(stream, after_seq, limit).await
         } else {
             Ok(Vec::new())
+        }
+    }
+
+    async fn prune_events(&self, stream: &str, through_seq: i64) -> anyhow::Result<u64> {
+        self.calls
+            .lock()
+            .unwrap()
+            .push(CallRecord::PruneEventsStream {
+                stream: stream.to_string(),
+                through_seq,
+            });
+        if let Some(sb) = self.inner.as_stream() {
+            sb.prune_events(stream, through_seq).await
+        } else {
+            Ok(0)
         }
     }
 

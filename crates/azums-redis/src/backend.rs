@@ -810,6 +810,34 @@ impl StreamBackend for RedisBackend {
         Ok(result)
     }
 
+    async fn prune_events(&self, stream: &str, through_seq: i64) -> anyhow::Result<u64> {
+        let mut conn = self.conn_mgr.clone();
+        let offsets_key = format!("azums:stream_offsets:{}", stream);
+        let offsets: HashMap<String, i64> = conn.hgetall(&offsets_key).await.unwrap_or_default();
+        let min_offset = offsets.values().copied().min().unwrap_or(through_seq);
+        let cutoff = through_seq.min(min_offset);
+
+        let stream_key = format!("azums:stream_events:{}", stream);
+        let raw_events: Vec<String> = conn.lrange(&stream_key, 0, -1).await.unwrap_or_default();
+        let before = raw_events.len();
+        let retained: Vec<String> = raw_events
+            .into_iter()
+            .filter(|raw| {
+                serde_json::from_str::<Event>(raw)
+                    .map(|event| event.sequence_no > cutoff)
+                    .unwrap_or(true)
+            })
+            .collect();
+
+        let _: () = conn.del(&stream_key).await?;
+        if !retained.is_empty() {
+            let _: () = conn.rpush(&stream_key, retained).await?;
+        }
+
+        let removed = before.saturating_sub(conn.llen::<_, usize>(&stream_key).await?);
+        Ok(removed as u64)
+    }
+
     async fn consumer_group_info(&self, stream: &str) -> anyhow::Result<Vec<ConsumerGroupStatus>> {
         let mut conn = self.conn_mgr.clone();
         let key = format!("azums:stream_offsets:{}", stream);

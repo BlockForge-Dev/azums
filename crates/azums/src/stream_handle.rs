@@ -48,10 +48,22 @@ impl StreamHandle {
         sb.read_events(&self.stream_name, after_seq, limit).await
     }
 
+    /// Reads the next events for `consumer_group` from its durable acknowledged offset.
+    pub async fn read_next(&self, consumer_group: &str, limit: i64) -> anyhow::Result<Vec<Event>> {
+        let sb = self.stream_backend()?;
+        sb.read_next(&self.stream_name, consumer_group, limit).await
+    }
+
     /// Acknowledges event processing up to sequence number `seq` for a consumer group.
     pub async fn ack(&self, consumer_group: &str, seq: i64) -> anyhow::Result<()> {
         let sb = self.stream_backend()?;
         sb.ack(&self.stream_name, consumer_group, seq).await
+    }
+
+    /// Prunes retained events up to `through_seq` without passing known consumer offsets.
+    pub async fn prune_events(&self, through_seq: i64) -> anyhow::Result<u64> {
+        let sb = self.stream_backend()?;
+        sb.prune_events(&self.stream_name, through_seq).await
     }
 
     /// Returns offset status for consumer groups registered on this stream log.

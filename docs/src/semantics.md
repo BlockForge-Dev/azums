@@ -33,7 +33,8 @@ This page is the canonical contract for Azums behavior. Use the labels below whe
 | Backpressure | **Backend-dependent** | By default, committed jobs are accepted and overload appears as queued backlog. PostgreSQL queue policies can rate-limit leasing without dropping jobs. Azums does not auto-scale workers or silently shed jobs. |
 | Stream append | **Guaranteed** | Stream events are append-only through the stream API and receive monotonically increasing sequence numbers per stream. |
 | Stream delivery | **Guaranteed** as at-least-once replay | Consumers can read events with `sequence_no > after_seq`. Unacknowledged events remain readable while retained by the backend. |
-| Consumer-group offsets | **Guaranteed** | Acknowledgment advances a consumer group's offset monotonically; acknowledging a lower sequence number does not move the offset backward. |
+| Consumer-group offsets | **Guaranteed** | Acknowledgment advances a consumer group's offset monotonically; acknowledging a lower sequence number does not move the offset backward. `read_next(group)` returns retained events with `sequence_no > last_acked_seq`. |
+| Stream retention | **Backend-dependent**, explicit API | `prune_events(through_seq)` never prunes past the lowest known consumer-group offset. Durability and permanence depend on backend configuration. |
 | Replay | **Guaranteed** for jobs and streams through their APIs | Job replay creates a new queued job with lineage to the source job. Stream replay reads historical events after an offset. Replay does not undo, erase, or dedupe the original work. |
 | Cancellation | **Guaranteed** | `cancel_job` cancels queued or scheduled jobs directly. Running jobs require the owning worker lease. Terminal jobs reject cancellation. |
 | Notification delivery | **Backend-dependent** | LISTEN/NOTIFY, PubSub, broadcast, or polling-style wake-ups are optimization paths. Durable state remains in the backend; consumers must still lease/read from storage. |
@@ -150,15 +151,17 @@ Not guaranteed:
 
 ## Stream Semantics
 
-Streams are durable, append-only event logs exposed through `publish`, `read_events`, `ack`, and `consumer_group_info`.
+Streams are durable, append-only event logs exposed through `publish`, `read_events`, `read_next`, `ack`, `consumer_group_info`, `subscribe`, and `prune_events`.
 
 Guaranteed:
 
 - `publish` appends an event and returns its `sequence_no`.
 - Sequence numbers are monotonically increasing within a stream.
 - `read_events(after_seq, limit)` returns events with `sequence_no > after_seq` in ascending order.
+- `read_next(group, limit)` returns events with `sequence_no > group.last_acked_seq`.
 - `ack(consumer_group, seq)` records progress for the group without moving the group backward.
 - Unacknowledged events are replayable while retained by the backend.
+- `prune_events(through_seq)` is capped by the slowest known consumer-group offset.
 
 Not guaranteed:
 

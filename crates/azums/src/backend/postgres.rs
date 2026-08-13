@@ -570,6 +570,10 @@ impl StreamBackend for PostgresBackend {
         self.stream_repo.read_events(stream, after_seq, limit).await
     }
 
+    async fn prune_events(&self, stream: &str, through_seq: i64) -> anyhow::Result<u64> {
+        self.stream_repo.prune_events(stream, through_seq).await
+    }
+
     async fn consumer_group_info(&self, stream: &str) -> anyhow::Result<Vec<ConsumerGroupStatus>> {
         self.stream_repo.consumer_group_info(stream).await
     }

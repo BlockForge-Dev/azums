@@ -16,6 +16,7 @@
 - [Idempotency & Duplicate Execution](idempotency.md)
 - [Concurrency, Ordering & Backpressure](concurrency_backpressure.md)
 - [Scheduling & Time Semantics](time_semantics.md)
+- [Durable Event Streaming](event_streaming.md)
 - [Redis Storage Backend](redis_backend.md)
 - [Low-Level Design & DSA](LLD.md)
 - [Job Lifecycle](job_lifecycle.md)

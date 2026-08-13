@@ -1273,6 +1273,35 @@ impl StreamBackend for SqliteBackend {
         Ok(events)
     }
 
+    async fn prune_events(&self, stream: &str, through_seq: i64) -> anyhow::Result<u64> {
+        let cutoff: i64 = sqlx::query_scalar(
+            r#"
+            SELECT MIN(?, COALESCE(
+                (SELECT MIN(last_acked_seq) FROM stream_offsets WHERE stream_name = ?),
+                ?
+            ))
+            "#,
+        )
+        .bind(through_seq)
+        .bind(stream)
+        .bind(through_seq)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let res = sqlx::query(
+            r#"
+            DELETE FROM stream_events
+            WHERE stream_name = ? AND sequence_no <= ?
+            "#,
+        )
+        .bind(stream)
+        .bind(cutoff)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(res.rows_affected())
+    }
+
     async fn consumer_group_info(&self, stream: &str) -> anyhow::Result<Vec<ConsumerGroupStatus>> {
         let info = sqlx::query_as::<_, ConsumerGroupStatus>(
             r#"

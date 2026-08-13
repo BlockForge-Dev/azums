@@ -58,10 +58,11 @@ Legend:
 
 | Primitive | Definition | Invariant | Implementation | Test evidence | Backend coverage |
 |---|---|---|---|---|---|
-| Append | Add event to stream log. | Sequence numbers increase monotonically per stream. | `publish` | Integration: stream publish/read tests | PG, SQLite, Redis, Memory |
-| Offset | Consumer progress marker. | Acknowledgment is monotonic. | `ack`, `consumer_group_info` | Integration: stream ack tests | PG, SQLite, Redis, Memory |
-| Subscribe | Wake consumers on new events. | Notifications are hints; durable state is read from storage. | `subscribe_stream` | Integration: stream/pubsub and wake-up tests | PG, SQLite, Redis, Memory |
-| Replay | Read historical events by sequence. | Replay does not mutate offsets unless the consumer ACKs. | `read_events(after_seq, limit)` | Integration: stream replay tests | PG, SQLite, Redis, Memory |
+| Append | Add event to stream log. | Sequence numbers increase monotonically per stream. | `publish` | Integration: stream publish/read tests, M10 stream tests | PG, SQLite, Redis, Memory |
+| Offset | Consumer progress marker. | Acknowledgment is monotonic. The next event for a group is first retained `sequence_no > last_acked_seq`. | `ack`, `read_next`, `consumer_group_info` | Integration: stream ack tests, M10 independent offset/restart/concurrency tests | PG, SQLite, Redis, Memory |
+| Subscribe | Wake consumers on new events. | Notifications are hints; durable state is read from storage. | `subscribe_stream` | Integration: stream/pubsub and M10 wake-up tests | PG, SQLite, Redis, Memory |
+| Replay | Read historical events by sequence. | Replay does not mutate offsets unless the consumer ACKs. | `read_events(after_seq, limit)` | Integration: stream replay tests, M10 replay/duplicate delivery tests | PG, SQLite, Redis, Memory |
+| Retention | Bound retained stream log size. | Pruning never advances offsets and never deletes beyond the lowest known consumer-group offset. | `prune_events` | Integration/failure: M10 retention test | PG, SQLite, Redis, Memory |
 
 ## Backend Coverage Summary
 
