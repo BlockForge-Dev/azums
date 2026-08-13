@@ -2,7 +2,7 @@
 name = "azums"
 version = "0.2.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.88"
 description = "High-performance job queue & streaming engine for Rust — from embedded to cloud"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/BlockForge-Dev/azums"

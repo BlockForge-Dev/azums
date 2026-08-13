@@ -70,7 +70,15 @@ async fn run_one_scenario(scenario_idx: usize, seed: u64) -> anyhow::Result<()> 
 
         for job in leased {
             let fault = random_fault(&mut rng);
-            apply_fault(&backend, &worker_id, job.id, job.max_attempts, fault, &mut rng).await?;
+            apply_fault(
+                &backend,
+                &worker_id,
+                job.id,
+                job.max_attempts,
+                fault,
+                &mut rng,
+            )
+            .await?;
         }
 
         update_terminal_set(&backend, &job_ids, &mut terminal_jobs).await?;
@@ -214,7 +222,10 @@ async fn recover_and_drain(backend: &MemoryBackend, job_ids: &[Uuid]) -> anyhow:
 async fn assert_invariants(backend: &MemoryBackend, job_ids: &[Uuid]) -> anyhow::Result<()> {
     let mut seen = HashSet::new();
     for job_id in job_ids {
-        assert!(seen.insert(*job_id), "test generated duplicate job id {job_id}");
+        assert!(
+            seen.insert(*job_id),
+            "test generated duplicate job id {job_id}"
+        );
         let job = backend
             .get_job(*job_id)
             .await?

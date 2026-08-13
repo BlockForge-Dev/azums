@@ -1,8 +1,8 @@
 use azums::{make_sqlite_pool, Job, SqliteBackend, StorageBackend};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use serde_json::json;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 

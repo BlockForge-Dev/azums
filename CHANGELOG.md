@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Technical Architecture Specification**:
   - Added `ARCHITECTURE.md` detailing system component diagrams, job lifecycle state machine, row-level leasing algorithms, phantom recovery, and table partitioning.
 - **Minimum Supported Rust Version (MSRV)**:
-  - Enforced and validated MSRV `1.75` across all workspace crates and added `msrv-check` job to GitHub Actions CI workflow.
+  - Enforced and validated MSRV `1.88` across all workspace crates and added `msrv-check` job to GitHub Actions CI workflow.
 
 ## [0.1.0] - 2026-08-09 (Initial Release)
 

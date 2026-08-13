@@ -10,8 +10,8 @@ fn bench_redis_enqueue_and_stream(c: &mut Criterion) {
 
     let rt = Runtime::new().unwrap();
 
-    let redis_url = std::env::var("REDIS_URL")
-        .expect("REDIS_URL must be set when AZUMS_BENCH_REDIS=1");
+    let redis_url =
+        std::env::var("REDIS_URL").expect("REDIS_URL must be set when AZUMS_BENCH_REDIS=1");
 
     let mut group = c.benchmark_group("redis_throughput");
     group.sample_size(10);

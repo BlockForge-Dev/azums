@@ -21,7 +21,10 @@ fn m20_release_candidate_report_maps_guarantees_to_tests_and_status() {
         );
     }
 
-    assert!(report.contains("PASS"), "release candidate report must include passing gates");
+    assert!(
+        report.contains("PASS"),
+        "release candidate report must include passing gates"
+    );
     assert!(
         !report.contains("BLOCKED"),
         "release candidate report should not retain old blocked gates after rerun"
