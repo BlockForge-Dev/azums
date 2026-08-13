@@ -1,4 +1,4 @@
-# pgflow Test Matrix (must stay green)
+# Azums Test Matrix (must stay green)
 
 This file proves the test suite covers the product’s invariants.
 

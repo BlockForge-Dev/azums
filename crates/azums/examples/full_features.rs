@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use azums::{quickstart, Client, Job, JobProcessor, NewJob};
+use azums::{quickstart, Client, Job, JobProcessor};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -79,14 +79,13 @@ async fn main() -> anyhow::Result<()> {
 
     // 5. Enqueue batch of jobs
     let batch_ids = client
-        .enqueue_batch(vec![NewJob {
-            queue: "default".into(),
-            job_type: "welcome_email".into(),
-            payload_json: json!({"email": "newuser@example.com"}),
-            run_at: chrono::Utc::now(),
-            priority: 10,
-            max_attempts: 3,
-        }])
+        .enqueue_batch(vec![Job::new(
+            "welcome_email",
+            json!({"email": "newuser@example.com"}),
+        )
+        .queue("default")
+        .priority(10)
+        .max_attempts(3)])
         .await?;
     println!("Batch jobs enqueued: {batch_ids:?}");
 

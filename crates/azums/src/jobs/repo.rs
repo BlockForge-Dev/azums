@@ -90,20 +90,14 @@ impl JobsRepo {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use azums::{JobsRepo, NewJob, make_pool};
-    /// use chrono::Utc;
+    /// use azums::{Job, JobsRepo, make_pool};
     ///
     /// # async fn doc_test() -> anyhow::Result<()> {
     /// let pool = make_pool("postgres://localhost/flow").await?;
     /// let repo = JobsRepo::new(pool);
-    /// let job_id = repo.enqueue(NewJob {
-    ///     queue: "default".to_string(),
-    ///     job_type: "email_send".to_string(),
-    ///     payload_json: serde_json::json!({"to": "user@example.com"}),
-    ///     run_at: Utc::now(),
-    ///     priority: 0,
-    ///     max_attempts: 5,
-    /// }).await?;
+    /// let job_id = repo
+    ///     .enqueue(Job::new("email_send", serde_json::json!({"to": "user@example.com"})).into())
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
