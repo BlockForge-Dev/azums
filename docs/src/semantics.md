@@ -24,7 +24,10 @@ This page is the canonical contract for Azums behavior. Use the labels below whe
 | Transactional enqueue | **Backend-dependent** | PostgreSQL and SQLite can participate in database transaction semantics. Redis and In-Memory enqueue are atomic inside their own backend operations but are not ACID transactions with the application database. |
 | Job leasing exclusivity | **Guaranteed** | A runnable job is leased to at most one worker at a time. Expired leases can be reaped and made runnable again. |
 | Worker crash recovery | **Guaranteed** after lease expiry/reap | If a worker dies after leasing and before ACK, the job can be retried after its lease expires and recovery runs. Backends with durable attempts record the abandoned attempt as `LEASE_EXPIRED`. The handler may already have performed partial external work. |
+| Concurrency | **Guaranteed** for lease exclusivity; **backend-dependent** for distributed coordination | A runnable job is actively leased by at most one worker at a time. Multi-host worker coordination requires a backend whose `distributed_workers` capability is true. |
+| Ordering | **Guaranteed** for documented lease ordering; **unspecified** for fairness and completion order | FIFO queues lease higher priority jobs first, then eligible earlier scheduled/created jobs. Azums does not guarantee worker fairness, equal distribution, or completion order across parallel workers. |
 | Completion ordering | **Unspecified** across parallel workers | FIFO affects lease order. Azums does not guarantee completion order when multiple workers or batches execute concurrently. |
+| Backpressure | **Backend-dependent** | By default, committed jobs are accepted and overload appears as queued backlog. PostgreSQL queue policies can rate-limit leasing without dropping jobs. Azums does not auto-scale workers or silently shed jobs. |
 | Stream append | **Guaranteed** | Stream events are append-only through the stream API and receive monotonically increasing sequence numbers per stream. |
 | Stream delivery | **Guaranteed** as at-least-once replay | Consumers can read events with `sequence_no > after_seq`. Unacknowledged events remain readable while retained by the backend. |
 | Consumer-group offsets | **Guaranteed** | Acknowledgment advances a consumer group's offset monotonically; acknowledging a lower sequence number does not move the offset backward. |
@@ -45,6 +48,29 @@ A job is eligible to be leased when all of these are true:
 - policy gates such as in-flight limits and retry-rate limits allow leasing
 
 Azums guarantees that workers do not intentionally lease future jobs before `run_at`. It does not guarantee millisecond-precise execution at `run_at`; actual execution depends on worker availability, database latency, queue depth, policy throttling, backend notification behavior, and handler runtime.
+
+## Concurrency, Ordering & Backpressure Semantics
+
+Azums is predictable under concurrency by making a narrow set of guarantees:
+
+- A job can have at most one active worker lease at a time.
+- Running mutations such as ACK, retry, DLQ, heartbeat, and running cancellation require the owning worker identity.
+- Queue isolation is strict: workers lease only from the queue they request.
+- Priority is part of lease ordering: higher priority runnable jobs lease before lower priority jobs.
+- FIFO is a lease-order guarantee, not a completion-order guarantee.
+
+Unspecified:
+
+- Azums does not guarantee equal job distribution across workers.
+- Azums does not guarantee global ordering across queues.
+- Azums does not guarantee strict FIFO completion with multiple workers or batch leasing.
+
+Backpressure is explicit:
+
+- **BacklogOnly**: the backend accepts committed jobs and represents overload as queued backlog. If producers enqueue 100k jobs/sec and consumers ACK 10k jobs/sec, backlog grows by roughly 90k jobs/sec until producers slow down, consumers scale out, or operators intervene. Azums does not reject, shed, or auto-scale in this mode.
+- **ExecutionRateLimit**: the backend can throttle worker leasing through durable queue policy decisions. PostgreSQL supports this mode with `queue_policies`; throttled jobs remain queued, receive a later `run_at`, and the decision is observable through `policy_decisions`.
+
+Applications that need producer-side rejection, blocking, admission control, or autoscaling should build that policy at the API edge using backend metrics and `BackendCapabilities::backpressure`.
 
 ## DLQ Semantics
 

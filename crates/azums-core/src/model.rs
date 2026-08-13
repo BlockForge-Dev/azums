@@ -72,6 +72,15 @@ pub enum OrderingCapability {
     FifoAndFastestLeasing,
 }
 
+/// Backpressure behavior exposed by a storage backend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum BackpressureCapability {
+    /// The backend accepts committed jobs and represents overload as queued backlog.
+    BacklogOnly,
+    /// The backend can throttle worker leasing through queue policies without dropping jobs.
+    ExecutionRateLimit,
+}
+
 /// Storage backend feature and guarantee declaration.
 ///
 /// Capabilities describe what a backend can honestly provide. They are not a marketing matrix:
@@ -85,6 +94,7 @@ pub struct BackendCapabilities {
     pub consumer_groups: bool,
     pub distributed_workers: bool,
     pub ordering: OrderingCapability,
+    pub backpressure: BackpressureCapability,
 }
 
 impl BackendCapabilities {
@@ -97,6 +107,7 @@ impl BackendCapabilities {
             consumer_groups: true,
             distributed_workers: false,
             ordering: OrderingCapability::FifoAndFastestLeasing,
+            backpressure: BackpressureCapability::BacklogOnly,
         }
     }
 
@@ -109,6 +120,7 @@ impl BackendCapabilities {
             consumer_groups: true,
             distributed_workers: false,
             ordering: OrderingCapability::FifoAndFastestLeasing,
+            backpressure: BackpressureCapability::BacklogOnly,
         }
     }
 
@@ -121,6 +133,7 @@ impl BackendCapabilities {
             consumer_groups: true,
             distributed_workers: true,
             ordering: OrderingCapability::FifoAndFastestLeasing,
+            backpressure: BackpressureCapability::ExecutionRateLimit,
         }
     }
 
@@ -133,6 +146,7 @@ impl BackendCapabilities {
             consumer_groups: true,
             distributed_workers: true,
             ordering: OrderingCapability::FifoLeasing,
+            backpressure: BackpressureCapability::BacklogOnly,
         }
     }
 

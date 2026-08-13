@@ -1,8 +1,8 @@
 mod common;
 
 use azums::{
-    make_sqlite_pool, quickstart, BackendCapabilities, OrderingCapability, PostgresBackend,
-    SqliteBackend, StorageBackend,
+    make_sqlite_pool, quickstart, BackendCapabilities, BackpressureCapability, OrderingCapability,
+    PostgresBackend, SqliteBackend, StorageBackend,
 };
 
 #[tokio::test]
@@ -19,6 +19,7 @@ async fn memory_declares_process_local_capabilities() -> anyhow::Result<()> {
             consumer_groups: true,
             distributed_workers: false,
             ordering: OrderingCapability::FifoAndFastestLeasing,
+            backpressure: BackpressureCapability::BacklogOnly,
         }
     );
 
@@ -44,6 +45,7 @@ async fn sqlite_declares_embedded_sql_capabilities() -> anyhow::Result<()> {
             consumer_groups: true,
             distributed_workers: false,
             ordering: OrderingCapability::FifoAndFastestLeasing,
+            backpressure: BackpressureCapability::BacklogOnly,
         }
     );
 
@@ -67,6 +69,7 @@ async fn postgres_declares_distributed_sql_capabilities_when_available() -> anyh
             consumer_groups: true,
             distributed_workers: true,
             ordering: OrderingCapability::FifoAndFastestLeasing,
+            backpressure: BackpressureCapability::ExecutionRateLimit,
         }
     );
 
@@ -98,6 +101,7 @@ async fn redis_declares_atomic_distributed_capabilities_when_available() -> anyh
             consumer_groups: true,
             distributed_workers: true,
             ordering: OrderingCapability::FifoLeasing,
+            backpressure: BackpressureCapability::BacklogOnly,
         }
     );
 

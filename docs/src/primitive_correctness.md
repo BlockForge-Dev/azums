@@ -49,10 +49,10 @@ Legend:
 | Primitive | Definition | Invariant | Implementation | Test evidence | Backend coverage |
 |---|---|---|---|---|---|
 | Workers | Worker identity owns leases and attempts. | Mutating running work requires the owning worker. | `Worker`, `locked_by`, attempt `worker_id` | Unit/failure: wrong-worker cancellation and transition rejection; integration: leasing tests | PG, SQLite, Redis, Memory |
-| Concurrency | Multiple workers process the same queue safely. | No duplicate active claim for one job. | `FOR UPDATE SKIP LOCKED`, SQLite transactions, Redis `LMOVE`, memory lock | Concurrency: multi-worker FIFO, high concurrency, leasing no duplicates | PG, SQLite, Redis, Memory |
+| Concurrency | Multiple workers process the same queue safely. | No duplicate active claim for one job. | `FOR UPDATE SKIP LOCKED`, SQLite transactions, Redis `LMOVE`, memory lock | Concurrency: multi-worker FIFO, high concurrency, M8 worker matrix, leasing no duplicates | PG, SQLite, Redis, Memory |
 | Consumer groups | Stream offset coordination by group. | Offsets advance monotonically and never move backward. | `stream_offsets`, Redis hash, memory map | Integration: stream ack and consumer group tests | PG, SQLite, Redis, Memory |
 | Partitioning | Dataset routing for hot job sets. | Job rows route by queue and scheduled time bucket where backend supports partitions. | `dataset_id_for`, partition migrations | Integration: replay/lease tests preserve dataset behavior; docs define backend limits | PG primary, SQLite/Redis/Memory use default dataset |
-| Backpressure | Protect queues from overload. | Policy gates throttle without losing jobs. | queue policies, policy decisions | Integration/failure: storm control and policy timeline tests | PG primary; other backends rely on caller-side throttling |
+| Backpressure | Make overload behavior explicit. | Default overload becomes backlog, not silent loss. PostgreSQL policy gates throttle execution leases without dropping jobs. | `BackendCapabilities::backpressure`, queue policies, policy decisions | Integration/failure: M8 backlog test, M8 PostgreSQL policy test, storm control and policy timeline tests | PG execution rate limits; SQLite/Redis/Memory backlog-only |
 
 ## Event Primitives
 

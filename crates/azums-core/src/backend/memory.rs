@@ -636,8 +636,8 @@ impl StorageBackend for MemoryBackend {
         queue: Option<&str>,
         status: Option<&str>,
         limit: i64,
-        _cursor_created_at: Option<DateTime<Utc>>,
-        _cursor_id: Option<Uuid>,
+        cursor_created_at: Option<DateTime<Utc>>,
+        cursor_id: Option<Uuid>,
     ) -> anyhow::Result<Vec<JobListItem>> {
         let state = self.state.read().unwrap();
         let limit = limit.clamp(1, 500) as usize;
@@ -672,6 +672,13 @@ impl StorageBackend for MemoryBackend {
                 dlq_reason_code: j.dlq_reason_code.clone(),
                 created_at: j.created_at,
                 updated_at: j.updated_at,
+            })
+            .filter(|item| match (cursor_created_at, cursor_id) {
+                (Some(cursor_created_at), Some(cursor_id)) => {
+                    item.created_at < cursor_created_at
+                        || (item.created_at == cursor_created_at && item.id < cursor_id)
+                }
+                _ => true,
             })
             .collect();
 

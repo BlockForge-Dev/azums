@@ -92,10 +92,10 @@ pub mod stream_handle;
 // ── Convenience re-exports (stable public API) ──
 
 pub use azums_core::{
-    BackendCapabilities, CallRecord, ConsumerGroupStatus, Error, Event, Job, JobExecution,
-    JobHandler, JobLifecycleState, JobListItem, JobProcessor, JobStatus, MemoryBackend,
-    MockBackend, NewEvent, NewJob, NotificationStream, OrderingCapability, Queue, QueueConfig,
-    QueueError, QueueOrdering, StorageBackend, StreamBackend, Worker,
+    BackendCapabilities, BackpressureCapability, CallRecord, ConsumerGroupStatus, Error, Event,
+    Job, JobExecution, JobHandler, JobLifecycleState, JobListItem, JobProcessor, JobStatus,
+    MemoryBackend, MockBackend, NewEvent, NewJob, NotificationStream, OrderingCapability, Queue,
+    QueueConfig, QueueError, QueueOrdering, StorageBackend, StreamBackend, Worker,
 };
 #[cfg(feature = "postgres")]
 pub use backend::PostgresBackend;

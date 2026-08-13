@@ -24,6 +24,7 @@ pub struct BackendCapabilities {
     pub consumer_groups: bool,
     pub distributed_workers: bool,
     pub ordering: OrderingCapability,
+    pub backpressure: BackpressureCapability,
 }
 ```
 
@@ -36,6 +37,7 @@ pub struct BackendCapabilities {
 | `consumer_groups` | Backend stores monotonic consumer-group offsets. |
 | `distributed_workers` | Multiple processes or hosts can coordinate worker leases through the backend. |
 | `ordering` | Strength of lease ordering support: none, FIFO leasing, or FIFO plus fastest leasing modes. |
+| `backpressure` | Overload behavior: backlog-only acceptance, or backend-enforced execution rate limiting. |
 
 ## Compatibility Matrix
 
@@ -50,6 +52,7 @@ pub struct BackendCapabilities {
 | Consumer groups | Yes, process-local offsets | Yes, SQL offsets | Yes, SQL offsets | Yes, Redis hash offsets |
 | Distributed workers | No | No, single-process embedded target | Yes | Yes |
 | Ordering | FIFO and fastest leasing | FIFO and fastest leasing | FIFO and fastest leasing | FIFO leasing |
+| Backpressure | Backlog only | Backlog only | Execution rate limits through queue policies | Backlog only |
 | Transactions with app DB | No | Yes, if app data uses same SQLite DB | Yes, if app data uses same Postgres DB | No |
 | Best fit | Unit tests and local ephemeral runs | Embedded apps and single-binary services | Distributed production workers | Distributed low-latency Redis environments |
 
@@ -102,6 +105,7 @@ Azums does not fake these differences:
 - SQLite is durable but targeted at embedded/single-process deployments; it does not provide multi-host distributed worker coordination.
 - Redis operations are atomic inside Redis, but they are not a SQL transaction with your application database.
 - Redis FIFO support follows list order; it does not expose the same SQL query-level ordering flexibility as PostgreSQL or SQLite.
+- Default overload behavior is backlog growth, not shedding or automatic scaling. PostgreSQL can additionally throttle execution leases through `queue_policies` and records decisions in `policy_decisions`.
 - Notifications are wake-up hints; every backend still relies on storage state as the source of truth.
 - Exactly-once external side effects are not guaranteed by any backend.
 
