@@ -266,7 +266,7 @@ async fn postgres_expired_lease_recovery_closes_attempt_and_requeues() -> anyhow
         .await?;
 
     let leased = backend
-        .lease_jobs_batch("default", "pg-dead-worker", 1, 1)
+        .lease_jobs_batch("default", "pg-dead-worker", 2, 1)
         .await?;
     assert_eq!(leased.len(), 1);
     let attempt = backend
@@ -274,7 +274,7 @@ async fn postgres_expired_lease_recovery_closes_attempt_and_requeues() -> anyhow
         .await?;
     assert_eq!(attempt.len(), 1);
 
-    tokio::time::sleep(Duration::from_millis(1200)).await;
+    tokio::time::sleep(Duration::from_millis(2200)).await;
     assert_eq!(backend.reap_expired_locks().await?, 1);
 
     let job = backend.get_job(job_id).await?.unwrap();
