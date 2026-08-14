@@ -1,5 +1,6 @@
 use azums::{make_sqlite_pool, Job, JobsRepo, PostgresBackend, SqliteBackend, StorageBackend};
 use serde_json::json;
+use serial_test::serial;
 use sqlx::Acquire;
 use std::{process::Command, time::Duration};
 use uuid::Uuid;
@@ -256,6 +257,7 @@ async fn sqlite_lease_recovery_child() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[serial]
 async fn postgres_expired_lease_recovery_closes_attempt_and_requeues() -> anyhow::Result<()> {
     let Some(pool) = common::setup_db().await else {
         return Ok(());
@@ -307,6 +309,7 @@ async fn postgres_expired_lease_recovery_closes_attempt_and_requeues() -> anyhow
 }
 
 #[tokio::test]
+#[serial]
 async fn postgres_connection_loss_rolls_back_uncommitted_claim() -> anyhow::Result<()> {
     let Some(pool) = common::setup_db().await else {
         return Ok(());
