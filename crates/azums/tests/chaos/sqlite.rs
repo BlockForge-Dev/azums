@@ -61,13 +61,21 @@ pub async fn run_contention_scenario(
                 for job in leased {
                     if rng.gen_bool(0.20) {
                         let _ = backend
-                            .start_attempts_batch(&[job.dataset_id.clone()], &[job.id], &worker_id)
+                            .start_attempts_batch(
+                                std::slice::from_ref(&job.dataset_id),
+                                &[job.id],
+                                &worker_id,
+                            )
                             .await;
                         continue;
                     }
 
                     let Ok(attempts) = backend
-                        .start_attempts_batch(&[job.dataset_id.clone()], &[job.id], &worker_id)
+                        .start_attempts_batch(
+                            std::slice::from_ref(&job.dataset_id),
+                            &[job.id],
+                            &worker_id,
+                        )
                         .await
                     else {
                         sleep(Duration::from_millis(rng.gen_range(1..=5))).await;
@@ -105,7 +113,7 @@ pub async fn run_contention_scenario(
         for job in leased {
             let attempts = backend
                 .start_attempts_batch(
-                    &[job.dataset_id.clone()],
+                    std::slice::from_ref(&job.dataset_id),
                     &[job.id],
                     "sqlite-chaos-recovery",
                 )

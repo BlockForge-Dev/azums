@@ -205,7 +205,7 @@ async fn recover_and_drain(backend: &MemoryBackend, job_ids: &[Uuid]) -> anyhow:
         for job in leased {
             let attempts = backend
                 .start_attempts_batch(
-                    &[job.dataset_id.clone()],
+                    std::slice::from_ref(&job.dataset_id),
                     &[job.id],
                     "chaos-recovery-worker",
                 )

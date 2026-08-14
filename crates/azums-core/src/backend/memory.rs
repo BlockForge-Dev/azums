@@ -943,7 +943,7 @@ impl ObservabilityBackend for MemoryBackend {
         let mut queues: HashSet<String> = state
             .jobs
             .values()
-            .filter(|job| queue.map_or(true, |target| job.queue == target))
+            .filter(|job| queue.is_none_or(|target| job.queue == target))
             .map(|job| job.queue.clone())
             .collect();
 

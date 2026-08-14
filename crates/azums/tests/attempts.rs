@@ -57,9 +57,16 @@ async fn multiple_attempts_increment_attempt_no() {
         return;
     };
 
+    let jobs_repo = JobsRepo::new(pool.clone());
     let attempts_repo = AttemptsRepo::new(pool.clone());
 
     let job_id = insert_job(&pool, "default").await;
+    let job = jobs_repo
+        .lease_one_job("default", "worker-a", 30)
+        .await
+        .unwrap()
+        .expect("should lease");
+    assert_eq!(job.id, job_id);
 
     let a1 = attempts_repo
         .start_attempt(job_id, "worker-a")
@@ -86,9 +93,16 @@ async fn finish_failed_sets_error_fields() {
         return;
     };
 
+    let jobs_repo = JobsRepo::new(pool.clone());
     let attempts_repo = AttemptsRepo::new(pool.clone());
 
     let job_id = insert_job(&pool, "default").await;
+    let job = jobs_repo
+        .lease_one_job("default", "worker-a", 30)
+        .await
+        .unwrap()
+        .expect("should lease");
+    assert_eq!(job.id, job_id);
 
     let attempt = attempts_repo
         .start_attempt(job_id, "worker-a")

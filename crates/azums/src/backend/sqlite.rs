@@ -460,7 +460,7 @@ impl StorageBackend for SqliteBackend {
             let prev = self
                 .dequeue_count
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            if (prev + 1) % self.incremental_vacuum_n == 0 {
+            if (prev + 1).is_multiple_of(self.incremental_vacuum_n) {
                 let pool = self.pool.clone();
                 tokio::spawn(async move {
                     let _ = sqlx::query("PRAGMA incremental_vacuum")

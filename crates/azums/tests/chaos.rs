@@ -7,7 +7,7 @@ async fn m11_memory_randomized_chaos_ci_matrix() -> anyhow::Result<()> {
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(256);
-    let seed = chaos_support::seed_from_env("AZUMS_CHAOS_SEED", 0xA11CE_2026);
+    let seed = chaos_support::seed_from_env("AZUMS_CHAOS_SEED", 0x000A_11CE_2026);
 
     chaos_support::memory::run_randomized_scenarios(scenarios, seed).await
 }
@@ -30,7 +30,7 @@ async fn m11_memory_randomized_chaos_10000_plus() -> anyhow::Result<()> {
         scenarios >= 10_000,
         "M11 long chaos run must execute at least 10,000 scenarios"
     );
-    let seed = chaos_support::seed_from_env("AZUMS_CHAOS_SEED", 0xA11CE_10_000);
+    let seed = chaos_support::seed_from_env("AZUMS_CHAOS_SEED", 0x00A1_1CE1_0000);
 
     chaos_support::memory::run_randomized_scenarios(scenarios, seed).await
 }
