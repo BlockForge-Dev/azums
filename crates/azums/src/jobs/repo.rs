@@ -113,7 +113,11 @@ impl JobsRepo {
                 deadline_at, timeout_seconds, recurring_interval_seconds,
                 status, priority, max_attempts
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            VALUES (
+                $1, $2, $3, $4, $5, $6,
+                $7::timestamptz, $8::integer, $9::integer,
+                $10, $11, $12
+            )
             ON CONFLICT (dataset_id, idempotency_key) WHERE idempotency_key IS NOT NULL
             DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
             RETURNING id
@@ -125,6 +129,9 @@ impl JobsRepo {
         .bind(job.job_type)
         .bind(job.payload_json)
         .bind(job.run_at)
+        .bind(job.deadline_at)
+        .bind(job.timeout_seconds)
+        .bind(job.recurring_interval_seconds)
         .bind(JobStatus::Queued.as_str())
         .bind(job.priority)
         .bind(job.max_attempts)
@@ -162,7 +169,11 @@ impl JobsRepo {
                 deadline_at, timeout_seconds, recurring_interval_seconds,
                 status, priority, max_attempts
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            VALUES (
+                $1, $2, $3, $4, $5, $6,
+                $7::timestamptz, $8::integer, $9::integer,
+                $10, $11, $12
+            )
             ON CONFLICT (dataset_id, idempotency_key) WHERE idempotency_key IS NOT NULL
             DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
             RETURNING id
@@ -1309,7 +1320,7 @@ impl JobsRepo {
             VALUES (
                 $1,
                 $2, $3, $4, $5,
-                $6, $7, $8,
+                $6::timestamptz, $7::integer, $8::integer,
                 'queued', $9, $10,
                 NULL, NULL, NULL,
                 NULL, NULL,

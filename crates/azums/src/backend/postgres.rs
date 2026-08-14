@@ -230,7 +230,7 @@ impl StorageBackend for PostgresBackend {
                 VALUES (
                     $1, $2, NULL,
                     $3, $4, $5, $6,
-                    $7, $8, $9,
+                    $7::timestamptz, $8::integer, $9::integer,
                     'queued', $10, $11
                 )
                 "#,
