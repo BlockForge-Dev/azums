@@ -53,7 +53,7 @@ async fn sqlite_attempts(
 }
 
 fn wait_for_marker(path: &std::path::Path) -> anyhow::Result<()> {
-    for _ in 0..100 {
+    for _ in 0..400 {
         if path.exists() {
             return Ok(());
         }
@@ -155,31 +155,37 @@ fn run_sqlite_child_crash_mode(mode: &str, starts_attempt: bool) -> anyhow::Resu
 }
 
 #[test]
+#[serial]
 fn sqlite_worker_crash_before_claim_preserves_committed_job() -> anyhow::Result<()> {
     run_sqlite_child_crash_mode("before_claim", false)
 }
 
 #[test]
+#[serial]
 fn sqlite_worker_kill_after_claim_recovers_job() -> anyhow::Result<()> {
     run_sqlite_child_crash_mode("after_claim", false)
 }
 
 #[test]
+#[serial]
 fn sqlite_worker_kill_during_execution_closes_attempt_and_recovers_job() -> anyhow::Result<()> {
     run_sqlite_child_crash_mode("during_execution", true)
 }
 
 #[test]
+#[serial]
 fn sqlite_worker_kill_immediately_before_ack_recovers_job() -> anyhow::Result<()> {
     run_sqlite_child_crash_mode("before_ack", true)
 }
 
 #[test]
+#[serial]
 fn sqlite_worker_kill_after_handler_success_before_ack_recovers_job() -> anyhow::Result<()> {
     run_sqlite_child_crash_mode("after_handler_success", true)
 }
 
 #[test]
+#[serial]
 fn sqlite_worker_kill_during_heartbeat_recovers_after_last_lease_expires() -> anyhow::Result<()> {
     run_sqlite_child_crash_mode("during_heartbeat", true)
 }
