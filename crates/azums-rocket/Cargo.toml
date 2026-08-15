@@ -1,6 +1,6 @@
 [package]
 name = "azums-rocket"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.88"
 description = "Native Rocket request guard and background jobs integration for azums"
@@ -13,8 +13,8 @@ keywords = ["rocket", "job-queue", "background-jobs", "request-guard"]
 categories = ["web-programming::HTTP-server", "asynchronous"]
 
 [dependencies]
-azums = { version = "0.2.0", path = "../azums" }
-azums-core = { version = "0.2.0", path = "../azums-core" }
+azums = { version = "0.2.1", path = "../azums" }
+azums-core = { version = "0.2.1", path = "../azums-core" }
 
 rocket = "0.5"
 

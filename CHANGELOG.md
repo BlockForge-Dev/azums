@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-08-15
+
+### Fixed
+- Corrected PostgreSQL enqueue bindings for deadline, timeout, and recurring fields.
+- Stabilized shared-PostgreSQL DLQ, attempt, and lease-recovery tests.
+- Scoped Redis benchmark idempotency keys to each performance scenario.
+- Aligned the minimum supported Rust version with the resolved dependency graph.
+- Made crates.io publication strict, restartable, version-checked, and index-aware.
+
+### Reliability
+- Verified CI across stable, beta, nightly, Linux, macOS, and Windows.
+- Verified documentation and the multi-backend performance dashboard workflows.
+
+This is a pre-1.0 patch release. It does not declare Azums' API or documented semantics stable under
+the M21 1.0 stability policy.
+
 ## [0.2.0] - 2026-08-09
 
 ### Added
