@@ -16,6 +16,7 @@ jobs:
     name: Run Criterion Benchmarks
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: write
 
     services:
@@ -44,7 +45,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -71,11 +72,27 @@ jobs:
           cargo run -p azums --release --bin azums-perf
 
       - name: Download Performance Baseline
-        uses: actions/download-artifact@v4
-        with:
-          name: azums-perf-baseline
-          path: target/azums-perf-baseline
-        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          previous_run_id="$(gh run list \
+            --workflow benchmarks.yml \
+            --branch main \
+            --event push \
+            --status success \
+            --limit 10 \
+            --json databaseId \
+            --jq '.[].databaseId' | grep -vx "$GITHUB_RUN_ID" | head -n 1)"
+
+          if [ -z "$previous_run_id" ]; then
+            echo "PERF_BASELINE_MISSING reason=no-prior-successful-main-run"
+            exit 0
+          fi
+
+          echo "PERF_BASELINE_RUN_ID=$previous_run_id"
+          gh run download "$previous_run_id" \
+            --name azums-perf-baseline \
+            --dir target/azums-perf-baseline
 
       - name: Guard Performance Regressions
         run: |
@@ -95,7 +112,7 @@ jobs:
           cp -r target/azums-perf target/dashboard/azums-perf || true
 
       - name: Upload Performance Baseline
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: azums-perf-baseline
           path: target/azums-perf/m14_report.json

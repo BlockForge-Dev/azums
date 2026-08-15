@@ -18,7 +18,7 @@ jobs:
     name: Publish Crates to Crates.io
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
