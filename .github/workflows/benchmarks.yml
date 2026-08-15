@@ -16,7 +16,6 @@ jobs:
     name: Run Criterion Benchmarks
     runs-on: ubuntu-latest
     permissions:
-      actions: read
       contents: write
 
     services:
@@ -46,6 +45,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -60,7 +61,33 @@ jobs:
         run: |
           cargo bench --benches --all-features
 
-      - name: Run M14 Performance Matrix
+      - name: Run Baseline M14 Performance Matrix
+        env:
+          BASELINE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DATABASE_URL: postgres://postgres:postgrespassword@127.0.0.1:5432/postgresflow_dev
+          REDIS_URL: redis://127.0.0.1:6379
+          AZUMS_PERF_BACKENDS: memory,sqlite,postgres,redis
+          AZUMS_PERF_JOBS: 1000
+          AZUMS_PERF_ITERATIONS: 3
+          AZUMS_PERF_OUTPUT_DIR: ${{ github.workspace }}/target/azums-perf-baseline
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target/baseline-build
+        run: |
+          baseline_sha="${PR_BASE_SHA:-$BASELINE_SHA}"
+          if [ -z "$baseline_sha" ] ||
+             [ "$baseline_sha" = "0000000000000000000000000000000000000000" ] ||
+             ! git cat-file -e "$baseline_sha^{commit}"; then
+            baseline_sha="$(git rev-parse HEAD^)"
+          fi
+
+          echo "PERF_BASELINE_SHA=$baseline_sha"
+          git worktree add --detach target/azums-perf-baseline-src "$baseline_sha"
+          cargo run \
+            --manifest-path target/azums-perf-baseline-src/crates/azums/Cargo.toml \
+            --release \
+            --bin azums-perf
+
+      - name: Run Current M14 Performance Matrix
         env:
           DATABASE_URL: postgres://postgres:postgrespassword@127.0.0.1:5432/postgresflow_dev
           REDIS_URL: redis://127.0.0.1:6379
@@ -71,38 +98,11 @@ jobs:
         run: |
           cargo run -p azums --release --bin azums-perf
 
-      - name: Download Performance Baseline
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          previous_run_id="$(gh run list \
-            --workflow benchmarks.yml \
-            --branch main \
-            --event push \
-            --status success \
-            --limit 10 \
-            --json databaseId \
-            --jq '.[].databaseId' | grep -vx "$GITHUB_RUN_ID" | head -n 1)"
-
-          if [ -z "$previous_run_id" ]; then
-            echo "PERF_BASELINE_MISSING reason=no-prior-successful-main-run"
-            exit 0
-          fi
-
-          echo "PERF_BASELINE_RUN_ID=$previous_run_id"
-          gh run download "$previous_run_id" \
-            --name azums-perf-baseline \
-            --dir target/azums-perf-baseline
-
       - name: Guard Performance Regressions
         run: |
-          if [ -f target/azums-perf-baseline/m14_report.json ]; then
-            cargo run -p azums --bin azums-perf-guard -- \
-              target/azums-perf-baseline/m14_report.json \
-              target/azums-perf/m14_report.json
-          else
-            echo "PERF_GUARD_SKIP reason=missing-baseline-artifact"
-          fi
+          cargo run -p azums --release --bin azums-perf-guard -- \
+            target/azums-perf-baseline/m14_report.json \
+            target/azums-perf/m14_report.json
 
       - name: Prepare Dashboard Artifact
         run: |
