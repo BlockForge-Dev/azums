@@ -10,7 +10,6 @@ struct PerfReport {
 struct ScenarioReport {
     backend: String,
     workload: String,
-    workers: usize,
     throughput_jobs_per_sec: f64,
     latency: LatencyReport,
     resources: ResourceReport,
@@ -27,6 +26,16 @@ struct ResourceReport {
     allocations: Option<u64>,
     cpu: Option<String>,
     ram_bytes: Option<u64>,
+}
+
+#[derive(Debug)]
+struct ScenarioAggregate {
+    throughput_jobs_per_sec: f64,
+    latency_p50_ms: f64,
+    latency_p99_ms: f64,
+    allocations: Option<f64>,
+    ram_bytes: Option<f64>,
+    cpu_measured: bool,
 }
 
 #[derive(Debug)]
@@ -68,7 +77,7 @@ fn main() -> anyhow::Result<()> {
     if regressions.is_empty() {
         println!(
             "PERF_GUARD_OK compared={} regressions=0",
-            current.results.len()
+            aggregate_results(&current).len()
         );
         return Ok(());
     }
@@ -100,15 +109,11 @@ fn compare_reports(
     current: &PerfReport,
     thresholds: &Thresholds,
 ) -> Vec<Regression> {
-    let baseline = baseline
-        .results
-        .iter()
-        .map(|result| (scenario_key(result), result))
-        .collect::<HashMap<_, _>>();
+    let baseline = aggregate_results(baseline);
+    let current = aggregate_results(current);
 
     let mut regressions = Vec::new();
-    for current_result in &current.results {
-        let key = scenario_key(current_result);
+    for (key, current_result) in current {
         let Some(baseline_result) = baseline.get(&key) else {
             println!("PERF_GUARD_SKIP key={key} reason=missing-baseline");
             continue;
@@ -126,16 +131,16 @@ fn compare_reports(
             &mut regressions,
             &key,
             "latency.p50_ms",
-            baseline_result.latency.p50_ms,
-            current_result.latency.p50_ms,
+            baseline_result.latency_p50_ms,
+            current_result.latency_p50_ms,
             thresholds.latency_regression,
         );
         compare_higher_is_worse(
             &mut regressions,
             &key,
             "latency.p99_ms",
-            baseline_result.latency.p99_ms,
-            current_result.latency.p99_ms,
+            baseline_result.latency_p99_ms,
+            current_result.latency_p99_ms,
             thresholds.latency_regression,
         );
 
@@ -143,34 +148,72 @@ fn compare_reports(
             &mut regressions,
             &key,
             "resources.allocations",
-            baseline_result
-                .resources
-                .allocations
-                .map(|value| value as f64),
-            current_result
-                .resources
-                .allocations
-                .map(|value| value as f64),
+            baseline_result.allocations,
+            current_result.allocations,
             thresholds.allocation_regression,
         );
         compare_optional_higher_is_worse(
             &mut regressions,
             &key,
             "resources.ram_bytes",
-            baseline_result
-                .resources
-                .ram_bytes
-                .map(|value| value as f64),
-            current_result.resources.ram_bytes.map(|value| value as f64),
+            baseline_result.ram_bytes,
+            current_result.ram_bytes,
             thresholds.memory_regression,
         );
 
-        if baseline_result.resources.cpu.is_none() || current_result.resources.cpu.is_none() {
+        if !baseline_result.cpu_measured || !current_result.cpu_measured {
             println!("PERF_GUARD_SKIP key={key} metric=resources.cpu reason=not-measured");
         }
     }
 
     regressions
+}
+
+fn aggregate_results(report: &PerfReport) -> HashMap<String, ScenarioAggregate> {
+    let mut groups: HashMap<String, Vec<&ScenarioReport>> = HashMap::new();
+    for result in &report.results {
+        groups.entry(group_key(result)).or_default().push(result);
+    }
+
+    groups
+        .into_iter()
+        .map(|(key, results)| {
+            let aggregate =
+                ScenarioAggregate {
+                    throughput_jobs_per_sec: median(
+                        results.iter().map(|result| result.throughput_jobs_per_sec),
+                    ),
+                    latency_p50_ms: median(results.iter().map(|result| result.latency.p50_ms)),
+                    latency_p99_ms: median(results.iter().map(|result| result.latency.p99_ms)),
+                    allocations: optional_median(results.iter().filter_map(|result| {
+                        result.resources.allocations.map(|value| value as f64)
+                    })),
+                    ram_bytes: optional_median(
+                        results.iter().filter_map(|result| {
+                            result.resources.ram_bytes.map(|value| value as f64)
+                        }),
+                    ),
+                    cpu_measured: results.iter().all(|result| result.resources.cpu.is_some()),
+                };
+            (key, aggregate)
+        })
+        .collect()
+}
+
+fn median(values: impl Iterator<Item = f64>) -> f64 {
+    let mut values = values.collect::<Vec<_>>();
+    values.sort_by(f64::total_cmp);
+    let middle = values.len() / 2;
+    if values.len() % 2 == 0 {
+        (values[middle - 1] + values[middle]) / 2.0
+    } else {
+        values[middle]
+    }
+}
+
+fn optional_median(values: impl Iterator<Item = f64>) -> Option<f64> {
+    let values = values.collect::<Vec<_>>();
+    (!values.is_empty()).then(|| median(values.into_iter()))
 }
 
 fn compare_lower_is_worse(
@@ -241,8 +284,8 @@ fn compare_optional_higher_is_worse(
     }
 }
 
-fn scenario_key(result: &ScenarioReport) -> String {
-    format!("{}|{}|{}", result.backend, result.workload, result.workers)
+fn group_key(result: &ScenarioReport) -> String {
+    format!("{}|{}", result.backend, result.workload)
 }
 
 impl Thresholds {

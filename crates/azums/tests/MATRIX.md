@@ -125,10 +125,12 @@ Artifacts:
 Regression guard:
 
 - `azums-perf-guard <baseline m14_report.json> <current m14_report.json>`
-- Fails on >5% throughput regression by default.
-- Fails on >5% p50/p99 latency regression by default.
+- Fails when median throughput across worker counts regresses by >5% for a backend/workload.
+- Fails when median p50/p99 latency across worker counts regresses by >5% for a backend/workload.
 - Fails on >10% allocation or memory increase when those counters are measured.
 - Emits explicit `PERF_GUARD_SKIP` lines for nullable/unmeasured CPU, allocation, or memory counters.
+- CI measures the previous and current revisions on the same runner with isolated Postgres and Redis
+  stores before invoking the guard.
 
 ---
 

@@ -25,7 +25,10 @@ cargo run -p azums --bin azums-perf-guard -- baseline/m14_report.json target/azu
 
 ## CI Semantics
 
-The guard compares matching `(backend, workload, workers)` scenarios.
+The report preserves every `(backend, workload, workers)` scenario. The guard groups matching
+`(backend, workload)` scenarios and compares the median value across the configured worker counts.
+This keeps per-worker measurements observable while preventing one noisy hosted-runner sample from
+being treated as a statistically meaningful regression.
 
 Tracked automatically:
 
@@ -49,4 +52,8 @@ Baselines are JSON reports emitted by `azums-perf`. A valid regression check mus
 - threshold overrides
 - whether allocations, CPU, and memory counters were measured
 
-The default GitHub workflow stores the latest generated M14 report as an artifact and runs the guard when a baseline artifact is available.
+The default GitHub workflow checks out the previous revision and measures baseline and current code
+on the same runner. Baseline and current use separate Postgres databases and Redis logical databases,
+so retained rows or keys cannot bias the second measurement. The current report is then stored as an
+artifact for inspection and dashboard history; the cross-machine artifact is not used as the blocking
+comparison baseline.

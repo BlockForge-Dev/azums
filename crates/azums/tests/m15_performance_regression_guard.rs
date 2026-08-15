@@ -37,6 +37,51 @@ fn m15_perf_guard_passes_matching_reports_and_fails_meaningful_regressions() -> 
     Ok(())
 }
 
+#[test]
+fn m15_perf_guard_uses_worker_medians_to_reject_noise() -> anyhow::Result<()> {
+    let exe = env!("CARGO_BIN_EXE_azums-perf-guard");
+    let dir = std::env::temp_dir().join(format!("azums-m15-median-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&dir)?;
+
+    let baseline = worker_report(&[1000.0; 6], &[1.0; 6], &[2.0; 6]);
+    let one_noisy_worker = worker_report(
+        &[500.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0],
+        &[2.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        &[4.0, 2.0, 2.0, 2.0, 2.0, 2.0],
+    );
+    let workload_regression = worker_report(&[900.0; 6], &[1.10; 6], &[2.20; 6]);
+
+    let baseline_path = dir.join("baseline.json");
+    let noisy_path = dir.join("noisy.json");
+    let regressed_path = dir.join("regressed.json");
+    fs::write(&baseline_path, serde_json::to_vec_pretty(&baseline)?)?;
+    fs::write(&noisy_path, serde_json::to_vec_pretty(&one_noisy_worker)?)?;
+    fs::write(
+        &regressed_path,
+        serde_json::to_vec_pretty(&workload_regression)?,
+    )?;
+
+    assert!(
+        Command::new(exe)
+            .arg(&baseline_path)
+            .arg(&noisy_path)
+            .status()?
+            .success(),
+        "one noisy worker sample must not fail the workload median"
+    );
+    assert!(
+        !Command::new(exe)
+            .arg(&baseline_path)
+            .arg(&regressed_path)
+            .status()?
+            .success(),
+        "a workload-wide median regression must fail"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+    Ok(())
+}
+
 fn report(
     throughput: f64,
     p50_ms: f64,
@@ -67,4 +112,36 @@ fn report(
             }
         }]
     })
+}
+
+fn worker_report(throughput: &[f64; 6], p50_ms: &[f64; 6], p99_ms: &[f64; 6]) -> serde_json::Value {
+    let workers = [1, 2, 4, 8, 16, 32];
+    let results = workers
+        .into_iter()
+        .enumerate()
+        .map(|(index, workers)| {
+            json!({
+                "backend": "memory",
+                "workload": "small_jobs",
+                "workers": workers,
+                "throughput_jobs_per_sec": throughput[index],
+                "latency": {
+                    "p50_ms": p50_ms[index],
+                    "p95_ms": p99_ms[index],
+                    "p99_ms": p99_ms[index],
+                    "p999_ms": p99_ms[index]
+                },
+                "resources": {
+                    "wall_ms": 1.0,
+                    "cpu": null,
+                    "ram_bytes": null,
+                    "allocations": null,
+                    "disk_io_bytes": null,
+                    "network_io_bytes": null,
+                    "notes": []
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({ "results": results })
 }

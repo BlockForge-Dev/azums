@@ -61,12 +61,19 @@ jobs:
         run: |
           cargo bench --benches --all-features
 
+      - name: Create Isolated Performance Databases
+        env:
+          PGPASSWORD: postgrespassword
+        run: |
+          createdb --host 127.0.0.1 --username postgres azums_perf_baseline
+          createdb --host 127.0.0.1 --username postgres azums_perf_current
+
       - name: Run Baseline M14 Performance Matrix
         env:
           BASELINE_SHA: ${{ github.event.before }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          DATABASE_URL: postgres://postgres:postgrespassword@127.0.0.1:5432/postgresflow_dev
-          REDIS_URL: redis://127.0.0.1:6379
+          DATABASE_URL: postgres://postgres:postgrespassword@127.0.0.1:5432/azums_perf_baseline
+          REDIS_URL: redis://127.0.0.1:6379/1
           AZUMS_PERF_BACKENDS: memory,sqlite,postgres,redis
           AZUMS_PERF_JOBS: 1000
           AZUMS_PERF_ITERATIONS: 3
@@ -89,8 +96,8 @@ jobs:
 
       - name: Run Current M14 Performance Matrix
         env:
-          DATABASE_URL: postgres://postgres:postgrespassword@127.0.0.1:5432/postgresflow_dev
-          REDIS_URL: redis://127.0.0.1:6379
+          DATABASE_URL: postgres://postgres:postgrespassword@127.0.0.1:5432/azums_perf_current
+          REDIS_URL: redis://127.0.0.1:6379/2
           AZUMS_PERF_BACKENDS: memory,sqlite,postgres,redis
           AZUMS_PERF_JOBS: 1000
           AZUMS_PERF_ITERATIONS: 3
