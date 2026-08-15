@@ -126,7 +126,8 @@ Regression guard:
 
 - `azums-perf-guard <baseline m14_report.json> <current m14_report.json>`
 - Fails when median throughput across worker counts regresses by >5% for a backend/workload.
-- Fails when median p50/p99 latency across worker counts regresses by >5% for a backend/workload.
+- Fails when median p50 and p99 latency across worker counts both regress by >5% for a backend/workload.
+- Emits a non-failing `PERF_GUARD_OBSERVATION` when only one latency percentile crosses its threshold.
 - Fails on >10% allocation or memory increase when those counters are measured.
 - Emits explicit `PERF_GUARD_SKIP` lines for nullable/unmeasured CPU, allocation, or memory counters.
 - CI measures the previous and current revisions on the same runner with isolated Postgres and Redis

@@ -19,7 +19,7 @@ cargo run -p azums --bin azums-perf-guard -- baseline/m14_report.json target/azu
 | Variable | Default | Meaning |
 |---|---:|---|
 | `AZUMS_PERF_MAX_THROUGHPUT_REGRESSION` | `0.05` | Fail when jobs/sec drops by more than 5%. |
-| `AZUMS_PERF_MAX_LATENCY_REGRESSION` | `0.05` | Fail when p50 or p99 latency increases by more than 5%. |
+| `AZUMS_PERF_MAX_LATENCY_REGRESSION` | `0.05` | Fail when both p50 and p99 latency increase by more than 5%. |
 | `AZUMS_PERF_MAX_ALLOCATION_REGRESSION` | `0.10` | Fail when measured allocations increase by more than 10%. |
 | `AZUMS_PERF_MAX_MEMORY_REGRESSION` | `0.10` | Fail when measured memory increases by more than 10%. |
 
@@ -28,7 +28,8 @@ cargo run -p azums --bin azums-perf-guard -- baseline/m14_report.json target/azu
 The report preserves every `(backend, workload, workers)` scenario. The guard groups matching
 `(backend, workload)` scenarios and compares the median value across the configured worker counts.
 This keeps per-worker measurements observable while preventing one noisy hosted-runner sample from
-being treated as a statistically meaningful regression.
+being treated as a statistically meaningful regression. Latency requires p50 and p99 confirmation;
+a threshold breach in only one percentile is emitted as `PERF_GUARD_OBSERVATION`.
 
 Tracked automatically:
 

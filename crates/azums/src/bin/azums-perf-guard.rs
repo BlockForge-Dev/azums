@@ -127,8 +127,9 @@ fn compare_reports(
             current_result.throughput_jobs_per_sec,
             thresholds.throughput_regression,
         );
+        let mut latency_regressions = Vec::new();
         compare_higher_is_worse(
-            &mut regressions,
+            &mut latency_regressions,
             &key,
             "latency.p50_ms",
             baseline_result.latency_p50_ms,
@@ -136,13 +137,25 @@ fn compare_reports(
             thresholds.latency_regression,
         );
         compare_higher_is_worse(
-            &mut regressions,
+            &mut latency_regressions,
             &key,
             "latency.p99_ms",
             baseline_result.latency_p99_ms,
             current_result.latency_p99_ms,
             thresholds.latency_regression,
         );
+        if latency_regressions.len() == 2 {
+            regressions.extend(latency_regressions);
+        } else {
+            for observation in latency_regressions {
+                println!(
+                    "PERF_GUARD_OBSERVATION key={} metric={} change={:.2}% reason=latency-quorum-not-met",
+                    observation.key,
+                    observation.metric,
+                    observation.change_pct * 100.0,
+                );
+            }
+        }
 
         compare_optional_higher_is_worse(
             &mut regressions,

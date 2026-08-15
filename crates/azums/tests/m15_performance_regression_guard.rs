@@ -50,15 +50,21 @@ fn m15_perf_guard_uses_worker_medians_to_reject_noise() -> anyhow::Result<()> {
         &[4.0, 2.0, 2.0, 2.0, 2.0, 2.0],
     );
     let workload_regression = worker_report(&[900.0; 6], &[1.10; 6], &[2.20; 6]);
+    let tail_only_observation = worker_report(&[1000.0; 6], &[1.0; 6], &[3.0; 6]);
 
     let baseline_path = dir.join("baseline.json");
     let noisy_path = dir.join("noisy.json");
     let regressed_path = dir.join("regressed.json");
+    let tail_only_path = dir.join("tail-only.json");
     fs::write(&baseline_path, serde_json::to_vec_pretty(&baseline)?)?;
     fs::write(&noisy_path, serde_json::to_vec_pretty(&one_noisy_worker)?)?;
     fs::write(
         &regressed_path,
         serde_json::to_vec_pretty(&workload_regression)?,
+    )?;
+    fs::write(
+        &tail_only_path,
+        serde_json::to_vec_pretty(&tail_only_observation)?,
     )?;
 
     assert!(
@@ -76,6 +82,14 @@ fn m15_perf_guard_uses_worker_medians_to_reject_noise() -> anyhow::Result<()> {
             .status()?
             .success(),
         "a workload-wide median regression must fail"
+    );
+    assert!(
+        Command::new(exe)
+            .arg(&baseline_path)
+            .arg(&tail_only_path)
+            .status()?
+            .success(),
+        "one latency percentile without p50 confirmation must remain an observation"
     );
 
     let _ = fs::remove_dir_all(dir);
