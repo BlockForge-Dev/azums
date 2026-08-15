@@ -196,7 +196,10 @@
 </tbody></table>
 </div>
 <h2 id="ci-semantics"><a class="header" href="#ci-semantics">CI Semantics</a></h2>
-<p>The guard compares matching <code>(backend, workload, workers)</code> scenarios.</p>
+<p>The report preserves every <code>(backend, workload, workers)</code> scenario. The guard groups matching
+<code>(backend, workload)</code> scenarios and compares the median value across the configured worker counts.
+This keeps per-worker measurements observable while preventing one noisy hosted-runner sample from
+being treated as a statistically meaningful regression.</p>
 <p>Tracked automatically:</p>
 <ul>
 <li>throughput</li>
@@ -217,7 +220,11 @@
 <li>threshold overrides</li>
 <li>whether allocations, CPU, and memory counters were measured</li>
 </ul>
-<p>The default GitHub workflow stores the latest generated M14 report as an artifact and runs the guard when a baseline artifact is available.</p>
+<p>The default GitHub workflow checks out the previous revision and measures baseline and current code
+on the same runner. Baseline and current use separate Postgres databases and Redis logical databases,
+so retained rows or keys cannot bias the second measurement. The current report is then stored as an
+artifact for inspection and dashboard history; the cross-machine artifact is not used as the blocking
+comparison baseline.</p>
 
                     </main>
 
