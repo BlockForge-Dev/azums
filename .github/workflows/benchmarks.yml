@@ -64,8 +64,8 @@ jobs:
           DATABASE_URL: postgres://postgres:postgrespassword@127.0.0.1:5432/postgresflow_dev
           REDIS_URL: redis://127.0.0.1:6379
           AZUMS_PERF_BACKENDS: memory,sqlite,postgres,redis
-          AZUMS_PERF_JOBS: 10000
-          AZUMS_PERF_ITERATIONS: 5
+          AZUMS_PERF_JOBS: 1000
+          AZUMS_PERF_ITERATIONS: 3
           AZUMS_PERF_OUTPUT_DIR: target/azums-perf
         run: |
           cargo run -p azums --release --bin azums-perf

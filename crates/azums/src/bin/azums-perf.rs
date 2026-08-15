@@ -268,7 +268,7 @@ async fn enqueue_workload(
             job = job.priority((idx % 17) as i32 - 8);
         }
         if matches!(workload, Workload::HighContention) {
-            job = job.idempotency_key(format!("m14-contention-{idx}"));
+            job = job.idempotency_key(format!("{}-m14-contention-{idx}", bench_flow.queue));
         }
 
         if matches!(workload, Workload::BatchJobs) {
