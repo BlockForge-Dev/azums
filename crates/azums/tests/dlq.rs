@@ -5,6 +5,7 @@ use azums::jobs::runner::JobRunner;
 use azums::jobs::{AttemptsRepo, JobsRepo};
 use common::setup_db;
 
+use serial_test::serial;
 use sqlx::Row;
 use std::time::Instant;
 use uuid::Uuid;
@@ -26,6 +27,7 @@ async fn insert_job(pool: &sqlx::PgPool, queue: &str, job_type: &str, max_attemp
 }
 
 #[tokio::test]
+#[serial]
 async fn exhausted_retries_moves_job_to_dlq_and_preserves_attempts() {
     let Some(pool) = setup_db().await else {
         return;
@@ -120,6 +122,7 @@ async fn exhausted_retries_moves_job_to_dlq_and_preserves_attempts() {
 }
 
 #[tokio::test]
+#[serial]
 async fn non_retryable_goes_to_dlq_immediately() {
     let Some(pool) = setup_db().await else {
         return;
