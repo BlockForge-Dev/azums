@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing release version to resume after a partial publication"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -26,11 +31,20 @@ jobs:
       - name: Validate Release Tag
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != v* ]]; then
-            echo "Release publication must run from a v* tag." >&2
-            exit 1
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            version="${{ inputs.version }}"
+            if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "Manual release version is invalid: ${version}" >&2
+              exit 1
+            fi
+          else
+            if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != v* ]]; then
+              echo "Release publication must run from a v* tag." >&2
+              exit 1
+            fi
+            version="${GITHUB_REF_NAME#v}"
           fi
-          version="${GITHUB_REF_NAME#v}"
+          echo "AZUMS_RELEASE_VERSION=${version}" >> "${GITHUB_ENV}"
           bash scripts/publish-crates.sh --check "${version}"
 
       - name: Test Release Commit
@@ -57,5 +71,4 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         shell: bash
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          bash scripts/publish-crates.sh "${version}"
+          bash scripts/publish-crates.sh "${AZUMS_RELEASE_VERSION}"

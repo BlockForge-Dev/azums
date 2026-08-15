@@ -10,7 +10,7 @@ documentation = "https://docs.rs/azums-rocket"
 homepage = "https://github.com/BlockForge-Dev/azums"
 readme = "../../README.md"
 keywords = ["rocket", "job-queue", "background-jobs", "request-guard"]
-categories = ["web-programming::HTTP-server", "asynchronous"]
+categories = ["web-programming::http-server", "asynchronous"]
 
 [dependencies]
 azums = { version = "1.0.0", path = "../azums" }

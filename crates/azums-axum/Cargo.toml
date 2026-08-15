@@ -10,7 +10,7 @@ documentation = "https://docs.rs/azums-axum"
 homepage = "https://github.com/BlockForge-Dev/azums"
 readme = "../../README.md"
 keywords = ["axum", "job-queue", "background-jobs", "task-queue", "extractor"]
-categories = ["web-programming::HTTP-server", "asynchronous"]
+categories = ["web-programming::http-server", "asynchronous"]
 
 [dependencies]
 azums = { version = "1.0.0", path = "../azums" }
