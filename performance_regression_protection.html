@@ -190,7 +190,7 @@
 <h2 id="thresholds"><a class="header" href="#thresholds">Thresholds</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Variable</th><th style="text-align: right">Default</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>AZUMS_PERF_MAX_THROUGHPUT_REGRESSION</code></td><td style="text-align: right"><code>0.05</code></td><td>Fail when jobs/sec drops by more than 5%.</td></tr>
-<tr><td><code>AZUMS_PERF_MAX_LATENCY_REGRESSION</code></td><td style="text-align: right"><code>0.05</code></td><td>Fail when p50 or p99 latency increases by more than 5%.</td></tr>
+<tr><td><code>AZUMS_PERF_MAX_LATENCY_REGRESSION</code></td><td style="text-align: right"><code>0.05</code></td><td>Fail when both p50 and p99 latency increase by more than 5%.</td></tr>
 <tr><td><code>AZUMS_PERF_MAX_ALLOCATION_REGRESSION</code></td><td style="text-align: right"><code>0.10</code></td><td>Fail when measured allocations increase by more than 10%.</td></tr>
 <tr><td><code>AZUMS_PERF_MAX_MEMORY_REGRESSION</code></td><td style="text-align: right"><code>0.10</code></td><td>Fail when measured memory increases by more than 10%.</td></tr>
 </tbody></table>
@@ -199,7 +199,8 @@
 <p>The report preserves every <code>(backend, workload, workers)</code> scenario. The guard groups matching
 <code>(backend, workload)</code> scenarios and compares the median value across the configured worker counts.
 This keeps per-worker measurements observable while preventing one noisy hosted-runner sample from
-being treated as a statistically meaningful regression.</p>
+being treated as a statistically meaningful regression. Latency requires p50 and p99 confirmation;
+a threshold breach in only one percentile is emitted as <code>PERF_GUARD_OBSERVATION</code>.</p>
 <p>Tracked automatically:</p>
 <ul>
 <li>throughput</li>
