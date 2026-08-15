@@ -67,6 +67,8 @@ jobs:
         run: |
           createdb --host 127.0.0.1 --username postgres azums_perf_baseline
           createdb --host 127.0.0.1 --username postgres azums_perf_current
+          createdb --host 127.0.0.1 --username postgres azums_perf_confirmation_baseline
+          createdb --host 127.0.0.1 --username postgres azums_perf_confirmation_current
 
       - name: Run Baseline M14 Performance Matrix
         env:
@@ -106,10 +108,37 @@ jobs:
           cargo run -p azums --release --bin azums-perf
 
       - name: Guard Performance Regressions
+        env:
+          AZUMS_PERF_BACKENDS: memory,sqlite,postgres,redis
+          AZUMS_PERF_JOBS: 1000
+          AZUMS_PERF_ITERATIONS: 3
         run: |
+          if cargo run -p azums --release --bin azums-perf-guard -- \
+            target/azums-perf-baseline/m14_report.json \
+            target/azums-perf/m14_report.json; then
+            exit 0
+          fi
+
+          echo "Initial regression signal detected; running reverse-order confirmation."
+          DATABASE_URL=postgres://postgres:postgrespassword@127.0.0.1:5432/azums_perf_confirmation_current \
+          REDIS_URL=redis://127.0.0.1:6379/3 \
+          AZUMS_PERF_OUTPUT_DIR=target/azums-perf-confirmation-current \
+            cargo run -p azums --release --bin azums-perf
+
+          DATABASE_URL=postgres://postgres:postgrespassword@127.0.0.1:5432/azums_perf_confirmation_baseline \
+          REDIS_URL=redis://127.0.0.1:6379/4 \
+          AZUMS_PERF_OUTPUT_DIR=${{ github.workspace }}/target/azums-perf-confirmation-baseline \
+          CARGO_TARGET_DIR=${{ github.workspace }}/target/baseline-build \
+            cargo run \
+              --manifest-path target/azums-perf-baseline-src/crates/azums/Cargo.toml \
+              --release \
+              --bin azums-perf
+
           cargo run -p azums --release --bin azums-perf-guard -- \
             target/azums-perf-baseline/m14_report.json \
-            target/azums-perf/m14_report.json
+            target/azums-perf/m14_report.json \
+            target/azums-perf-confirmation-baseline/m14_report.json \
+            target/azums-perf-confirmation-current/m14_report.json
 
       - name: Prepare Dashboard Artifact
         run: |

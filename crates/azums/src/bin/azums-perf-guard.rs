@@ -1,5 +1,9 @@
 use serde::Deserialize;
-use std::{collections::HashMap, env, fs, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    env, fs,
+    path::PathBuf,
+};
 
 #[derive(Debug, Deserialize)]
 struct PerfReport {
@@ -58,9 +62,9 @@ struct Regression {
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 3 {
+    if args.len() != 3 && args.len() != 5 {
         eprintln!(
-            "usage: azums-perf-guard <baseline m14_report.json> <current m14_report.json>\n\
+            "usage: azums-perf-guard <baseline> <current> [<confirmation-baseline> <confirmation-current>]\n\
              thresholds: AZUMS_PERF_MAX_THROUGHPUT_REGRESSION=0.05, \
              AZUMS_PERF_MAX_LATENCY_REGRESSION=0.05, \
              AZUMS_PERF_MAX_ALLOCATION_REGRESSION=0.10, \
@@ -72,7 +76,31 @@ fn main() -> anyhow::Result<()> {
     let baseline = load_report(PathBuf::from(&args[1]))?;
     let current = load_report(PathBuf::from(&args[2]))?;
     let thresholds = Thresholds::from_env();
-    let regressions = compare_reports(&baseline, &current, &thresholds);
+    let mut regressions = compare_reports(&baseline, &current, &thresholds);
+
+    if args.len() == 5 && !regressions.is_empty() {
+        let confirmation_baseline = load_report(PathBuf::from(&args[3]))?;
+        let confirmation_current = load_report(PathBuf::from(&args[4]))?;
+        let confirmation =
+            compare_reports(&confirmation_baseline, &confirmation_current, &thresholds);
+        let confirmed = confirmation
+            .iter()
+            .map(regression_id)
+            .collect::<HashSet<_>>();
+
+        regressions.retain(|regression| {
+            let is_confirmed = confirmed.contains(&regression_id(regression));
+            if !is_confirmed {
+                println!(
+                    "PERF_GUARD_OBSERVATION key={} metric={} change={:.2}% reason=confirmation-not-met",
+                    regression.key,
+                    regression.metric,
+                    regression.change_pct * 100.0,
+                );
+            }
+            is_confirmed
+        });
+    }
 
     if regressions.is_empty() {
         println!(
@@ -98,6 +126,10 @@ fn main() -> anyhow::Result<()> {
         "{} performance regression(s) exceeded thresholds",
         regressions.len()
     )
+}
+
+fn regression_id(regression: &Regression) -> (&str, &'static str) {
+    (&regression.key, regression.metric)
 }
 
 fn load_report(path: PathBuf) -> anyhow::Result<PerfReport> {

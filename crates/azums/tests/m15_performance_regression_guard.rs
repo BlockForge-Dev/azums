@@ -96,6 +96,52 @@ fn m15_perf_guard_uses_worker_medians_to_reject_noise() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test]
+fn m15_perf_guard_requires_confirmation_when_confirmation_reports_are_provided(
+) -> anyhow::Result<()> {
+    let exe = env!("CARGO_BIN_EXE_azums-perf-guard");
+    let dir = std::env::temp_dir().join(format!("azums-m15-confirm-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&dir)?;
+
+    let baseline = report(1000.0, 1.0, 2.0, None, None);
+    let regressed = report(900.0, 1.10, 2.20, None, None);
+    let recovered = report(1000.0, 1.0, 2.0, None, None);
+    let baseline_path = dir.join("baseline.json");
+    let regressed_path = dir.join("regressed.json");
+    let recovered_path = dir.join("recovered.json");
+    fs::write(&baseline_path, serde_json::to_vec_pretty(&baseline)?)?;
+    fs::write(&regressed_path, serde_json::to_vec_pretty(&regressed)?)?;
+    fs::write(&recovered_path, serde_json::to_vec_pretty(&recovered)?)?;
+
+    assert!(
+        Command::new(exe)
+            .args([
+                &baseline_path,
+                &regressed_path,
+                &baseline_path,
+                &recovered_path,
+            ])
+            .status()?
+            .success(),
+        "a regression absent from the confirmation pair must be an observation"
+    );
+    assert!(
+        !Command::new(exe)
+            .args([
+                &baseline_path,
+                &regressed_path,
+                &baseline_path,
+                &regressed_path,
+            ])
+            .status()?
+            .success(),
+        "a regression reproduced by the confirmation pair must fail"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+    Ok(())
+}
+
 fn report(
     throughput: f64,
     p50_ms: f64,

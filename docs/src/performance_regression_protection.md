@@ -31,6 +31,11 @@ This keeps per-worker measurements observable while preventing one noisy hosted-
 being treated as a statistically meaningful regression. Latency requires p50 and p99 confirmation;
 a threshold breach in only one percentile is emitted as `PERF_GUARD_OBSERVATION`.
 
+If the first CI comparison crosses a threshold, CI repeats baseline and current measurements in the
+opposite order using fresh backend namespaces. Only a `(backend, workload, metric)` regression seen
+in both comparisons fails the workflow. A signal that does not repeat is emitted as a
+`PERF_GUARD_OBSERVATION` with `reason=confirmation-not-met`.
+
 Tracked automatically:
 
 - throughput
