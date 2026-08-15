@@ -32,19 +32,19 @@ async fn run_one_scenario(scenario_idx: usize, seed: u64) -> anyhow::Result<()> 
     let backend = MemoryBackend::new();
     backend.run_migrations().await?;
 
-    let job_count = rng.gen_range(4..=16);
-    let worker_count = rng.gen_range(1..=8);
+    let job_count = rng.random_range(4..=16);
+    let worker_count = rng.random_range(1..=8);
     let mut job_ids = Vec::with_capacity(job_count);
 
     for seq in 0..job_count {
         let mut job = Job::new("m11-chaos", json!({ "scenario": scenario_idx, "seq": seq }))
-            .max_attempts(rng.gen_range(1..=4))
-            .priority(rng.gen_range(-2..=5));
+            .max_attempts(rng.random_range(1..=4))
+            .priority(rng.random_range(-2..=5));
 
-        if rng.gen_bool(0.2) {
-            job = job.run_at(Utc::now() - chrono::Duration::milliseconds(rng.gen_range(0..=50)));
+        if rng.random_bool(0.2) {
+            job = job.run_at(Utc::now() - chrono::Duration::milliseconds(rng.random_range(0..=50)));
         }
-        if rng.gen_bool(0.1) {
+        if rng.random_bool(0.1) {
             job = job.deadline_at(Utc::now() - chrono::Duration::milliseconds(1));
         }
 
@@ -61,9 +61,9 @@ async fn run_one_scenario(scenario_idx: usize, seed: u64) -> anyhow::Result<()> 
             break;
         }
 
-        let worker_id = format!("chaos-worker-{}", rng.gen_range(0..worker_count));
+        let worker_id = format!("chaos-worker-{}", rng.random_range(0..worker_count));
         let lease_seconds = 0;
-        let batch_size = rng.gen_range(1..=3);
+        let batch_size = rng.random_range(1..=3);
         let leased = backend
             .lease_jobs_batch("default", &worker_id, lease_seconds, batch_size)
             .await?;
@@ -114,7 +114,7 @@ async fn apply_fault(
                     job_id,
                     attempts[0].1,
                     worker_id,
-                    rng.gen_range(0..=50),
+                    rng.random_range(0..=50),
                     "PANIC",
                     "PANIC",
                     "chaos handler panic",
@@ -131,7 +131,7 @@ async fn apply_fault(
                     job_id,
                     attempts[0].1,
                     worker_id,
-                    rng.gen_range(0..=50),
+                    rng.random_range(0..=50),
                     "PERMANENT_ERROR",
                     "PERMANENT_ERROR",
                     "chaos permanent failure",
@@ -153,7 +153,7 @@ async fn apply_fault(
                         job_id,
                         attempts[0].1,
                         worker_id,
-                        rng.gen_range(0..=50),
+                        rng.random_range(0..=50),
                         "MAX_ATTEMPTS_EXCEEDED",
                         fault.error_code(),
                         "chaos retry budget exhausted",
@@ -166,7 +166,7 @@ async fn apply_fault(
                         job_id,
                         attempts[0].1,
                         worker_id,
-                        rng.gen_range(0..=50),
+                        rng.random_range(0..=50),
                         Utc::now(),
                         fault.error_code(),
                         "chaos retryable failure",
@@ -180,7 +180,7 @@ async fn apply_fault(
                 .start_attempts_batch(&["default".to_string()], &[job_id], worker_id)
                 .await?;
             backend
-                .mark_succeeded(job_id, attempts[0].1, worker_id, rng.gen_range(0..=50))
+                .mark_succeeded(job_id, attempts[0].1, worker_id, rng.random_range(0..=50))
                 .await
         }
     }
@@ -287,7 +287,7 @@ async fn count_terminal(backend: &MemoryBackend, job_ids: &[Uuid]) -> anyhow::Re
 }
 
 fn random_fault(rng: &mut StdRng) -> Fault {
-    match rng.gen_range(0..10) {
+    match rng.random_range(0..10) {
         0 => Fault::WorkerCrashBeforeAttempt,
         1 => Fault::WorkerCrashDuringAttempt,
         2 => Fault::SigkillBeforeAck,

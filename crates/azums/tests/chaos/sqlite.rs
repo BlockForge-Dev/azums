@@ -41,25 +41,30 @@ pub async fn run_contention_scenario(
                 }
 
                 if backend.reap_expired_locks().await.is_err() {
-                    sleep(Duration::from_millis(rng.gen_range(1..=5))).await;
+                    sleep(Duration::from_millis(rng.random_range(1..=5))).await;
                     continue;
                 }
                 let lease_seconds = 1;
                 let Ok(leased) = backend
-                    .lease_jobs_batch("default", &worker_id, lease_seconds, rng.gen_range(1..=4))
+                    .lease_jobs_batch(
+                        "default",
+                        &worker_id,
+                        lease_seconds,
+                        rng.random_range(1..=4),
+                    )
                     .await
                 else {
-                    sleep(Duration::from_millis(rng.gen_range(1..=5))).await;
+                    sleep(Duration::from_millis(rng.random_range(1..=5))).await;
                     continue;
                 };
 
                 if leased.is_empty() {
-                    sleep(Duration::from_millis(rng.gen_range(0..=3))).await;
+                    sleep(Duration::from_millis(rng.random_range(0..=3))).await;
                     continue;
                 }
 
                 for job in leased {
-                    if rng.gen_bool(0.20) {
+                    if rng.random_bool(0.20) {
                         let _ = backend
                             .start_attempts_batch(
                                 std::slice::from_ref(&job.dataset_id),
@@ -78,7 +83,7 @@ pub async fn run_contention_scenario(
                         )
                         .await
                     else {
-                        sleep(Duration::from_millis(rng.gen_range(1..=5))).await;
+                        sleep(Duration::from_millis(rng.random_range(1..=5))).await;
                         continue;
                     };
                     if backend

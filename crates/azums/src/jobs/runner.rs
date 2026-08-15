@@ -86,7 +86,7 @@ impl JobRunner {
 
         if can_retry {
             // retry: exponential backoff + jitter + cap
-            let mut rng = StdRng::from_entropy();
+            let mut rng = StdRng::from_os_rng();
             let delay_secs = next_delay_seconds(attempt_no, &self.retry_cfg, &mut rng);
             let next_run_at = Utc::now() + chrono::Duration::seconds(delay_secs);
 

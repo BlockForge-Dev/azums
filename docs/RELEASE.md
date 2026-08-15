@@ -9,8 +9,8 @@ Azums uses semantic versioning before and after 1.0:
 - PATCH: fixes and small improvements
 
 All workspace crate versions and internal Azums dependency requirements must be updated together.
-Azums 1.0 is governed separately by the [M21 Stable Release Gate](src/stable_release.md); a pre-1.0
-release does not declare the API or execution semantics permanently stable.
+Azums 1.0 and later are governed by the [M21 Stable Release Gate](src/stable_release.md). Documented
+Guaranteed semantics and public APIs outside explicitly unstable modules follow semver.
 
 ## Automated Publication
 
@@ -44,12 +44,12 @@ on crates.io. Authentication, packaging, network, and registry errors fail the w
 6. Create and push an annotated version tag.
 
 ```bash
-bash scripts/publish-crates.sh --check 0.2.1
+bash scripts/publish-crates.sh --check 1.0.0
 cargo test --workspace --locked
 cargo publish -p azums-core --dry-run --locked
 
-git tag -a v0.2.1 -m "Release v0.2.1"
-git push origin v0.2.1
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
 ```
 
 Pushing the tag starts `.github/workflows/release.yml`. Do not publish individual downstream crates
@@ -78,7 +78,7 @@ out of order.
 - [ ] Every internal Azums dependency uses the release version.
 - [ ] `Cargo.lock` and `CHANGELOG.md` are updated.
 - [ ] Migrations are reviewed for rollout safety.
-- [ ] Release notes do not overstate pre-1.0 semantic stability.
+- [ ] Release notes match the Guaranteed, Backend-dependent, and Unspecified contract.
 
 ## Post-Release Verification
 
@@ -88,7 +88,7 @@ After the release workflow succeeds, verify the registry from a fresh project:
 cargo search azums --limit 10
 cargo init /tmp/azums-test
 cd /tmp/azums-test
-cargo add azums@0.2.1
+cargo add azums@1.0.0
 cargo check
 ```
 

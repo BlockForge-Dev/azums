@@ -1,7 +1,7 @@
 [advisories]
 ignore = [
-    # `rsa` is pulled into Cargo.lock by SQLx's optional MySQL backend (`sqlx-mysql`).
-    # Azums enables only SQLx PostgreSQL and SQLite features. `cargo tree --workspace
-    # --all-features --target all` shows no active path to `rsa` or `sqlx-mysql`.
+    # SQLx records its optional MySQL RSA dependency in Cargo.lock, but Azums enables only
+    # PostgreSQL and SQLite. `cargo tree -i rsa --workspace --all-features --target all` has no
+    # active path, and RUSTSEC-2023-0071 currently has no fixed RSA release.
     "RUSTSEC-2023-0071",
 ]

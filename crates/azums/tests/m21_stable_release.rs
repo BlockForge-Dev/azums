@@ -4,7 +4,7 @@ fn m21_stable_release_gate_defines_1_0_as_semantics_stability() {
 
     for required in [
         "Azums 1.0 is not a feature-count release",
-        "Current status: **1.0 is not declared by this document.**",
+        "Azums 1.0 stable semantics are declared for version 1.0.0",
         "Stable Semantics",
         "Stable API Surface",
         "Backend Boundary",
@@ -13,6 +13,8 @@ fn m21_stable_release_gate_defines_1_0_as_semantics_stability() {
         "Stable Release Declaration",
         "Backend-dependent behavior remains governed by BackendCapabilities",
         "Unspecified behavior remains outside the compatibility contract",
+        "annotated tag target `v1.0.0`",
+        "compatibility baseline: `v0.2.0`",
     ] {
         assert!(
             gate.contains(required),

@@ -2,6 +2,12 @@
 
 This page is the canonical contract for Azums behavior. Use the labels below when deciding whether a behavior is guaranteed by Azums, depends on the selected backend, or is intentionally unspecified.
 
+The same inventory is available to Rust code through `SemanticBehavior::ALL` and
+`semantic_contract(behavior)`. Backend-dependent strength is exposed through typed fields returned
+by `StorageBackend::semantic_capabilities()` (or `Client::semantic_capabilities()`), including
+durability, transaction scope, notification delivery, retention, and consumer-group coordination.
+This keeps the documentation and application-visible answer in the same three-state vocabulary.
+
 ## Classification Labels
 
 | Label | Meaning |
@@ -39,6 +45,24 @@ This page is the canonical contract for Azums behavior. Use the labels below whe
 | Cancellation | **Guaranteed** | `cancel_job` cancels queued or scheduled jobs directly. Running jobs require the owning worker lease. Terminal jobs reject cancellation. |
 | Notification delivery | **Backend-dependent** | LISTEN/NOTIFY, PubSub, broadcast, or polling-style wake-ups are optimization paths. Durable state remains in the backend; consumers must still lease/read from storage. |
 | Retention and archive visibility | **Backend-dependent** | Maintenance, archive, and history retention behavior depends on backend support and configured operations. |
+| Consumer-group work balancing | **Unspecified** | Consumer groups own monotonic offsets. Azums does not assign partitions or events among processes using the same group name. |
+| Automatic scaling | **Unspecified** | Azums exports workload signals but does not provision or remove workers. |
+| Arbitrary external transactions | **Unspecified** | Same-database transactional enqueue is supported where declared. Atomic commit across unrelated databases, APIs, queues, or other services is not guaranteed. |
+
+## Machine-Readable Contract
+
+```rust
+use azums::{semantic_contract, SemanticBehavior};
+
+let contract = semantic_contract(SemanticBehavior::ExactlyOnceExternalSideEffects);
+assert_eq!(format!("{:?}", contract.classification), "Unspecified");
+assert!(contract.supported_alternative.is_some());
+```
+
+`SemanticBehavior::ALL` is exhaustive for the public execution boundary. Adding a behavior requires
+adding a match arm, classification, contract text, and contract-test coverage. Unspecified behavior
+also names the supported replacement pattern, such as idempotency keys, a same-database outbox,
+serial execution, application-owned partition assignment, or metrics-driven infrastructure scaling.
 
 ## Scheduling Semantics
 

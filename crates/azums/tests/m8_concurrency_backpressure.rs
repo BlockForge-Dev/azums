@@ -9,7 +9,7 @@ use serial_test::serial;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 const M8_WORKER_MATRIX: &[usize] = &[1, 2, 5, 10, 50, 100];
@@ -203,7 +203,13 @@ async fn m8_large_job_count_stress_matrix() -> anyhow::Result<()> {
 
     for jobs in job_counts {
         for workers in &worker_counts {
+            let started = Instant::now();
+            eprintln!("M8_STRESS_START jobs={jobs} workers={workers}");
             run_memory_worker_matrix_case(*workers, jobs).await?;
+            eprintln!(
+                "M8_STRESS_PASS jobs={jobs} workers={workers} elapsed_ms={}",
+                started.elapsed().as_millis()
+            );
         }
     }
 
@@ -236,9 +242,15 @@ async fn run_memory_worker_matrix_case(
         "{worker_count} workers must complete all jobs exactly once"
     );
 
-    let running = count_jobs(&backend, Some("default"), Some("running")).await?;
-    let queued = count_jobs(&backend, Some("default"), Some("queued")).await?;
-    let completed = count_jobs(&backend, Some("default"), Some("succeeded")).await?;
+    let metrics = backend
+        .as_observability()
+        .expect("memory observability")
+        .queue_metrics(Some("default"))
+        .await?;
+    let metrics = metrics.first().expect("default queue metrics");
+    let running = metrics.worker_count as usize;
+    let queued = metrics.queue_depth as usize;
+    let completed = metrics.jobs_completed as usize;
 
     assert_eq!(running, 0, "no job may be left running");
     assert_eq!(
@@ -260,6 +272,7 @@ async fn run_workers_until_empty(
     let processed_ids = Arc::new(Mutex::new(HashSet::<Uuid>::new()));
     let worker_counts = Arc::new(Mutex::new(HashMap::<String, usize>::new()));
     let queue = queue.to_string();
+    let batch_size = expected_total.div_ceil(100).clamp(25, 25_000) as i64;
 
     let mut tasks = Vec::with_capacity(worker_count);
     for worker_idx in 0..worker_count {
@@ -273,7 +286,7 @@ async fn run_workers_until_empty(
         tasks.push(tokio::spawn(async move {
             loop {
                 let leased = backend
-                    .lease_jobs_batch(&queue, &worker_id, 30, 25)
+                    .lease_jobs_batch(&queue, &worker_id, 30, batch_size)
                     .await
                     .unwrap();
 

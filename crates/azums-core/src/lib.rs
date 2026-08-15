@@ -12,6 +12,7 @@ extern crate alloc;
 pub mod backend;
 pub mod error;
 pub mod model;
+pub mod semantics;
 
 pub use backend::{
     CallRecord, JobExplanation, JobObservationEvent, MemoryAttempt, MemoryBackend, MockBackend,
@@ -19,9 +20,14 @@ pub use backend::{
 };
 pub use error::{Error, QueueError};
 pub use model::{
-    BackendCapabilities, BackpressureCapability, ConsumerGroupStatus, Event, Job, JobExecution,
+    BackendCapabilities, BackendSemanticCapabilities, BackpressureCapability,
+    ConsumerGroupCapability, ConsumerGroupStatus, DurabilityCapability, Event, Job, JobExecution,
     JobHandler, JobLifecycleState, JobListItem, JobProcessor, JobStatus, NewEvent, NewJob,
-    OrderingCapability, Queue, QueueConfig, QueueOrdering, Worker,
+    NotificationCapability, OrderingCapability, Queue, QueueConfig, QueueOrdering,
+    RetentionCapability, TransactionalEnqueueCapability, Worker,
+};
+pub use semantics::{
+    semantic_contract, SemanticBehavior, SemanticClassification, SemanticContract,
 };
 
 /// Helper function to extract a human-readable panic message string from a panic payload.

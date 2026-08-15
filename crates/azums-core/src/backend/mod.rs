@@ -8,7 +8,7 @@ pub use mock::{CallRecord, MockBackend};
 pub use observability::{JobExplanation, JobObservationEvent, ObservabilityBackend, QueueMetrics};
 pub use stream::StreamBackend;
 
-use crate::model::{BackendCapabilities, Job, JobListItem, NewJob};
+use crate::model::{BackendCapabilities, BackendSemanticCapabilities, Job, JobListItem, NewJob};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::pin::Pin;
@@ -25,6 +25,14 @@ pub type NotificationStream = Pin<Box<dyn futures_core::Stream<Item = ()> + Send
 pub trait StorageBackend: Send + Sync {
     /// Declares this backend's storage and coordination capabilities.
     fn capabilities(&self) -> BackendCapabilities;
+
+    /// Declares detailed semantic strength for this backend.
+    ///
+    /// Built-in profiles are derived from [`Self::capabilities`]. Custom backends with a novel
+    /// capability combination should override this method instead of leaving the result unknown.
+    fn semantic_capabilities(&self) -> Option<BackendSemanticCapabilities> {
+        self.capabilities().semantics()
+    }
 
     /// Returns reference to StreamBackend if supported by this storage implementation.
     fn as_stream(&self) -> Option<&dyn StreamBackend> {

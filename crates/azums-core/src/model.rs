@@ -81,6 +81,66 @@ pub enum BackpressureCapability {
     ExecutionRateLimit,
 }
 
+/// Persistence strength provided by a backend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum DurabilityCapability {
+    /// State is lost when the current process exits.
+    ProcessLocal,
+    /// State survives process restart when the backend is used in its persistent mode.
+    Persistent,
+    /// Durability depends on backend persistence, eviction, and deployment configuration.
+    ConfigurationDependent,
+}
+
+/// Transaction boundary in which enqueue can be atomic with application state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TransactionalEnqueueCapability {
+    /// Enqueue is atomic only as its own backend operation.
+    BackendOperationOnly,
+    /// Enqueue can use the caller's transaction in the same SQL database.
+    SameDatabase,
+}
+
+/// Delivery behavior of backend wake-up notifications.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum NotificationCapability {
+    /// Process-local best-effort hint; durable state must still be polled or leased.
+    ProcessLocalHint,
+    /// Best-effort backend notification; durable state remains the source of truth.
+    BestEffortHint,
+    /// Best-effort notification combined with a polling fallback.
+    BestEffortHintWithPolling,
+}
+
+/// Retention behavior exposed by a backend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum RetentionCapability {
+    /// Retained only for the lifetime of the current process.
+    ProcessLifetime,
+    /// Retained until an explicit Azums maintenance or pruning operation removes it.
+    ExplicitPruning,
+    /// Retention also depends on backend eviction and persistence configuration.
+    BackendConfigured,
+}
+
+/// Coordination provided for consumers sharing one consumer-group name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ConsumerGroupCapability {
+    /// The backend persists a monotonic group offset but does not assign work to members.
+    OffsetsOnly,
+}
+
+/// Detailed semantic strength behind the compatibility-preserving feature flags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct BackendSemanticCapabilities {
+    pub durability: DurabilityCapability,
+    pub transactional_enqueue_scope: TransactionalEnqueueCapability,
+    pub notification_delivery: NotificationCapability,
+    pub job_retention: RetentionCapability,
+    pub stream_retention: RetentionCapability,
+    pub consumer_group_coordination: ConsumerGroupCapability,
+}
+
 /// Storage backend feature and guarantee declaration.
 ///
 /// Capabilities describe what a backend can honestly provide. They are not a marketing matrix:
@@ -152,6 +212,110 @@ impl BackendCapabilities {
 
     pub fn supports_portable_job_api(&self) -> bool {
         self.durable_jobs || !self.distributed_workers
+    }
+
+    /// Returns the detailed profile for an exact built-in capability declaration.
+    ///
+    /// Unknown custom combinations return `None` instead of being guessed as a built-in backend.
+    pub const fn semantics(&self) -> Option<BackendSemanticCapabilities> {
+        match (
+            self.transactional_enqueue,
+            self.durable_jobs,
+            self.notifications,
+            self.streams,
+            self.consumer_groups,
+            self.distributed_workers,
+            self.ordering,
+            self.backpressure,
+        ) {
+            (
+                false,
+                false,
+                true,
+                true,
+                true,
+                false,
+                OrderingCapability::FifoAndFastestLeasing,
+                BackpressureCapability::BacklogOnly,
+            ) => Some(BackendSemanticCapabilities::memory()),
+            (
+                true,
+                true,
+                true,
+                true,
+                true,
+                false,
+                OrderingCapability::FifoAndFastestLeasing,
+                BackpressureCapability::BacklogOnly,
+            ) => Some(BackendSemanticCapabilities::sqlite()),
+            (
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                OrderingCapability::FifoAndFastestLeasing,
+                BackpressureCapability::ExecutionRateLimit,
+            ) => Some(BackendSemanticCapabilities::postgres()),
+            (
+                false,
+                true,
+                true,
+                true,
+                true,
+                true,
+                OrderingCapability::FifoLeasing,
+                BackpressureCapability::BacklogOnly,
+            ) => Some(BackendSemanticCapabilities::redis()),
+            _ => None,
+        }
+    }
+}
+
+impl BackendSemanticCapabilities {
+    pub const fn memory() -> Self {
+        Self {
+            durability: DurabilityCapability::ProcessLocal,
+            transactional_enqueue_scope: TransactionalEnqueueCapability::BackendOperationOnly,
+            notification_delivery: NotificationCapability::ProcessLocalHint,
+            job_retention: RetentionCapability::ProcessLifetime,
+            stream_retention: RetentionCapability::ProcessLifetime,
+            consumer_group_coordination: ConsumerGroupCapability::OffsetsOnly,
+        }
+    }
+
+    pub const fn sqlite() -> Self {
+        Self {
+            durability: DurabilityCapability::Persistent,
+            transactional_enqueue_scope: TransactionalEnqueueCapability::SameDatabase,
+            notification_delivery: NotificationCapability::BestEffortHintWithPolling,
+            job_retention: RetentionCapability::ExplicitPruning,
+            stream_retention: RetentionCapability::ExplicitPruning,
+            consumer_group_coordination: ConsumerGroupCapability::OffsetsOnly,
+        }
+    }
+
+    pub const fn postgres() -> Self {
+        Self {
+            durability: DurabilityCapability::Persistent,
+            transactional_enqueue_scope: TransactionalEnqueueCapability::SameDatabase,
+            notification_delivery: NotificationCapability::BestEffortHint,
+            job_retention: RetentionCapability::ExplicitPruning,
+            stream_retention: RetentionCapability::ExplicitPruning,
+            consumer_group_coordination: ConsumerGroupCapability::OffsetsOnly,
+        }
+    }
+
+    pub const fn redis() -> Self {
+        Self {
+            durability: DurabilityCapability::ConfigurationDependent,
+            transactional_enqueue_scope: TransactionalEnqueueCapability::BackendOperationOnly,
+            notification_delivery: NotificationCapability::BestEffortHintWithPolling,
+            job_retention: RetentionCapability::BackendConfigured,
+            stream_retention: RetentionCapability::BackendConfigured,
+            consumer_group_coordination: ConsumerGroupCapability::OffsetsOnly,
+        }
     }
 }
 

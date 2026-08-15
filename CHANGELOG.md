@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-08-15
+
+### Stable Guarantees
+- Declared the documented Guaranteed execution semantics and public API stable under semantic versioning.
+- Added a machine-readable three-way contract for Guaranteed, Backend-dependent, and Unspecified behavior.
+- Preserved at-least-once delivery while explicitly excluding exactly-once arbitrary external side effects.
+- Made backend durability, transaction scope, notifications, retention, and consumer-group coordination inspectable.
+
+### Reliability
+- Passed 10,000 randomized chaos scenarios.
+- Passed the 24-case 10k through 1m job matrix with 1, 2, 5, 10, 50, and 100 workers.
+- Added an ordered in-memory runnable index and O(1) attempt counters after the first million-job run exposed quadratic behavior.
+- Made long chaos and million-job concurrency gates mandatory before release publication.
+
+### Compatibility
+- This major release includes the accumulated pre-1.0 failure-classification enum changes.
+- Extensible failure enums are now non-exhaustive before the 1.0 API freeze.
+
 ## [0.2.1] - 2026-08-15
 
 ### Fixed
@@ -18,8 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verified CI across stable, beta, nightly, Linux, macOS, and Windows.
 - Verified documentation and the multi-backend performance dashboard workflows.
 
-This is a pre-1.0 patch release. It does not declare Azums' API or documented semantics stable under
-the M21 1.0 stability policy.
+This pre-1.0 patch release remains historical; the stable contract begins with 1.0.0.
 
 ## [0.2.0] - 2026-08-09
 

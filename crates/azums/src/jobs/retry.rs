@@ -18,6 +18,7 @@ impl Default for RetryConfig {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ErrorClass {
     Retryable,
     Permanent,
@@ -124,7 +125,7 @@ pub fn next_delay_seconds(attempt_no: i32, cfg: &RetryConfig, rng: &mut impl Rng
 
     // jitter in range [-jitter_pct, +jitter_pct]
     let jitter_range = (delay as f64) * cfg.jitter_pct;
-    let jitter = rng.gen_range(-jitter_range..=jitter_range);
+    let jitter = rng.random_range(-jitter_range..=jitter_range);
 
     let jittered = (delay as f64 + jitter).round() as i64;
     jittered.clamp(0, cfg.max_seconds)

@@ -6,8 +6,9 @@ M21 answers one question:
 
 Azums 1.0 is not a feature-count release. It is a guarantee-stability release.
 
-Current status: **1.0 is not declared by this document.** A 1.0 release is eligible only when every
-gate below passes for the exact release commit.
+Current status: **Azums 1.0 stable semantics are declared for version 1.0.0.** The release commit is
+the commit referenced by the annotated `v1.0.0` tag, with `v0.2.0` as the public API compatibility
+baseline. Publication remains blocked unless every gate below passes for that exact tag target.
 
 ## Stable Semantics
 
@@ -37,12 +38,6 @@ surfaces:
 
 For 1.0, the stable public API list in [API Stability Policy](../../STABILITY.md) becomes a semver
 major-version contract.
-
-Before 1.0:
-
-- breaking changes to stable APIs require the documented pre-1.0 policy
-- unstable modules may still change in minor versions
-- every unstable module must remain labeled as unstable
 
 At and after 1.0:
 
@@ -82,12 +77,14 @@ The exact release commit must pass:
 | Guarantee inventory | Every Guaranteed, Backend-dependent, and Unspecified behavior remains classified in [Execution Semantics](semantics.md). |
 | Backend matrix | Memory, SQLite, PostgreSQL, and Redis capabilities remain documented and tested. |
 | Operations docs | Production deployment and failure/recovery runbooks build with the book. |
+| Long chaos gate | 10,000 randomized scenarios pass on the exact release commit. |
+| Million-job concurrency gate | The 10k, 50k, 100k, and 1m job matrix passes with 1, 2, 5, 10, 50, and 100 workers. |
 
 Optional-but-recommended gates before announcing a production 1.0:
 
 - Redis-specific Criterion sweep with `AZUMS_BENCH_REDIS=1` and `REDIS_URL`
 - full workspace semver checks with a CI budget long enough for support crates
-- long chaos profile in infrastructure that controls PostgreSQL, Redis, process death, and network faults
+- backend-specific chaos in infrastructure that controls PostgreSQL, Redis, process death, and network faults
 
 ## Release Blockers
 
@@ -109,6 +106,14 @@ Any of these blocks 1.0:
 A release manager may declare Azums 1.0 only by recording the release commit, previous-release
 baseline, command evidence, and remaining documented non-blocking caveats.
 
+Release identity:
+
+- version: `1.0.0`
+- release commit: annotated tag target `v1.0.0`
+- compatibility baseline: `v0.2.0`
+- local release-gate evidence date: `2026-08-15`
+- publication status: not published until the annotated tag is explicitly pushed
+
 The declaration must use this form:
 
 ```text
@@ -117,5 +122,6 @@ Backend-dependent behavior remains governed by BackendCapabilities.
 Unspecified behavior remains outside the compatibility contract.
 ```
 
-Until that declaration exists for a release commit, Azums may be release-candidate ready, but it is
-not a stable 1.0 release.
+Azums 1.0 declares the documented stable API and Guaranteed execution semantics as stable.
+Backend-dependent behavior remains governed by BackendCapabilities.
+Unspecified behavior remains outside the compatibility contract.

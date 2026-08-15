@@ -105,6 +105,11 @@ impl QuickstartFlow {
         self.backend.capabilities()
     }
 
+    /// Returns the backend's detailed semantic capability profile.
+    pub fn semantic_capabilities(&self) -> Option<azums_core::BackendSemanticCapabilities> {
+        self.backend.semantic_capabilities()
+    }
+
     /// Fetches a job by ID for simple inspection and debugging.
     pub async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {
         self.backend.get_job(job_id).await
@@ -596,7 +601,7 @@ impl QuickstartFlow {
         let can_retry = class.is_retryable() && attempt_no < max_attempts;
 
         if can_retry {
-            let mut rng = StdRng::from_entropy();
+            let mut rng = StdRng::from_os_rng();
             let delay_secs = next_delay_seconds(attempt_no, &self.retry_cfg, &mut rng);
             let next_run_at = chrono::Utc::now() + chrono::Duration::seconds(delay_secs);
 

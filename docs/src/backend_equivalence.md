@@ -28,6 +28,12 @@ pub struct BackendCapabilities {
 }
 ```
 
+The boolean fields remain convenient and source-compatible feature checks. Calling
+`BackendCapabilities::semantics()` returns `Some(BackendSemanticCapabilities)` for an exact built-in
+profile, whose enum fields state the strength and scope of those features. It returns `None` for a
+novel custom combination instead of guessing. Custom `StorageBackend` implementations can override
+`semantic_capabilities()` to declare their detailed profile.
+
 | Field | Meaning |
 |---|---|
 | `transactional_enqueue` | Enqueue can participate in the backend's transaction model with application data stored in that same backend. |
@@ -38,6 +44,12 @@ pub struct BackendCapabilities {
 | `distributed_workers` | Multiple processes or hosts can coordinate worker leases through the backend. |
 | `ordering` | Strength of lease ordering support: none, FIFO leasing, or FIFO plus fastest leasing modes. |
 | `backpressure` | Overload behavior: backlog-only acceptance, or backend-enforced execution rate limiting. |
+| `semantic_capabilities().durability` | Process-local, persistent, or dependent on backend persistence and eviction configuration. |
+| `semantic_capabilities().transactional_enqueue_scope` | Atomic backend operation only, or atomic with application data in the same SQL database transaction. |
+| `semantic_capabilities().notification_delivery` | Process-local or backend best-effort wake-up hint, with polling fallback where implemented. No mode makes notifications the source of truth. |
+| `semantic_capabilities().job_retention` | Process lifetime, explicit pruning, or backend-configured retention. |
+| `semantic_capabilities().stream_retention` | Process lifetime, explicit pruning, or backend-configured retention. Safe pruning still stops at the slowest known group offset. |
+| `semantic_capabilities().consumer_group_coordination` | `OffsetsOnly`: durable monotonic offsets without automatic member assignment or work balancing. |
 
 ## Compatibility Matrix
 
@@ -53,6 +65,12 @@ pub struct BackendCapabilities {
 | Distributed workers | No | No, single-process embedded target | Yes | Yes |
 | Ordering | FIFO and fastest leasing | FIFO and fastest leasing | FIFO and fastest leasing | FIFO leasing |
 | Backpressure | Backlog only | Backlog only | Execution rate limits through queue policies | Backlog only |
+| Durability strength | Process-local | Persistent file-backed DB | Persistent database | Configuration-dependent |
+| Transaction scope | Backend operation only | Same SQLite database | Same PostgreSQL database | Backend operation only |
+| Notification delivery | Process-local hint | Hint plus polling | Best-effort LISTEN/NOTIFY hint | Pub/Sub hint plus polling |
+| Job retention | Process lifetime | Explicit maintenance | Explicit maintenance | Backend configured |
+| Stream retention | Process lifetime | Explicit pruning | Explicit pruning | Backend configured |
+| Consumer-group coordination | Offsets only | Offsets only | Offsets only | Offsets only |
 | Transactions with app DB | No | Yes, if app data uses same SQLite DB | Yes, if app data uses same Postgres DB | No |
 | Best fit | Unit tests and local ephemeral runs | Embedded apps and single-binary services | Distributed production workers | Distributed low-latency Redis environments |
 

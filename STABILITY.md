@@ -1,8 +1,7 @@
 # API Stability Policy
 
-Azums follows [Semantic Versioning](https://semver.org/). Until version 1.0, minor releases **may**
-contain breaking changes to **unstable** APIs. Stable APIs will follow semver strictly even before
-1.0.
+Azums follows [Semantic Versioning](https://semver.org/). Starting with version 1.0.0, all public
+APIs follow semver unless they are explicitly listed as unstable below.
 
 1.0 is allowed only after the [M21 Stable Release Gate](docs/src/stable_release.md) passes for the
 exact release commit. Azums treats 1.0 as a stable-semantics declaration, not as a feature-count
@@ -10,8 +9,9 @@ milestone.
 
 ## Stable APIs
 
-These types and functions are considered stable. Breaking changes to these will require a minor
-version bump (pre-1.0) or a major version bump (post-1.0), with a deprecation period where feasible.
+All public types, traits, functions, methods, and documented Guaranteed semantics are stable unless
+their module appears in the Unstable APIs section. Breaking changes require a major version bump,
+with a deprecation period where feasible.
 
 | Item | Module |
 |------|--------|
@@ -38,6 +38,12 @@ version bump (pre-1.0) or a major version bump (post-1.0), with a deprecation pe
 | `QueuePolicy` | `azums::jobs::policies` |
 | `PolicyDecisionsRepo` | `azums::jobs::policy_decisions` |
 | `IngestDecisionsRepo` | `azums::jobs::ingest_decisions` |
+| `StorageBackend` and `StreamBackend` | `azums_core::backend` |
+| `BackendCapabilities` and `BackendSemanticCapabilities` | `azums_core::model` |
+| `SemanticBehavior`, `SemanticClassification`, `SemanticContract` | `azums_core::semantics` |
+| `semantic_contract()` | `azums_core::semantics` |
+| `QuickstartFlow` / `Client` | `azums::quickstart` |
+| `MemoryBackend`, `PostgresBackend`, `SqliteBackend`, `RedisBackend` | backend modules |
 
 ## Unstable APIs
 
@@ -48,8 +54,6 @@ any minor version before 1.0 without a deprecation period.
 |--------|--------|
 | `azums::jobs::timeline` | Internal timeline format under active iteration |
 | `azums::jobs::debug_view` | Debug tooling, format may change |
-| `azums::jobs::metrics` | Metrics schema and aggregation strategy evolving |
-| `azums::jobs::maintenance` | Retention and archival strategy not finalized |
 | `azums-dashboard` | Web dashboard UI and admin endpoints package |
 
 ## How to Identify Unstable APIs

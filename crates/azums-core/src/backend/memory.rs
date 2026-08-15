@@ -8,7 +8,7 @@ use crate::{
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     sync::{Arc, RwLock},
 };
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
@@ -30,11 +30,49 @@ pub struct MemoryAttempt {
     pub error_message: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct QueueEntry {
+    priority: i32,
+    run_at: DateTime<Utc>,
+    created_at: DateTime<Utc>,
+    id: Uuid,
+}
+
+impl QueueEntry {
+    fn from_job(job: &Job) -> Self {
+        Self {
+            priority: job.priority,
+            run_at: job.run_at,
+            created_at: job.created_at,
+            id: job.id,
+        }
+    }
+}
+
+impl Ord for QueueEntry {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other
+            .priority
+            .cmp(&self.priority)
+            .then_with(|| self.run_at.cmp(&other.run_at))
+            .then_with(|| self.created_at.cmp(&other.created_at))
+            .then_with(|| self.id.cmp(&other.id))
+    }
+}
+
+impl PartialOrd for QueueEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 #[derive(Debug, Default)]
 struct InnerState {
     jobs: HashMap<Uuid, Job>,
+    queued_jobs: HashMap<String, BTreeSet<QueueEntry>>,
     archive: HashMap<Uuid, Job>,
     attempts: HashMap<Uuid, MemoryAttempt>,
+    attempt_counts: HashMap<Uuid, i32>,
     streams: HashMap<String, Vec<Event>>,
     stream_offsets: HashMap<(String, String), ConsumerGroupStatus>,
 }
@@ -59,8 +97,10 @@ impl MemoryBackend {
     pub fn clear(&self) {
         let mut state = self.state.write().unwrap();
         state.jobs.clear();
+        state.queued_jobs.clear();
         state.archive.clear();
         state.attempts.clear();
+        state.attempt_counts.clear();
         state.streams.clear();
         state.stream_offsets.clear();
     }
@@ -148,6 +188,11 @@ impl StorageBackend for MemoryBackend {
             updated_at: now,
         };
 
+        state
+            .queued_jobs
+            .entry(queue_name.clone())
+            .or_default()
+            .insert(QueueEntry::from_job(&job_entity));
         state.jobs.insert(job_id, job_entity);
         drop(state);
 
@@ -196,20 +241,27 @@ impl StorageBackend for MemoryBackend {
         let mut state = self.state.write().unwrap();
         let now = Utc::now();
 
-        let expired_deadlines: Vec<Uuid> = state
-            .jobs
-            .values()
-            .filter(|j| {
-                j.queue == queue
-                    && j.status == "queued"
-                    && j.run_at <= now
-                    && j.deadline_at.is_some_and(|deadline| deadline < now)
+        let expired_deadlines: Vec<QueueEntry> = state
+            .queued_jobs
+            .get(queue)
+            .into_iter()
+            .flatten()
+            .filter(|entry| {
+                entry.run_at <= now
+                    && state
+                        .jobs
+                        .get(&entry.id)
+                        .and_then(|job| job.deadline_at)
+                        .is_some_and(|deadline| deadline < now)
             })
-            .map(|j| j.id)
+            .cloned()
             .collect();
 
-        for job_id in expired_deadlines {
-            if let Some(job) = state.jobs.get_mut(&job_id) {
+        for entry in expired_deadlines {
+            if let Some(index) = state.queued_jobs.get_mut(queue) {
+                index.remove(&entry);
+            }
+            if let Some(job) = state.jobs.get_mut(&entry.id) {
                 job.status = JobStatus::Dlq.as_str().to_string();
                 job.dlq_reason_code = Some("DEADLINE_EXCEEDED".to_string());
                 job.dlq_at = Some(now);
@@ -217,37 +269,30 @@ impl StorageBackend for MemoryBackend {
             }
         }
 
-        let mut candidates: Vec<Job> = state
-            .jobs
-            .values()
-            .filter(|j| j.queue == queue && j.status == "queued" && j.run_at <= now)
+        let _ = ordering;
+        let candidates: Vec<QueueEntry> = state
+            .queued_jobs
+            .get(queue)
+            .into_iter()
+            .flatten()
+            .filter(|entry| entry.run_at <= now)
+            .take(batch_size.max(0) as usize)
             .cloned()
             .collect();
-
-        match ordering {
-            crate::model::QueueOrdering::Fifo => {
-                candidates.sort_by(|a, b| {
-                    b.priority
-                        .cmp(&a.priority)
-                        .then_with(|| a.run_at.cmp(&b.run_at))
-                        .then_with(|| a.created_at.cmp(&b.created_at))
-                        .then_with(|| a.id.cmp(&b.id))
-                });
-            }
-            crate::model::QueueOrdering::Fastest => {
-                candidates.sort_by_key(|a| std::cmp::Reverse(a.priority));
-            }
-        }
-
-        let candidates: Vec<Job> = candidates.into_iter().take(batch_size as usize).collect();
         if candidates.is_empty() {
             return Ok(Vec::new());
+        }
+
+        if let Some(index) = state.queued_jobs.get_mut(queue) {
+            for entry in &candidates {
+                index.remove(entry);
+            }
         }
 
         let lock_expires_at = now + chrono::Duration::seconds(lease_seconds);
         let mut leased = Vec::with_capacity(candidates.len());
 
-        for mut candidate in candidates {
+        for candidate in candidates {
             if let Some(j) = state.jobs.get_mut(&candidate.id) {
                 j.status = JobStatus::Running.as_str().to_string();
                 j.locked_at = Some(now);
@@ -255,13 +300,7 @@ impl StorageBackend for MemoryBackend {
                 j.lock_expires_at = Some(lock_expires_at);
                 j.updated_at = now;
 
-                candidate.status = j.status.clone();
-                candidate.locked_at = j.locked_at;
-                candidate.locked_by = j.locked_by.clone();
-                candidate.lock_expires_at = j.lock_expires_at;
-                candidate.updated_at = j.updated_at;
-
-                leased.push(candidate);
+                leased.push(j.clone());
             }
         }
 
@@ -296,13 +335,19 @@ impl StorageBackend for MemoryBackend {
         }
 
         for job_id in expired_job_ids {
-            if let Some(job) = state.jobs.get_mut(&job_id) {
+            let requeued = if let Some(job) = state.jobs.get_mut(&job_id) {
                 job.status = JobStatus::Queued.as_str().to_string();
                 job.locked_at = None;
                 job.locked_by = None;
                 job.lock_expires_at = None;
                 job.updated_at = now;
                 reaped += 1;
+                Some((job.queue.clone(), QueueEntry::from_job(job)))
+            } else {
+                None
+            };
+            if let Some((queue, entry)) = requeued {
+                state.queued_jobs.entry(queue).or_default().insert(entry);
             }
         }
 
@@ -334,15 +379,7 @@ impl StorageBackend for MemoryBackend {
                 );
             }
 
-            let max_attempt = state
-                .attempts
-                .values()
-                .filter(|a| a.job_id == job_id)
-                .map(|a| a.attempt_no)
-                .max()
-                .unwrap_or(0);
-
-            let next_attempt_no = max_attempt + 1;
+            let next_attempt_no = state.attempt_counts.get(&job_id).copied().unwrap_or(0) + 1;
             let attempt_id = Uuid::new_v4();
 
             let attempt = MemoryAttempt {
@@ -360,6 +397,7 @@ impl StorageBackend for MemoryBackend {
             };
 
             state.attempts.insert(attempt_id, attempt);
+            state.attempt_counts.insert(job_id, next_attempt_no);
             results.push((job_id, attempt_id, next_attempt_no));
         }
 
@@ -432,6 +470,11 @@ impl StorageBackend for MemoryBackend {
 
         if let Some(next) = recurring_job {
             let queue_name = next.queue.clone();
+            state
+                .queued_jobs
+                .entry(queue_name.clone())
+                .or_default()
+                .insert(QueueEntry::from_job(&next));
             state.jobs.insert(next.id, next);
             drop(state);
             self.notify_queue(&queue_name);
@@ -502,6 +545,9 @@ impl StorageBackend for MemoryBackend {
         job.locked_by = None;
         job.lock_expires_at = None;
         job.updated_at = now;
+        let queue = job.queue.clone();
+        let entry = QueueEntry::from_job(job);
+        state.queued_jobs.entry(queue).or_default().insert(entry);
 
         Ok(())
     }
@@ -640,6 +686,12 @@ impl StorageBackend for MemoryBackend {
         let mut state = self.state.write().unwrap();
         let now = Utc::now();
 
+        let queued_entry = state
+            .jobs
+            .get(&job_id)
+            .filter(|job| job.status == "queued")
+            .map(|job| (job.queue.clone(), QueueEntry::from_job(job)));
+
         let job = state
             .jobs
             .get_mut(&job_id)
@@ -686,6 +738,12 @@ impl StorageBackend for MemoryBackend {
         job.locked_by = None;
         job.lock_expires_at = None;
         job.updated_at = now;
+
+        if let Some((queue, entry)) = queued_entry {
+            if let Some(index) = state.queued_jobs.get_mut(&queue) {
+                index.remove(&entry);
+            }
+        }
 
         Ok(())
     }
@@ -809,6 +867,11 @@ impl StorageBackend for MemoryBackend {
             updated_at: now,
         };
 
+        state
+            .queued_jobs
+            .entry(target_queue_clone.clone())
+            .or_default()
+            .insert(QueueEntry::from_job(&new_job));
         state.jobs.insert(new_id, new_job);
         drop(state);
         self.notify_queue(&target_queue_clone);
