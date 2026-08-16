@@ -7,7 +7,7 @@ what remains operator responsibility, and where claims are backed by implementat
 
 | Area | Production stance | Implementation | Tests / verification |
 |---|---|---|---|
-| Dependency audit | Run `cargo audit` or equivalent in CI before release. This local environment did not have `cargo-audit` installed when M19 was written. | [Cargo.toml](../../Cargo.toml), [Cargo.lock](../../Cargo.lock) | Operator command: `cargo audit`; local visibility: `cargo tree -d -p azums` |
+| Dependency audit | CI runs `cargo audit` on every push and pull request. The inactive SQLx MySQL-only RSA advisory remains explicitly scoped and ignored. | [ci.yml](../../.github/workflows/ci.yml), [Cargo.lock](../../Cargo.lock) | CI dependency-audit job; operator command: `cargo audit --ignore RUSTSEC-2023-0071` |
 | Unsafe code | `azums-core` denies unsafe code. M19 local grep found no `unsafe` token under `crates/`. | [lib.rs](../../crates/azums-core/src/lib.rs) | Operator command: `rg "\bunsafe\b" crates` |
 | Serialization safety | Public JSON boundaries deserialize through `serde_json`; malformed input must reject cleanly. | [model.rs](../../crates/azums-core/src/model.rs) | [m13_fuzz_hardening.rs](../../crates/azums/tests/m13_fuzz_hardening.rs) |
 | Secrets handling | `DATABASE_URL`, `REDIS_URL`, and `AZUMS_API_TOKEN` are environment inputs. Azums should not log raw connection strings or API tokens. | [config.rs](../../crates/azums/src/config.rs), [quickstart.rs](../../crates/azums/src/quickstart.rs) | Manual log review before production release |
