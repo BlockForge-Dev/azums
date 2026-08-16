@@ -3,15 +3,18 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Clone)]
+/// PostgreSQL repository for producer admission audit decisions.
 pub struct IngestDecisionsRepo {
     pool: PgPool,
 }
 
 impl IngestDecisionsRepo {
+    /// Creates an ingest-decision repository backed by `pool`.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
+    /// Records an admission decision and returns its generated identifier.
     pub async fn record(
         &self,
         queue: &str,
@@ -36,6 +39,7 @@ impl IngestDecisionsRepo {
         Ok(id)
     }
 
+    /// Lists recent decisions, optionally restricted to one queue.
     pub async fn list_recent(
         &self,
         queue: Option<&str>,

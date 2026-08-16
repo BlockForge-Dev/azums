@@ -11,8 +11,10 @@ use std::{collections::HashMap, pin::Pin, sync::Arc};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
+/// Boxed asynchronous result returned by a registered quickstart handler.
 pub type QuickstartHandlerFuture =
     Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>;
+/// Shared handler callback dispatched for one registered job type.
 pub type QuickstartHandler = Arc<dyn Fn(Job) -> QuickstartHandlerFuture + Send + Sync>;
 
 /// Main entry point client for `postgresflow`.

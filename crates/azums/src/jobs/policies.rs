@@ -1,23 +1,31 @@
 use sqlx::PgPool;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+/// PostgreSQL execution limits applied to one queue.
 pub struct QueuePolicy {
+    /// Queue governed by this policy.
     pub queue: String,
+    /// Maximum attempts that may start during one minute.
     pub max_attempts_per_minute: i32,
+    /// Maximum simultaneously running jobs.
     pub max_in_flight: i32,
+    /// Delay applied when the queue is throttled, in milliseconds.
     pub throttle_delay_ms: i32,
 }
 
 #[derive(Clone)]
+/// PostgreSQL repository for queue execution policies.
 pub struct PoliciesRepo {
     pool: PgPool,
 }
 
 impl PoliciesRepo {
+    /// Creates a policy repository backed by `pool`.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
+    /// Returns the policy configured for `queue`, if one exists.
     pub async fn get_policy(&self, queue: &str) -> anyhow::Result<Option<QueuePolicy>> {
         let rec = sqlx::query_as::<_, QueuePolicy>(
             r#"
@@ -33,6 +41,7 @@ impl PoliciesRepo {
         Ok(rec)
     }
 
+    /// Creates or replaces the execution policy for `queue`.
     pub async fn upsert_policy(
         &self,
         queue: &str,

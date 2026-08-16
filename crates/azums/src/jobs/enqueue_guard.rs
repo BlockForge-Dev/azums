@@ -12,8 +12,11 @@ use sqlx::PgPool;
 use crate::jobs::ingest_decisions::IngestDecisionsRepo;
 
 #[derive(Clone, Debug)]
+/// Limits applied before a PostgreSQL enqueue is admitted.
 pub struct EnqueueGuardConfig {
+    /// Maximum accepted serialized payload size in bytes.
     pub max_payload_bytes: usize,
+    /// Maximum enqueue operations per queue in one minute.
     pub max_enqueues_per_minute_per_queue: i64,
 }
 
@@ -36,6 +39,7 @@ pub struct EnqueueGuard {
 }
 
 impl EnqueueGuard {
+    /// Creates a guard using the database, audit repository, and limits supplied.
     pub fn new(pool: PgPool, decisions: IngestDecisionsRepo, cfg: EnqueueGuardConfig) -> Self {
         Self {
             pool,
@@ -44,10 +48,12 @@ impl EnqueueGuard {
         }
     }
 
+    /// Returns the configured payload-size limit in bytes.
     pub fn max_payload_bytes(&self) -> usize {
         self.cfg.max_payload_bytes
     }
 
+    /// Rejects an oversized payload and records the denial decision.
     pub async fn check_payload(&self, queue: &str, payload_bytes: usize) -> anyhow::Result<()> {
         if payload_bytes > self.cfg.max_payload_bytes {
             let _ = self
@@ -67,6 +73,7 @@ impl EnqueueGuard {
         Ok(())
     }
 
+    /// Atomically increments the queue's minute counter and rejects excess production.
     pub async fn check_rate(&self, queue: &str) -> anyhow::Result<()> {
         let now = Utc::now();
         let window_start =

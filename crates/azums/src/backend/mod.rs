@@ -1,6 +1,8 @@
 #[cfg(feature = "postgres")]
+/// PostgreSQL storage adapter.
 pub mod postgres;
 #[cfg(feature = "sqlite")]
+/// SQLite storage adapter.
 pub mod sqlite;
 
 #[cfg(feature = "redis")]

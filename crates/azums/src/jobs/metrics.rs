@@ -3,29 +3,40 @@ use serde::Serialize;
 use sqlx::PgPool;
 
 #[derive(Debug, Serialize)]
+/// Point-in-time PostgreSQL queue health and throughput summary.
 pub struct Metrics {
+    /// Time at which the snapshot was calculated.
     pub at: DateTime<Utc>,
 
+    /// Queue represented by the snapshot.
     pub queue: String,
+    /// Number of queued jobs currently eligible to run.
     pub runnable_queue_depth: i64,
 
     // last 60s window
+    /// Completed attempts per second over the latest 60-second window.
     pub jobs_per_sec: f64,
+    /// Fraction of finished attempts that succeeded.
     pub success_rate: f64,
+    /// Fraction of started attempts whose number is at least two.
     pub retry_rate: f64,
+    /// Mean finished-attempt latency in milliseconds.
     pub mean_latency_ms: f64,
 }
 
 #[derive(Clone)]
+/// PostgreSQL repository for queue-level operational metrics.
 pub struct MetricsRepo {
     pool: PgPool,
 }
 
 impl MetricsRepo {
+    /// Creates a metrics repository backed by `pool`.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
+    /// Returns one metrics snapshot for every known queue.
     pub async fn snapshot_all(&self) -> anyhow::Result<Vec<Metrics>> {
         let queues: Vec<String> = sqlx::query_scalar(
             r#"
@@ -45,6 +56,7 @@ impl MetricsRepo {
         Ok(out)
     }
 
+    /// Calculates a metrics snapshot for one queue.
     pub async fn snapshot_for_queue(&self, queue: &str) -> anyhow::Result<Metrics> {
         // Depth (runnable queued)
         let depth: i64 = sqlx::query_scalar(

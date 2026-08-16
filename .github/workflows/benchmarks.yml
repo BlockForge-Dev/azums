@@ -15,6 +15,8 @@ jobs:
   benchmark:
     name: Run Criterion Benchmarks
     runs-on: ubuntu-latest
+    env:
+      BASELINE_SOURCE_DIR: ${{ runner.temp }}/azums-perf-baseline-src-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
       contents: write
 
@@ -90,9 +92,9 @@ jobs:
           fi
 
           echo "PERF_BASELINE_SHA=$baseline_sha"
-          git worktree add --detach target/azums-perf-baseline-src "$baseline_sha"
+          git worktree add --detach "$BASELINE_SOURCE_DIR" "$baseline_sha"
           cargo run \
-            --manifest-path target/azums-perf-baseline-src/crates/azums/Cargo.toml \
+            --manifest-path "$BASELINE_SOURCE_DIR/crates/azums/Cargo.toml" \
             --release \
             --bin azums-perf
 
@@ -130,7 +132,7 @@ jobs:
           AZUMS_PERF_OUTPUT_DIR=${{ github.workspace }}/target/azums-perf-confirmation-baseline \
           CARGO_TARGET_DIR=${{ github.workspace }}/target/baseline-build \
             cargo run \
-              --manifest-path target/azums-perf-baseline-src/crates/azums/Cargo.toml \
+              --manifest-path "$BASELINE_SOURCE_DIR/crates/azums/Cargo.toml" \
               --release \
               --bin azums-perf
 

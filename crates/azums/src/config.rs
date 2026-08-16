@@ -15,19 +15,33 @@
 /// - `AZUMS_MAX_ENQUEUE_PER_MINUTE`: Maximum enqueues per minute per queue (default: `10000`).
 #[derive(Clone, Debug)]
 pub struct Config {
+    /// Storage connection URL used by the runtime.
     pub database_url: String,
+    /// Unique identity attached to leases and attempts.
     pub worker_id: String,
+    /// Queue polled by this worker.
     pub queue: String,
+    /// Duration of each job lease in seconds.
     pub lease_seconds: i64,
+    /// Maximum jobs requested by one dequeue operation.
     pub dequeue_batch_size: i64,
+    /// Interval between expired-lease recovery passes in milliseconds.
     pub reap_interval_ms: u64,
+    /// Whether detailed per-job logs are emitted.
     pub verbose_job_logs: bool,
+    /// Optional admin API bind address; `None` disables the listener.
     pub admin_addr: Option<String>,
+    /// Optional token required by protected admin endpoints.
     pub api_token: Option<String>,
+    /// Whether database migrations run during application startup.
     pub migrate_on_startup: bool,
+    /// Maximum accepted serialized payload size in bytes.
     pub max_payload_bytes: usize,
+    /// Maximum enqueue operations accepted per queue and minute.
     pub max_enqueues_per_minute_per_queue: i64,
+    /// Interval between automatic maintenance passes in seconds.
     pub maintenance_interval_secs: u64,
+    /// Number of SQLite pages requested by each incremental vacuum pass.
     pub sqlite_incremental_vacuum_n: u64,
 }
 

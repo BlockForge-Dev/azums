@@ -2,6 +2,7 @@
 
 [Introduction](introduction.md)
 [Zero-Config Quickstart](quickstart.md)
+[Product & Implementation Handbook](product_handbook.md)
 [The Azums Architecture Book](architecture_book.md)
 
 # Part I - Philosophy

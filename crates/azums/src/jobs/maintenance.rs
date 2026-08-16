@@ -2,11 +2,13 @@ use chrono::{DateTime, Duration, Utc};
 use sqlx::PgPool;
 
 #[derive(Clone)]
+/// PostgreSQL repository for archival, history pruning, and table maintenance.
 pub struct MaintenanceRepo {
     pool: PgPool,
 }
 
 impl MaintenanceRepo {
+    /// Creates a maintenance repository backed by `pool`.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -201,12 +203,19 @@ impl MaintenanceRepo {
 /// Statistics and vacuum status metadata for a database table.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct TableMaintenanceInfo {
+    /// PostgreSQL relation name.
     pub table_name: String,
+    /// Estimated dead tuple count.
     pub dead_tuples: i64,
+    /// Estimated live tuple count.
     pub live_tuples: i64,
+    /// Most recent manual vacuum time.
     pub last_vacuum: Option<DateTime<Utc>>,
+    /// Most recent automatic vacuum time.
     pub last_autovacuum: Option<DateTime<Utc>>,
+    /// Most recent manual analyze time.
     pub last_analyze: Option<DateTime<Utc>>,
+    /// Most recent automatic analyze time.
     pub last_autoanalyze: Option<DateTime<Utc>>,
 }
 

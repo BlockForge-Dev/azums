@@ -1,20 +1,35 @@
 // src/jobs/error_codes.rs
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
+/// Canonical machine-readable failure code used by attempts and DLQ decisions.
 pub enum ErrorCode {
+    /// Handler execution exceeded its configured timeout.
     Timeout,
+    /// Database transaction was selected as a deadlock victim.
     DbDeadlock,
+    /// Serializable transaction or representation conflict occurred.
     Serialization,
+    /// A producer or dependency rate limit was reached.
     RateLimit,
+    /// Handler task panicked.
     Panic,
+    /// Payload could not be validated or decoded.
     BadPayload,
+    /// Failure is known not to benefit from retry.
     PermanentError,
+    /// Required downstream dependency is unavailable.
     DependencyDown,
+    /// Database connection was interrupted.
     DbDisconnect,
+    /// Retryable execution-infrastructure failure occurred.
     SystemFailure,
+    /// Job was explicitly cancelled.
     Cancelled,
+    /// Worker stopped heartbeating and its lease expired.
     LeaseExpired,
+    /// Handler returned an otherwise unclassified error.
     HandlerError,
+    /// Error text did not match a known code.
     Unknown,
 }
 
@@ -43,10 +58,12 @@ impl std::str::FromStr for ErrorCode {
 
 impl ErrorCode {
     #[allow(clippy::should_implement_trait)]
+    /// Parses an error code, returning [`ErrorCode::Unknown`] for unrecognized text.
     pub fn from_str(s: &str) -> Self {
         s.parse().unwrap_or(Self::Unknown)
     }
 
+    /// Returns the canonical uppercase representation stored in error records.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Timeout => "TIMEOUT",
@@ -67,6 +84,7 @@ impl ErrorCode {
     }
 }
 
+/// Returns concise operator guidance for a machine-readable failure code.
 pub fn suggested_action(code: &str) -> &'static str {
     match ErrorCode::from_str(code) {
         ErrorCode::Timeout => {

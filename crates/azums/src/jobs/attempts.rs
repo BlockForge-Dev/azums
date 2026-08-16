@@ -3,30 +3,46 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+/// Durable record of one handler execution attempt.
 pub struct JobAttempt {
+    /// Unique attempt identifier.
     pub id: Uuid,
+    /// Job executed by this attempt.
     pub job_id: Uuid,
+    /// Monotonically increasing attempt number for the job.
     pub attempt_no: i32,
 
+    /// Time at which handler execution started.
     pub started_at: DateTime<Utc>,
+    /// Time at which the attempt finished, if terminal.
     pub finished_at: Option<DateTime<Utc>>,
 
+    /// Persisted attempt status.
     pub status: String,
 
+    /// Machine-readable failure code, if the attempt failed.
     pub error_code: Option<String>,
+    /// Human-readable failure detail, if the attempt failed.
     pub error_message: Option<String>,
 
+    /// Measured execution latency in milliseconds.
     pub latency_ms: Option<i32>,
+    /// Worker that owned the attempt.
     pub worker_id: String,
 }
 
+/// Persisted execution-attempt status.
 pub enum AttemptStatus {
+    /// Handler execution is in progress.
     Running,
+    /// Handler execution completed successfully.
     Succeeded,
+    /// Handler execution failed.
     Failed,
 }
 
 impl AttemptStatus {
+    /// Returns the compact status stored by SQL backends.
     pub fn as_str(&self) -> &'static str {
         match self {
             AttemptStatus::Running => "running",
@@ -37,11 +53,13 @@ impl AttemptStatus {
 }
 
 #[derive(Clone)]
+/// PostgreSQL repository for durable job-attempt history.
 pub struct AttemptsRepo {
     pool: PgPool,
 }
 
 impl AttemptsRepo {
+    /// Creates an attempt repository backed by `pool`.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -186,6 +204,7 @@ impl AttemptsRepo {
         Ok(rows)
     }
 
+    /// Marks an attempt succeeded and records its final latency.
     pub async fn finish_succeeded(&self, attempt_id: Uuid, latency_ms: i32) -> anyhow::Result<()> {
         let status = AttemptStatus::Succeeded.as_str();
 
@@ -241,6 +260,7 @@ impl AttemptsRepo {
         Ok(())
     }
 
+    /// Marks an attempt failed with its final latency and error details.
     pub async fn finish_failed(
         &self,
         attempt_id: Uuid,
@@ -272,6 +292,7 @@ impl AttemptsRepo {
         Ok(())
     }
 
+    /// Lists a job's attempts in ascending attempt-number order.
     pub async fn list_attempts_for_job(&self, job_id: Uuid) -> anyhow::Result<Vec<JobAttempt>> {
         let rows = sqlx::query_as::<_, JobAttempt>(
             r#"

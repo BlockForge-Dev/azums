@@ -1,5 +1,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(clippy::double_must_use)]
+#![deny(missing_docs)]
 //! # Azums
 //!
 //! **High-performance job queue & streaming engine for Rust — from embedded to cloud.**
@@ -82,11 +83,17 @@
 //! - **Separate Worker Nodes**: Run background workers independently using the [`worker`](https://crates.io/crates/worker) crate or `azumsctl`.
 //! - **Monitoring Dashboard**: The optional web dashboard is available as a separate package (`azums-dashboard`).
 
+/// Storage backend adapters and backend-specific constructors.
 pub mod backend;
+/// Environment-driven runtime configuration.
 pub mod config;
+/// PostgreSQL pool and migration helpers.
 pub mod db;
+/// Job repositories, execution policies, attempts, and operational views.
 pub mod jobs;
+/// High-level client, handler registry, and Tokio worker runtime.
 pub mod quickstart;
+/// High-level durable event stream handle.
 pub mod stream_handle;
 
 // ── Convenience re-exports (stable public API) ──

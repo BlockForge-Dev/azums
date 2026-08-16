@@ -4,67 +4,110 @@ use serde::Serialize;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
+/// Reconstructed job history combining attempts and policy decisions.
 pub struct JobTimeline {
+    /// Job represented by this timeline.
     pub job_id: Uuid,
+    /// Current persisted job status.
     pub status: String,
+    /// Queue that owns the job.
     pub queue: String,
+    /// Handler dispatch key.
     pub job_type: String,
+    /// Current execution eligibility timestamp.
     pub run_at: DateTime<Utc>,
 
+    /// Next scheduled execution time when queued.
     pub next_run_at: Option<DateTime<Utc>>,
+    /// Most recent worker in attempt history.
     pub last_worker_id: Option<String>,
+    /// Most recent failed-attempt error.
     pub last_error: Option<LastError>,
 
     // keep existing attempts list (backwards compatible)
+    /// Attempts ordered by attempt number.
     pub attempts: Vec<TimelineAttempt>,
 
     // ✅ new: unified ordered narrative (attempts + policy decisions)
+    /// Unified chronological attempt and policy narrative.
     pub story: Vec<TimelineEvent>,
 }
 
 #[derive(Debug, Serialize)]
+/// One execution attempt rendered for the unstable timeline API.
 pub struct TimelineAttempt {
+    /// Unique attempt identifier.
     pub id: Uuid,
+    /// Monotonic attempt number.
     pub attempt_no: i32,
+    /// Persisted attempt status.
     pub status: String,
+    /// Attempt start time.
     pub started_at: DateTime<Utc>,
+    /// Attempt completion time, if finished.
     pub finished_at: Option<DateTime<Utc>>,
+    /// Machine-readable error code, if failed.
     pub error_code: Option<String>,
+    /// Human-readable error detail, if failed.
     pub error_message: Option<String>,
+    /// Measured attempt latency in milliseconds.
     pub latency_ms: Option<i32>,
+    /// Worker that owned the attempt.
     pub worker_id: String,
+    /// Suggested operator response derived from the error code.
     pub suggested_action: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
+/// Most recent error summary in a job timeline.
 pub struct LastError {
+    /// Machine-readable failure code.
     pub error_code: Option<String>,
+    /// Human-readable failure detail.
     pub error_message: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind")]
+/// Chronological event in the unstable unified job narrative.
 pub enum TimelineEvent {
+    /// Handler attempt event.
     Attempt {
+        /// Event timestamp.
         at: DateTime<Utc>,
+        /// Attempt identifier.
         id: Uuid,
+        /// Attempt number.
         attempt_no: i32,
+        /// Attempt status.
         status: String,
+        /// Worker that owned the attempt.
         worker_id: String,
+        /// Machine-readable error code.
         error_code: Option<String>,
+        /// Human-readable error detail.
         error_message: Option<String>,
+        /// Suggested operator response.
         suggested_action: Option<String>,
+        /// Measured attempt latency in milliseconds.
         latency_ms: Option<i32>,
     },
+    /// Queue-policy decision event.
     PolicyDecision {
+        /// Event timestamp.
         at: DateTime<Utc>,
+        /// Decision identifier.
         id: Uuid,
+        /// Decision name.
         decision: String,
+        /// Machine-readable decision reason.
         reason_code: String,
+        /// Structured policy context.
         details_json: serde_json::Value,
     },
 }
 
+/// Reconstructs a chronological timeline for `job_id`, or `None` when absent.
 pub async fn build_timeline(
     jobs: &JobsRepo,
     attempts: &AttemptsRepo,

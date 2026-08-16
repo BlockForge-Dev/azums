@@ -1,9 +1,13 @@
 use rand::Rng;
 
 #[derive(Debug, Clone)]
+/// Exponential-backoff and jitter settings for retryable failures.
 pub struct RetryConfig {
+    /// Initial retry delay in seconds.
     pub base_seconds: i64,
+    /// Maximum retry delay in seconds.
     pub max_seconds: i64,
+    /// Symmetric jitter fraction applied to the calculated delay.
     pub jitter_pct: f64,
 }
 
@@ -19,15 +23,23 @@ impl Default for RetryConfig {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
+/// Semantic failure class that determines retry and DLQ behavior.
 pub enum ErrorClass {
+    /// Handler failure that may succeed on a later attempt.
     Retryable,
+    /// Deterministic failure that should enter DLQ immediately.
     Permanent,
+    /// Handler exceeded its execution timeout and may retry.
     Timeout,
+    /// Handler task panicked and enters DLQ.
     Panic,
+    /// Execution was cancelled and is terminal.
     Cancelled,
+    /// Retryable infrastructure or dependency failure.
     SystemFailure,
 }
 
+/// Maps a machine-readable error code to its semantic failure class.
 pub fn classify_error(code: &str) -> ErrorClass {
     match code.trim().to_uppercase().as_str() {
         "TIMEOUT" => ErrorClass::Timeout,
@@ -43,6 +55,7 @@ pub fn classify_error(code: &str) -> ErrorClass {
 }
 
 impl ErrorClass {
+    /// Returns whether another attempt is permitted while budget remains.
     pub fn is_retryable(self) -> bool {
         matches!(
             self,
@@ -50,6 +63,7 @@ impl ErrorClass {
         )
     }
 
+    /// Returns the reason stored when this class enters the DLQ.
     pub fn dlq_reason_code(self) -> &'static str {
         match self {
             ErrorClass::Permanent => "PERMANENT_ERROR",
@@ -62,6 +76,7 @@ impl ErrorClass {
     }
 }
 
+/// Parses an optional `CODE: message` handler error into canonical code and detail.
 pub fn parse_handler_error(message: &str) -> (&'static str, &str) {
     let Some((code, rest)) = message.split_once(':') else {
         return ("HANDLER_ERROR", message);
@@ -106,6 +121,7 @@ pub fn parse_handler_error(message: &str) -> (&'static str, &str) {
     }
 }
 
+/// Calculates capped exponential backoff with symmetric jitter for an attempt.
 pub fn next_delay_seconds(attempt_no: i32, cfg: &RetryConfig, rng: &mut impl Rng) -> i64 {
     let attempt_no = attempt_no.max(1) as u32;
 

@@ -4,16 +4,27 @@
 //! See [`STABILITY.md`](https://github.com/BlockForge-Dev/azums/blob/main/STABILITY.md)
 //! for the full API stability policy.
 
+/// Durable execution-attempt records and repository operations.
 pub mod attempts;
+/// Producer-side payload and enqueue-rate admission controls.
 pub mod enqueue_guard;
+/// Canonical operational error codes and remediation guidance.
 pub mod error_codes;
+/// Audit records for producer admission decisions.
 pub mod ingest_decisions;
+/// Compatibility re-exports for core job models.
 pub mod model;
+/// PostgreSQL queue execution policies.
 pub mod policies;
+/// Durable audit records for worker policy decisions.
 pub mod policy_decisions;
+/// PostgreSQL job persistence and lifecycle mutations.
 pub mod repo;
+/// Retry configuration, failure classification, and backoff calculations.
 pub mod retry;
+/// Repository-oriented job completion and failure coordinator.
 pub mod runner;
+/// PostgreSQL durable event stream repository.
 pub mod stream_repo;
 
 pub use attempts::AttemptsRepo;

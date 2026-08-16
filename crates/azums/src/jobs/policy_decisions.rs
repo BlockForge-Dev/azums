@@ -4,25 +4,35 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+/// Durable record explaining a queue-policy decision for one job.
 pub struct PolicyDecisionRow {
+    /// Unique decision identifier.
     pub id: Uuid,
+    /// Job affected by the decision.
     pub job_id: Uuid,
-    pub decision: String,    // THROTTLED / DELAYED / QUARANTINED
+    /// Decision name such as `THROTTLED` or `DELAYED`.
+    pub decision: String, // THROTTLED / DELAYED / QUARANTINED
+    /// Machine-readable reason for the decision.
     pub reason_code: String, // IN_FLIGHT_EXCEEDED / RETRY_RATE_EXCEEDED ...
+    /// Structured measurements and policy context.
     pub details_json: Value,
+    /// Time at which the policy decision was recorded.
     pub created_at: DateTime<Utc>,
 }
 
 #[derive(Clone)]
+/// PostgreSQL repository for durable policy-decision history.
 pub struct PolicyDecisionsRepo {
     pool: PgPool,
 }
 
 impl PolicyDecisionsRepo {
+    /// Creates a policy-decision repository backed by `pool`.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
+    /// Inserts one policy decision and returns its identifier.
     pub async fn insert_decision(
         &self,
         job_id: Uuid,
@@ -55,6 +65,7 @@ impl PolicyDecisionsRepo {
         Ok(id)
     }
 
+    /// Lists policy decisions for a job in chronological order.
     pub async fn list_for_job(&self, job_id: Uuid) -> anyhow::Result<Vec<PolicyDecisionRow>> {
         let rows = sqlx::query_as::<_, PolicyDecisionRow>(
             r#"

@@ -72,7 +72,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Workspace API Documentation Check
-        run: cargo doc --workspace --no-deps
+        run: cargo doc --workspace --all-features --no-deps
 
   cross-platform-test:
     name: Build & Test (${{ matrix.os }} / ${{ matrix.rust }})
@@ -105,7 +105,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Workspace API Documentation Check
-        run: cargo doc --workspace --no-deps
+        run: cargo doc --workspace --all-features --no-deps
 
   coverage:
     name: Code Coverage

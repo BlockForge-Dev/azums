@@ -911,6 +911,7 @@ impl JobsRepo {
     // Maintenance
     // ----------------------------
 
+    /// Fails active attempts whose leases expired, clears ownership, and requeues their jobs.
     pub async fn reap_expired_locks(&self) -> anyhow::Result<u64> {
         let mut tx = self.pool.begin().await?;
 
@@ -1065,6 +1066,7 @@ impl JobsRepo {
         Ok(changed)
     }
 
+    /// Completes a running job only when `worker_id` owns its active lease.
     pub async fn mark_succeeded(&self, job_id: Uuid, worker_id: &str) -> anyhow::Result<()> {
         let res = sqlx::query(
             r#"
@@ -1092,6 +1094,7 @@ impl JobsRepo {
         Ok(())
     }
 
+    /// Returns a running job to queued retry wait with its latest error and eligibility time.
     pub async fn reschedule_for_retry(
         &self,
         job_id: Uuid,
@@ -1129,6 +1132,7 @@ impl JobsRepo {
         Ok(())
     }
 
+    /// Applies the legacy failed status to a running job owned by `worker_id`.
     pub async fn mark_failed(
         &self,
         job_id: Uuid,
@@ -1166,6 +1170,7 @@ impl JobsRepo {
         Ok(())
     }
 
+    /// Moves a running job owned by `worker_id` into the terminal dead-letter queue.
     pub async fn mark_dlq(
         &self,
         job_id: Uuid,
@@ -1207,6 +1212,7 @@ impl JobsRepo {
         Ok(())
     }
 
+    /// Cancels queued work or running work owned by the supplied worker.
     pub async fn cancel_job(&self, job_id: Uuid, worker_id: Option<&str>) -> anyhow::Result<()> {
         let mut tx = self.pool.begin().await?;
 
@@ -1287,6 +1293,7 @@ impl JobsRepo {
     // Replay
     // ----------------------------
 
+    /// Creates a new queued job from retained history and records replay lineage.
     pub async fn replay_job(
         &self,
         job_id: Uuid,

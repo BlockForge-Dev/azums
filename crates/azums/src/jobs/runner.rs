@@ -8,6 +8,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use uuid::Uuid;
 
 #[derive(Clone)]
+/// Coordinates PostgreSQL attempt completion with job retry or terminal mutation.
 pub struct JobRunner {
     jobs: JobsRepo,
     attempts: AttemptsRepo,
@@ -15,6 +16,7 @@ pub struct JobRunner {
 }
 
 impl JobRunner {
+    /// Creates a runner from job, attempt, and retry repositories.
     pub fn new(jobs: JobsRepo, attempts: AttemptsRepo, retry_cfg: RetryConfig) -> Self {
         Self {
             jobs,
@@ -23,6 +25,7 @@ impl JobRunner {
         }
     }
 
+    /// Completes one attempt and its leased job successfully.
     pub async fn on_success(
         &self,
         job_id: Uuid,
@@ -38,6 +41,7 @@ impl JobRunner {
         Ok(())
     }
 
+    /// Completes multiple attempts and jobs in one repository batch.
     pub async fn on_success_batch(
         &self,
         dataset_id: &str,
@@ -64,6 +68,7 @@ impl JobRunner {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// Records a failed attempt and deterministically retries or dead-letters the job.
     pub async fn on_failure(
         &self,
         job_id: Uuid,
