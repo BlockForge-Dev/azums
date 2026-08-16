@@ -1,0 +1,468 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Execution Semantics - Azums Guide &amp; Reference</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "navy";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item affix "><a href="introduction.html">Introduction</a></li><li class="chapter-item affix "><a href="quickstart.html">Zero-Config Quickstart</a></li><li class="chapter-item affix "><a href="architecture_book.html">The Azums Architecture Book</a></li><li class="chapter-item affix "><li class="part-title">Part I - Philosophy</li><li class="chapter-item "><a href="architecture.html"><strong aria-hidden="true">1.</strong> Architecture Overview</a></li><li class="chapter-item expanded "><a href="semantics.html" class="active"><strong aria-hidden="true">2.</strong> Execution Semantics</a></li><li class="chapter-item "><a href="primitive_correctness.html"><strong aria-hidden="true">3.</strong> Primitive Correctness Audit</a></li><li class="chapter-item affix "><li class="part-title">Part II - Execution Model</li><li class="chapter-item "><a href="job_lifecycle.html"><strong aria-hidden="true">4.</strong> Job Lifecycle</a></li><li class="chapter-item "><a href="time_semantics.html"><strong aria-hidden="true">5.</strong> Scheduling & Time Semantics</a></li><li class="chapter-item "><a href="replay_semantics.html"><strong aria-hidden="true">6.</strong> Replay Semantics</a></li><li class="chapter-item affix "><li class="part-title">Part III - Core Primitives</li><li class="chapter-item "><a href="backend_equivalence.html"><strong aria-hidden="true">7.</strong> Storage Backend Equivalence</a></li><li class="chapter-item "><a href="transactional_integrity.html"><strong aria-hidden="true">8.</strong> Transactional Integrity</a></li><li class="chapter-item "><a href="idempotency.html"><strong aria-hidden="true">9.</strong> Idempotency & Duplicate Execution</a></li><li class="chapter-item affix "><li class="part-title">Part IV - Reliability</li><li class="chapter-item "><a href="leasing.html"><strong aria-hidden="true">10.</strong> Lease Recovery</a></li><li class="chapter-item "><a href="chaos_engineering.html"><strong aria-hidden="true">11.</strong> Chaos Engineering</a></li><li class="chapter-item "><a href="property_testing.html"><strong aria-hidden="true">12.</strong> Property-Based Testing</a></li><li class="chapter-item "><a href="fuzzing_input_hardening.html"><strong aria-hidden="true">13.</strong> Fuzzing & Input Hardening</a></li><li class="chapter-item affix "><li class="part-title">Part V - Storage Backends</li><li class="chapter-item "><a href="redis_backend.html"><strong aria-hidden="true">14.</strong> Redis Storage Backend</a></li><li class="chapter-item "><a href="partitioning.html"><strong aria-hidden="true">15.</strong> Dataset Partitioning Strategy</a></li><li class="chapter-item affix "><li class="part-title">Part VI - Coordination</li><li class="chapter-item "><a href="concurrency_backpressure.html"><strong aria-hidden="true">16.</strong> Concurrency, Ordering & Backpressure</a></li><li class="chapter-item "><a href="ordering.html"><strong aria-hidden="true">17.</strong> Ordering Guarantees</a></li><li class="chapter-item "><a href="instant_wakeup.html"><strong aria-hidden="true">18.</strong> Event-Driven Instant Wake-Up</a></li><li class="chapter-item affix "><li class="part-title">Part VII - Event Streaming</li><li class="chapter-item "><a href="streams.html"><strong aria-hidden="true">19.</strong> Redis-Style Event Streams</a></li><li class="chapter-item "><a href="event_streaming.html"><strong aria-hidden="true">20.</strong> Durable Event Streaming</a></li><li class="chapter-item affix "><li class="part-title">Part VIII - Performance</li><li class="chapter-item "><a href="performance_engineering.html"><strong aria-hidden="true">21.</strong> Performance Engineering</a></li><li class="chapter-item "><a href="performance_regression_protection.html"><strong aria-hidden="true">22.</strong> Performance Regression Protection</a></li><li class="chapter-item "><a href="../PERFORMANCE_TUNING.html"><strong aria-hidden="true">23.</strong> Performance Tuning Guide</a></li><li class="chapter-item "><a href="../benchmarks/index.html"><strong aria-hidden="true">24.</strong> Interactive Benchmark Dashboard</a></li><li class="chapter-item affix "><li class="part-title">Part IX - Failure Engineering</li><li class="chapter-item "><a href="failure_handling.html"><strong aria-hidden="true">25.</strong> Retry, Failure Classification & DLQ</a></li><li class="chapter-item affix "><li class="part-title">Part X - Integrations</li><li class="chapter-item "><a href="developer_experience.html"><strong aria-hidden="true">26.</strong> Developer Experience & Integration</a></li><li class="chapter-item "><a href="admin_api.html"><strong aria-hidden="true">27.</strong> Admin API & Web UI</a></li><li class="chapter-item affix "><li class="part-title">Part XI - Operations</li><li class="chapter-item "><a href="production_readiness.html"><strong aria-hidden="true">28.</strong> Production Readiness</a></li><li class="chapter-item "><a href="production_deployment.html"><strong aria-hidden="true">29.</strong> Production Deployment Guide</a></li><li class="chapter-item "><a href="failure_recovery_runbook.html"><strong aria-hidden="true">30.</strong> Failure And Recovery Runbook</a></li><li class="chapter-item "><a href="observability.html"><strong aria-hidden="true">31.</strong> Observability</a></li><li class="chapter-item "><a href="comparison.html"><strong aria-hidden="true">32.</strong> Feature Comparison Matrix</a></li><li class="chapter-item affix "><li class="part-title">Part XII - Internals</li><li class="chapter-item "><a href="LLD.html"><strong aria-hidden="true">33.</strong> Low-Level Design & DSA</a></li><li class="chapter-item "><a href="release_candidate.html"><strong aria-hidden="true">34.</strong> M20 Release Candidate Evidence</a></li><li class="chapter-item "><a href="stable_release.html"><strong aria-hidden="true">35.</strong> M21 Stable Release Gate</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Azums Guide &amp; Reference</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/BlockForge-Dev/azums" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/BlockForge-Dev/azums/edit/main/docs/src/semantics.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="execution-semantics"><a class="header" href="#execution-semantics">Execution Semantics</a></h1>
+<p>This page is the canonical contract for Azums behavior. Use the labels below when deciding whether a behavior is guaranteed by Azums, depends on the selected backend, or is intentionally unspecified.</p>
+<p>The same inventory is available to Rust code through <code>SemanticBehavior::ALL</code> and
+<code>semantic_contract(behavior)</code>. Backend-dependent strength is exposed through typed fields returned
+by <code>StorageBackend::semantic_capabilities()</code> (or <code>Client::semantic_capabilities()</code>), including
+durability, transaction scope, notification delivery, retention, and consumer-group coordination.
+This keeps the documentation and application-visible answer in the same three-state vocabulary.</p>
+<h2 id="classification-labels"><a class="header" href="#classification-labels">Classification Labels</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Label</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><strong>Guaranteed</strong></td><td>Azums treats this as a product invariant across supported backends for the documented API. A regression should be treated as a bug.</td></tr>
+<tr><td><strong>Backend-dependent</strong></td><td>The API exists, but the strength, durability, timing, isolation, retention, or wake-up behavior depends on the backend's declared <code>BackendCapabilities</code>.</td></tr>
+<tr><td><strong>Unspecified</strong></td><td>Azums does not make a contract for this behavior. Applications must not rely on it unless they enforce it themselves.</td></tr>
+</tbody></table>
+</div>
+<h2 id="guarantee-summary"><a class="header" href="#guarantee-summary">Guarantee Summary</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Behavior</th><th>Classification</th><th>Contract</th></tr></thead><tbody>
+<tr><td>Job execution delivery</td><td><strong>Guaranteed</strong></td><td>Azums provides <strong>at-least-once execution</strong> for jobs that are successfully enqueued, runnable, not canceled, and have available workers.</td></tr>
+<tr><td>Exactly-once external side effects</td><td><strong>Unspecified</strong></td><td>Azums does <strong>not</strong> guarantee exactly-once calls to external systems such as email, payment APIs, webhooks, LLM providers, or user handlers.</td></tr>
+<tr><td>Scheduling</td><td><strong>Guaranteed</strong> for eligibility; <strong>backend-dependent</strong> for wake-up latency and clock source</td><td>A job with <code>run_at</code> in the future is not eligible for leasing until <code>run_at &lt;= now()</code> according to the backend time source. Azums does not guarantee execution exactly at <code>run_at</code>.</td></tr>
+<tr><td>Deadline</td><td><strong>Guaranteed</strong></td><td>A runnable job whose <code>deadline_at</code> has already passed is moved to DLQ with <code>DEADLINE_EXCEEDED</code> instead of being executed late.</td></tr>
+<tr><td>Handler timeout</td><td><strong>Guaranteed</strong> in Azums worker runtime</td><td>A job with <code>timeout_seconds</code> fails the attempt with <code>TIMEOUT</code> if the handler exceeds the timeout, then follows normal retry/DLQ policy.</td></tr>
+<tr><td>Recurring execution</td><td><strong>Guaranteed</strong> for fixed interval recurrence</td><td>After successful ACK, a job with <code>recurring_interval_seconds</code> enqueues the next occurrence as a new logical job scheduled from the prior <code>run_at</code>. Calendar/DST-aware recurrence is unspecified.</td></tr>
+<tr><td>Retries</td><td><strong>Guaranteed</strong></td><td>Retryable, timeout, and system-failure classes are rescheduled until <code>max_attempts</code> is reached. Backoff and jitter are computed by Azums retry policy.</td></tr>
+<tr><td>DLQ transition</td><td><strong>Guaranteed</strong></td><td>Permanent failures, panics, and exhausted retry budgets move the job to <code>dlq</code> with a reason code and timestamp where the backend supports persisted job metadata.</td></tr>
+<tr><td>Enqueue idempotency</td><td><strong>Guaranteed</strong> with <code>idempotency_key</code>; otherwise <strong>unspecified</strong></td><td>Enqueue attempts with the same non-null key return one logical job ID. Without a key, Azums does not deduplicate by payload, job type, request ID, or business key.</td></tr>
+<tr><td>Exactly-once external side effects</td><td><strong>Unspecified</strong></td><td>Handlers may run more than once after crashes, timeouts, retries, lease expiry, or replay. Applications must protect external side effects with their own idempotency keys or dedupe storage.</td></tr>
+<tr><td>Transactional enqueue</td><td><strong>Backend-dependent</strong></td><td>PostgreSQL and SQLite can participate in database transaction semantics. Redis and In-Memory enqueue are atomic inside their own backend operations but are not ACID transactions with the application database.</td></tr>
+<tr><td>Job leasing exclusivity</td><td><strong>Guaranteed</strong></td><td>A runnable job is leased to at most one worker at a time. Expired leases can be reaped and made runnable again.</td></tr>
+<tr><td>Worker crash recovery</td><td><strong>Guaranteed</strong> after lease expiry/reap</td><td>If a worker dies after leasing and before ACK, the job can be retried after its lease expires and recovery runs. Backends with durable attempts record the abandoned attempt as <code>LEASE_EXPIRED</code>. The handler may already have performed partial external work.</td></tr>
+<tr><td>Concurrency</td><td><strong>Guaranteed</strong> for lease exclusivity; <strong>backend-dependent</strong> for distributed coordination</td><td>A runnable job is actively leased by at most one worker at a time. Multi-host worker coordination requires a backend whose <code>distributed_workers</code> capability is true.</td></tr>
+<tr><td>Ordering</td><td><strong>Guaranteed</strong> for documented lease ordering; <strong>unspecified</strong> for fairness and completion order</td><td>FIFO queues lease higher priority jobs first, then eligible earlier scheduled/created jobs. Azums does not guarantee worker fairness, equal distribution, or completion order across parallel workers.</td></tr>
+<tr><td>Completion ordering</td><td><strong>Unspecified</strong> across parallel workers</td><td>FIFO affects lease order. Azums does not guarantee completion order when multiple workers or batches execute concurrently.</td></tr>
+<tr><td>Backpressure</td><td><strong>Backend-dependent</strong></td><td>By default, committed jobs are accepted and overload appears as queued backlog. PostgreSQL queue policies can rate-limit leasing without dropping jobs. Azums does not auto-scale workers or silently shed jobs.</td></tr>
+<tr><td>Stream append</td><td><strong>Guaranteed</strong></td><td>Stream events are append-only through the stream API and receive monotonically increasing sequence numbers per stream.</td></tr>
+<tr><td>Stream delivery</td><td><strong>Guaranteed</strong> as at-least-once replay</td><td>Consumers can read events with <code>sequence_no &gt; after_seq</code>. Unacknowledged events remain readable while retained by the backend.</td></tr>
+<tr><td>Consumer-group offsets</td><td><strong>Guaranteed</strong></td><td>Acknowledgment advances a consumer group's offset monotonically; acknowledging a lower sequence number does not move the offset backward. <code>read_next(group)</code> returns retained events with <code>sequence_no &gt; last_acked_seq</code>.</td></tr>
+<tr><td>Stream retention</td><td><strong>Backend-dependent</strong>, explicit API</td><td><code>prune_events(through_seq)</code> never prunes past the lowest known consumer-group offset. Durability and permanence depend on backend configuration.</td></tr>
+<tr><td>Replay</td><td><strong>Guaranteed</strong> for jobs and streams through their APIs</td><td>Job replay creates a new queued job with lineage to the source job. Stream replay reads historical events after an offset. Replay does not undo, erase, or dedupe the original work.</td></tr>
+<tr><td>Cancellation</td><td><strong>Guaranteed</strong></td><td><code>cancel_job</code> cancels queued or scheduled jobs directly. Running jobs require the owning worker lease. Terminal jobs reject cancellation.</td></tr>
+<tr><td>Notification delivery</td><td><strong>Backend-dependent</strong></td><td>LISTEN/NOTIFY, PubSub, broadcast, or polling-style wake-ups are optimization paths. Durable state remains in the backend; consumers must still lease/read from storage.</td></tr>
+<tr><td>Retention and archive visibility</td><td><strong>Backend-dependent</strong></td><td>Maintenance, archive, and history retention behavior depends on backend support and configured operations.</td></tr>
+<tr><td>Consumer-group work balancing</td><td><strong>Unspecified</strong></td><td>Consumer groups own monotonic offsets. Azums does not assign partitions or events among processes using the same group name.</td></tr>
+<tr><td>Automatic scaling</td><td><strong>Unspecified</strong></td><td>Azums exports workload signals but does not provision or remove workers.</td></tr>
+<tr><td>Arbitrary external transactions</td><td><strong>Unspecified</strong></td><td>Same-database transactional enqueue is supported where declared. Atomic commit across unrelated databases, APIs, queues, or other services is not guaranteed.</td></tr>
+</tbody></table>
+</div>
+<h2 id="machine-readable-contract"><a class="header" href="#machine-readable-contract">Machine-Readable Contract</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use azums::{semantic_contract, SemanticBehavior};
+
+let contract = semantic_contract(SemanticBehavior::ExactlyOnceExternalSideEffects);
+assert_eq!(format!("{:?}", contract.classification), "Unspecified");
+assert!(contract.supported_alternative.is_some());
+<span class="boring">}</span></code></pre></pre>
+<p><code>SemanticBehavior::ALL</code> is exhaustive for the public execution boundary. Adding a behavior requires
+adding a match arm, classification, contract text, and contract-test coverage. Unspecified behavior
+also names the supported replacement pattern, such as idempotency keys, a same-database outbox,
+serial execution, application-owned partition assignment, or metrics-driven infrastructure scaling.</p>
+<h2 id="scheduling-semantics"><a class="header" href="#scheduling-semantics">Scheduling Semantics</a></h2>
+<p>Azums schedules by eligibility, not by real-time execution.</p>
+<p>A job is eligible to be leased when all of these are true:</p>
+<ul>
+<li><code>status = 'queued'</code></li>
+<li><code>queue</code> matches the worker queue</li>
+<li><code>run_at &lt;= now()</code> according to the backend</li>
+<li>policy gates such as in-flight limits and retry-rate limits allow leasing</li>
+</ul>
+<p>Azums guarantees that workers do not intentionally lease future jobs before <code>run_at</code>. It does not guarantee millisecond-precise execution at <code>run_at</code>; actual execution depends on worker availability, database latency, queue depth, policy throttling, backend notification behavior, and handler runtime.</p>
+<p><code>deadline_at</code> is a latest-start guard. If workers were down and restart after the deadline has passed, the job is not run late; it is DLQed with <code>DEADLINE_EXCEEDED</code>.</p>
+<p><code>recurring_interval_seconds</code> schedules from the previous occurrence's <code>run_at</code>, not from wall-clock completion time. Azums does not automatically create every missed occurrence after downtime.</p>
+<h2 id="concurrency-ordering--backpressure-semantics"><a class="header" href="#concurrency-ordering--backpressure-semantics">Concurrency, Ordering &amp; Backpressure Semantics</a></h2>
+<p>Azums is predictable under concurrency by making a narrow set of guarantees:</p>
+<ul>
+<li>A job can have at most one active worker lease at a time.</li>
+<li>Running mutations such as ACK, retry, DLQ, heartbeat, and running cancellation require the owning worker identity.</li>
+<li>Queue isolation is strict: workers lease only from the queue they request.</li>
+<li>Priority is part of lease ordering: higher priority runnable jobs lease before lower priority jobs.</li>
+<li>FIFO is a lease-order guarantee, not a completion-order guarantee.</li>
+</ul>
+<p>Unspecified:</p>
+<ul>
+<li>Azums does not guarantee equal job distribution across workers.</li>
+<li>Azums does not guarantee global ordering across queues.</li>
+<li>Azums does not guarantee strict FIFO completion with multiple workers or batch leasing.</li>
+</ul>
+<p>Backpressure is explicit:</p>
+<ul>
+<li><strong>BacklogOnly</strong>: the backend accepts committed jobs and represents overload as queued backlog. If producers enqueue 100k jobs/sec and consumers ACK 10k jobs/sec, backlog grows by roughly 90k jobs/sec until producers slow down, consumers scale out, or operators intervene. Azums does not reject, shed, or auto-scale in this mode.</li>
+<li><strong>ExecutionRateLimit</strong>: the backend can throttle worker leasing through durable queue policy decisions. PostgreSQL supports this mode with <code>queue_policies</code>; throttled jobs remain queued, receive a later <code>run_at</code>, and the decision is observable through <code>policy_decisions</code>.</li>
+</ul>
+<p>Applications that need producer-side rejection, blocking, admission control, or autoscaling should build that policy at the API edge using backend metrics and <code>BackendCapabilities::backpressure</code>.</p>
+<h2 id="dlq-semantics"><a class="header" href="#dlq-semantics">DLQ Semantics</a></h2>
+<p>Azums moves jobs to the Dead-Letter Queue when retry cannot or should not continue.</p>
+<p>Guaranteed:</p>
+<ul>
+<li>Retry exhaustion moves the job to <code>status = 'dlq'</code>.</li>
+<li>Permanent error classes move the job to <code>status = 'dlq'</code> immediately.</li>
+<li>Panics move the job to <code>status = 'dlq'</code> immediately with panic information where available.</li>
+<li>DLQ jobs carry a reason code such as <code>MAX_ATTEMPTS_EXCEEDED</code>, <code>PERMANENT_ERROR</code>, or <code>PANIC</code>.</li>
+<li>Attempt history is preserved until retention or maintenance removes it.</li>
+<li>DLQ jobs can be replayed as new queued jobs.</li>
+</ul>
+<p>Not guaranteed:</p>
+<ul>
+<li>Azums does not guarantee that DLQ means no external side effect happened.</li>
+<li>Azums does not guarantee automatic human review, alerting, compensation, or refund behavior.</li>
+<li>Azums does not guarantee permanent retention unless the backend and maintenance policy are configured for it.</li>
+</ul>
+<h2 id="idempotency-semantics"><a class="header" href="#idempotency-semantics">Idempotency Semantics</a></h2>
+<p>Azums is an at-least-once system. <code>idempotency_key</code> deduplicates producer enqueue attempts into one logical job, but handlers and stream consumers must still be idempotent if duplicate execution would be harmful.</p>
+<p>Guaranteed:</p>
+<ul>
+<li>Each enqueued job receives a unique Azums job ID.</li>
+<li>Enqueue attempts with the same non-null <code>idempotency_key</code> return the same logical job ID.</li>
+<li>Each stream event receives a monotonically increasing sequence number.</li>
+<li>Consumer-group acknowledgments move forward monotonically.</li>
+</ul>
+<p>Not guaranteed:</p>
+<ul>
+<li>No automatic deduplication by payload, job type, request ID, or business key.</li>
+<li>No exactly-once external calls.</li>
+<li>No protection from a handler being invoked again after a crash, timeout, expired lease, retry, manual replay, or operator action.</li>
+<li>No guarantee that handler success is durable until Azums ACKs the attempt and job state transition in storage.</li>
+<li>No automatic idempotency across job replay; replay intentionally creates a new job and clears the source job's idempotency key.</li>
+</ul>
+<p>Recommended application pattern:</p>
+<pre><code class="language-sql">INSERT INTO processed_operations (operation_key, completed_at)
+VALUES ($1, now())
+ON CONFLICT (operation_key) DO NOTHING;
+</code></pre>
+<p>Only perform the external side effect when the insert wins, or make the external side effect itself idempotent with a provider-supported idempotency key.</p>
+<h2 id="transactional-enqueue-semantics"><a class="header" href="#transactional-enqueue-semantics">Transactional Enqueue Semantics</a></h2>
+<p>Transactional enqueue means the application state change and the queue insert commit or roll back together.</p>
+<p>Guaranteed:</p>
+<ul>
+<li>Azums enqueue operations are atomic within the selected backend operation.</li>
+<li>PostgreSQL and SQLite can provide database transaction semantics when the enqueue is performed as part of the same database transaction or equivalent backend-supported operation.</li>
+</ul>
+<p>Backend-dependent:</p>
+<ul>
+<li>PostgreSQL provides the strongest relational transaction model.</li>
+<li>SQLite provides embedded transactional behavior with its single-writer constraints.</li>
+<li>Redis enqueue is atomic with respect to Redis commands used by the backend, but it is not an ACID transaction with a separate SQL application database.</li>
+<li>In-Memory enqueue is process-local and ephemeral.</li>
+</ul>
+<p>Not guaranteed:</p>
+<ul>
+<li>Azums does not automatically coordinate a two-phase commit across Redis plus SQL, HTTP APIs, payment processors, or other external systems.</li>
+<li>A successful enqueue notification is not the durability guarantee; the durable backend write is.</li>
+</ul>
+<h2 id="stream-semantics"><a class="header" href="#stream-semantics">Stream Semantics</a></h2>
+<p>Streams are durable, append-only event logs exposed through <code>publish</code>, <code>read_events</code>, <code>read_next</code>, <code>ack</code>, <code>consumer_group_info</code>, <code>subscribe</code>, and <code>prune_events</code>.</p>
+<p>Guaranteed:</p>
+<ul>
+<li><code>publish</code> appends an event and returns its <code>sequence_no</code>.</li>
+<li>Sequence numbers are monotonically increasing within a stream.</li>
+<li><code>read_events(after_seq, limit)</code> returns events with <code>sequence_no &gt; after_seq</code> in ascending order.</li>
+<li><code>read_next(group, limit)</code> returns events with <code>sequence_no &gt; group.last_acked_seq</code>.</li>
+<li><code>ack(consumer_group, seq)</code> records progress for the group without moving the group backward.</li>
+<li>Unacknowledged events are replayable while retained by the backend.</li>
+<li><code>prune_events(through_seq)</code> is capped by the slowest known consumer-group offset.</li>
+</ul>
+<p>Not guaranteed:</p>
+<ul>
+<li>No exactly-once consumer execution.</li>
+<li>No automatic per-event claim ownership or pending-entry timeout contract equivalent to every Redis Streams feature.</li>
+<li>No global ordering across different streams.</li>
+<li>No unlimited retention unless configured and supported by the backend.</li>
+</ul>
+<h2 id="consumer-group-semantics"><a class="header" href="#consumer-group-semantics">Consumer-Group Semantics</a></h2>
+<p>Consumer groups are offset trackers, not distributed locks.</p>
+<p>Guaranteed:</p>
+<ul>
+<li>Each <code>(stream_name, consumer_group)</code> has a <code>last_acked_seq</code>.</li>
+<li>Acknowledgments are monotonic.</li>
+<li>Multiple consumers can share the same group name and coordinate by reading from the group's last acknowledged offset if the application follows that pattern.</li>
+</ul>
+<p>Unspecified:</p>
+<ul>
+<li>Azums does not guarantee automatic work balancing between consumers in a group.</li>
+<li>Azums does not guarantee pending-entry ownership transfer.</li>
+<li>Azums does not guarantee exactly-once processing for a group.</li>
+</ul>
+<h2 id="replay-semantics"><a class="header" href="#replay-semantics">Replay Semantics</a></h2>
+<p>Replay creates more work; it does not mutate history into a different truth.</p>
+<p>Job replay:</p>
+<ul>
+<li>Creates a new queued job.</li>
+<li>Copies the source job's type, payload, priority, and retry budget unless overrides are provided.</li>
+<li>Records <code>replay_of_job_id</code> so lineage is visible.</li>
+<li>Does not delete or reset the source job.</li>
+<li>Does not dedupe previous external side effects.</li>
+</ul>
+<p>Stream replay:</p>
+<ul>
+<li>Reads historical events after a selected sequence offset.</li>
+<li>Does not mark them processed unless the consumer acknowledges progress.</li>
+<li>May cause repeated consumer work if the consumer replays events it has already processed.</li>
+</ul>
+<h2 id="cancellation-semantics"><a class="header" href="#cancellation-semantics">Cancellation Semantics</a></h2>
+<p>Azums distinguishes job cancellation from worker shutdown.</p>
+<p>Guaranteed:</p>
+<ul>
+<li><code>cancel_job(job_id, None)</code> cancels queued and scheduled jobs.</li>
+<li><code>cancel_job(job_id, Some(worker_id))</code> cancels a running job only when <code>worker_id</code> owns the lease.</li>
+<li>Cancellation transitions the job to terminal <code>status = 'canceled'</code>.</li>
+<li>Terminal jobs reject cancellation.</li>
+<li>Backends with durable attempt records close the latest running attempt with <code>error_code = 'CANCELLED'</code>.</li>
+<li>Worker shutdown through a cancellation token stops the in-process worker loop from taking more work.</li>
+</ul>
+<p>Not guaranteed:</p>
+<ul>
+<li>Azums does not forcibly interrupt arbitrary user handler code already executing on a runtime thread.</li>
+<li>A running handler must cooperate with application-level cancellation if immediate interruption is required.</li>
+</ul>
+<h2 id="what-azums-does-not-guarantee"><a class="header" href="#what-azums-does-not-guarantee">What Azums Does Not Guarantee</a></h2>
+<p>Azums does not guarantee:</p>
+<ul>
+<li>Exactly-once external side effects.</li>
+<li>Exactly-once handler execution.</li>
+<li>Global ordering across queues, streams, partitions, or workers.</li>
+<li>Completion order under parallel execution.</li>
+<li>Millisecond-precise scheduled execution.</li>
+<li>Automatic deduplication by payload, business key, or request ID.</li>
+<li>Atomic commits across Azums plus arbitrary external services.</li>
+<li>Permanent retention of jobs, attempts, DLQ entries, stream events, offsets, metrics, or archives.</li>
+<li>Automatic alerting, compensation, refunds, rollback, or human approval workflows.</li>
+<li>Automatic load balancing or pending-entry ownership semantics for stream consumer groups.</li>
+<li>Cross-process guarantees for the In-Memory backend.</li>
+</ul>
+<p>The shortest correct summary is:</p>
+<blockquote>
+<p>Azums provides at-least-once execution. It does not guarantee exactly-once external side effects.</p>
+</blockquote>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="architecture.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="primitive_correctness.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="architecture.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="primitive_correctness.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>
