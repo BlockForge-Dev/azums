@@ -148,7 +148,7 @@ jobs:
           cp -r target/azums-perf target/dashboard/azums-perf || true
 
       - name: Upload Performance Baseline
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: azums-perf-baseline
           path: target/azums-perf/m14_report.json
