@@ -1,0 +1,972 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Product &amp; Implementation Handbook - Azums Guide &amp; Reference</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "navy";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item affix "><a href="introduction.html">Introduction</a></li><li class="chapter-item affix "><a href="quickstart.html">Zero-Config Quickstart</a></li><li class="chapter-item affix "><a href="product_handbook.html" class="active">Product & Implementation Handbook</a></li><li class="chapter-item affix "><a href="architecture_book.html">The Azums Architecture Book</a></li><li class="chapter-item affix "><li class="part-title">Part I - Philosophy</li><li class="chapter-item "><a href="architecture.html"><strong aria-hidden="true">1.</strong> Architecture Overview</a></li><li class="chapter-item "><a href="semantics.html"><strong aria-hidden="true">2.</strong> Execution Semantics</a></li><li class="chapter-item "><a href="primitive_correctness.html"><strong aria-hidden="true">3.</strong> Primitive Correctness Audit</a></li><li class="chapter-item affix "><li class="part-title">Part II - Execution Model</li><li class="chapter-item "><a href="job_lifecycle.html"><strong aria-hidden="true">4.</strong> Job Lifecycle</a></li><li class="chapter-item "><a href="time_semantics.html"><strong aria-hidden="true">5.</strong> Scheduling & Time Semantics</a></li><li class="chapter-item "><a href="replay_semantics.html"><strong aria-hidden="true">6.</strong> Replay Semantics</a></li><li class="chapter-item affix "><li class="part-title">Part III - Core Primitives</li><li class="chapter-item "><a href="backend_equivalence.html"><strong aria-hidden="true">7.</strong> Storage Backend Equivalence</a></li><li class="chapter-item "><a href="transactional_integrity.html"><strong aria-hidden="true">8.</strong> Transactional Integrity</a></li><li class="chapter-item "><a href="idempotency.html"><strong aria-hidden="true">9.</strong> Idempotency & Duplicate Execution</a></li><li class="chapter-item affix "><li class="part-title">Part IV - Reliability</li><li class="chapter-item "><a href="leasing.html"><strong aria-hidden="true">10.</strong> Lease Recovery</a></li><li class="chapter-item "><a href="chaos_engineering.html"><strong aria-hidden="true">11.</strong> Chaos Engineering</a></li><li class="chapter-item "><a href="property_testing.html"><strong aria-hidden="true">12.</strong> Property-Based Testing</a></li><li class="chapter-item "><a href="fuzzing_input_hardening.html"><strong aria-hidden="true">13.</strong> Fuzzing & Input Hardening</a></li><li class="chapter-item affix "><li class="part-title">Part V - Storage Backends</li><li class="chapter-item "><a href="redis_backend.html"><strong aria-hidden="true">14.</strong> Redis Storage Backend</a></li><li class="chapter-item "><a href="partitioning.html"><strong aria-hidden="true">15.</strong> Dataset Partitioning Strategy</a></li><li class="chapter-item affix "><li class="part-title">Part VI - Coordination</li><li class="chapter-item "><a href="concurrency_backpressure.html"><strong aria-hidden="true">16.</strong> Concurrency, Ordering & Backpressure</a></li><li class="chapter-item "><a href="ordering.html"><strong aria-hidden="true">17.</strong> Ordering Guarantees</a></li><li class="chapter-item "><a href="instant_wakeup.html"><strong aria-hidden="true">18.</strong> Event-Driven Instant Wake-Up</a></li><li class="chapter-item affix "><li class="part-title">Part VII - Event Streaming</li><li class="chapter-item "><a href="streams.html"><strong aria-hidden="true">19.</strong> Redis-Style Event Streams</a></li><li class="chapter-item "><a href="event_streaming.html"><strong aria-hidden="true">20.</strong> Durable Event Streaming</a></li><li class="chapter-item affix "><li class="part-title">Part VIII - Performance</li><li class="chapter-item "><a href="performance_engineering.html"><strong aria-hidden="true">21.</strong> Performance Engineering</a></li><li class="chapter-item "><a href="performance_regression_protection.html"><strong aria-hidden="true">22.</strong> Performance Regression Protection</a></li><li class="chapter-item "><a href="../PERFORMANCE_TUNING.html"><strong aria-hidden="true">23.</strong> Performance Tuning Guide</a></li><li class="chapter-item "><a href="../benchmarks/index.html"><strong aria-hidden="true">24.</strong> Interactive Benchmark Dashboard</a></li><li class="chapter-item affix "><li class="part-title">Part IX - Failure Engineering</li><li class="chapter-item "><a href="failure_handling.html"><strong aria-hidden="true">25.</strong> Retry, Failure Classification & DLQ</a></li><li class="chapter-item affix "><li class="part-title">Part X - Integrations</li><li class="chapter-item "><a href="developer_experience.html"><strong aria-hidden="true">26.</strong> Developer Experience & Integration</a></li><li class="chapter-item "><a href="admin_api.html"><strong aria-hidden="true">27.</strong> Admin API & Web UI</a></li><li class="chapter-item affix "><li class="part-title">Part XI - Operations</li><li class="chapter-item "><a href="production_readiness.html"><strong aria-hidden="true">28.</strong> Production Readiness</a></li><li class="chapter-item "><a href="production_deployment.html"><strong aria-hidden="true">29.</strong> Production Deployment Guide</a></li><li class="chapter-item "><a href="failure_recovery_runbook.html"><strong aria-hidden="true">30.</strong> Failure And Recovery Runbook</a></li><li class="chapter-item "><a href="observability.html"><strong aria-hidden="true">31.</strong> Observability</a></li><li class="chapter-item "><a href="comparison.html"><strong aria-hidden="true">32.</strong> Feature Comparison Matrix</a></li><li class="chapter-item affix "><li class="part-title">Part XII - Internals</li><li class="chapter-item "><a href="LLD.html"><strong aria-hidden="true">33.</strong> Low-Level Design & DSA</a></li><li class="chapter-item "><a href="release_candidate.html"><strong aria-hidden="true">34.</strong> M20 Release Candidate Evidence</a></li><li class="chapter-item "><a href="stable_release.html"><strong aria-hidden="true">35.</strong> M21 Stable Release Gate</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Azums Guide &amp; Reference</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/BlockForge-Dev/azums" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/BlockForge-Dev/azums/edit/main/docs/src/product_handbook.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="the-azums-product-and-implementation-handbook"><a class="header" href="#the-azums-product-and-implementation-handbook">The Azums Product and Implementation Handbook</a></h1>
+<p><strong>Version covered:</strong> Azums 1.0.0<br />
+<strong>Release baseline:</strong> annotated <code>v1.0.0</code> tag<br />
+<strong>Handbook date:</strong> 2026-08-16</p>
+<p>This handbook explains what Azums is, why it exists, how its execution layer works, which features
+it provides, what its stable guarantees mean, what was tested for the 1.0 release, and where a new
+developer should begin when learning or integrating the project.</p>
+<p>The most important source of truth is <a href="semantics.html">Execution Semantics</a>. When this handbook and a
+casual example appear to disagree, the semantic contract wins.</p>
+<h2 id="1-executive-summary"><a class="header" href="#1-executive-summary">1. Executive Summary</a></h2>
+<p>Azums is a Rust-native asynchronous execution layer. It combines:</p>
+<ul>
+<li>a background job queue</li>
+<li>a Tokio worker runtime</li>
+<li>delayed and recurring scheduling</li>
+<li>leases, heartbeats, and crash recovery</li>
+<li>retries, failure classification, and a dead-letter queue</li>
+<li>idempotent enqueue</li>
+<li>same-database transactional enqueue on SQLite and PostgreSQL</li>
+<li>durable event streams with consumer-group offsets and replay</li>
+<li>runtime backend capability discovery</li>
+<li>job explanations, structured observations, and queue metrics</li>
+<li>adapters for Memory, SQLite, PostgreSQL, and Redis</li>
+<li>integrations for Axum, Actix Web, Poem, and Rocket</li>
+</ul>
+<p>Azums is a library and execution runtime, not a hosted cloud service. An application embeds the
+client, registers handlers, and chooses the storage environment that provides the required
+durability and coordination.</p>
+<p>The product is designed around one rule:</p>
+<blockquote>
+<p>Every important behavior is classified as Guaranteed, Backend-dependent, or Unspecified.</p>
+</blockquote>
+<p>Azums does not claim that every backend is operationally identical. It gives applications one job
+API while exposing transaction scope, durability, ordering, retention, notifications,
+backpressure, and distributed-worker support through <code>BackendCapabilities</code>.</p>
+<h2 id="2-the-problem-it-solves"><a class="header" href="#2-the-problem-it-solves">2. The Problem It Solves</a></h2>
+<p>A Rust application often needs to do work after the operation that requested it has finished:</p>
+<ul>
+<li>send an email after account creation</li>
+<li>process payments or webhooks</li>
+<li>generate reports and exports</li>
+<li>resize or transcode uploaded media</li>
+<li>call unreliable third-party APIs with retries</li>
+<li>index data after a database mutation</li>
+<li>execute long AI model or tool workflows</li>
+<li>process embedded-device telemetry</li>
+<li>publish domain events and rebuild projections</li>
+</ul>
+<p>Executing this work inside a web request makes latency and availability depend on every downstream
+service. <code>tokio::spawn</code> moves the work out of the request, but an in-process future is lost when the
+process stops. A separate message broker can add durability, but it introduces transaction,
+recovery, retry, idempotency, deployment, and observability questions.</p>
+<p>Azums turns the request into durable, inspectable work:</p>
+<pre><code class="language-text">Producer                    Azums execution layer                 Application
+
+build Job --&gt; enqueue --&gt; persist --&gt; lease --&gt; attempt --&gt; run handler
+                            |            |             |
+                            |            |             +--&gt; success / failure
+                            |            +--&gt; heartbeat and ownership
+                            +--&gt; source of truth for recovery
+</code></pre>
+<p>The execution layer owns delivery state. The application handler owns business effects. That
+boundary is essential: Azums can recover and redeliver a job, but it cannot make an arbitrary
+payment provider, email API, or filesystem mutation exactly once.</p>
+<h2 id="3-workspace-and-crate-map"><a class="header" href="#3-workspace-and-crate-map">3. Workspace and Crate Map</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Package</th><th>Responsibility</th></tr></thead><tbody>
+<tr><td><code>azums-core</code></td><td>Stable models, lifecycle semantics, backend traits, in-memory backend, stream and observability contracts.</td></tr>
+<tr><td><code>azums</code></td><td>Main facade, quickstart client, Tokio worker runtime, SQLite/PostgreSQL adapters, repositories, migrations, CLI, tests, and benchmarks.</td></tr>
+<tr><td><code>azums-postgres</code></td><td>PostgreSQL-oriented package and exports.</td></tr>
+<tr><td><code>azums-redis</code></td><td>Redis job, lease, notification, stream, and offset implementation.</td></tr>
+<tr><td><code>azums-axum</code></td><td>Axum state, extractor, and service integration.</td></tr>
+<tr><td><code>azums-actix</code></td><td>Actix Web application-data and extractor integration.</td></tr>
+<tr><td><code>azums-poem</code></td><td>Poem integration.</td></tr>
+<tr><td><code>azums-rocket</code></td><td>Rocket managed-state/request-guard integration.</td></tr>
+<tr><td><code>azums-dashboard</code></td><td>Optional and currently unstable dashboard/admin package.</td></tr>
+<tr><td><code>worker</code></td><td>Example or standalone worker binary wiring handlers into the runtime.</td></tr>
+</tbody></table>
+</div>
+<p>The architectural dependency direction is:</p>
+<pre><code class="language-text">application handler
+      |
+      v
+azums::QuickstartFlow / Client
+      |
+      v
+azums_core::StorageBackend + StreamBackend
+      |
+      +----------+-----------+------------+
+      v          v           v            v
+   Memory      SQLite     PostgreSQL     Redis
+</code></pre>
+<p>Start with the facade in <a href="../../crates/azums/src/quickstart.rs">quickstart.rs</a>. Drop down to
+<code>StorageBackend</code> only when implementing a backend, using a backend-specific transaction, or
+building custom infrastructure.</p>
+<h2 id="4-core-domain-model"><a class="header" href="#4-core-domain-model">4. Core Domain Model</a></h2>
+<h3 id="job"><a class="header" href="#job">Job</a></h3>
+<p><code>Job</code> is the durable unit of requested work. It contains:</p>
+<ul>
+<li><code>id</code>: generated UUID</li>
+<li><code>dataset_id</code>: storage-routing identity</li>
+<li><code>replay_of_job_id</code>: lineage when replay creates new work</li>
+<li><code>idempotency_key</code>: producer-side duplicate protection</li>
+<li><code>queue</code>: isolation and worker-selection boundary</li>
+<li><code>job_type</code>: handler dispatch key</li>
+<li><code>payload</code>: JSON application data</li>
+<li><code>run_at</code>: first eligible execution time</li>
+<li><code>deadline_at</code>: latest permitted start time</li>
+<li><code>timeout_seconds</code>: maximum handler duration per attempt</li>
+<li><code>recurring_interval_seconds</code>: fixed recurrence interval</li>
+<li><code>status</code>: compact persisted status</li>
+<li><code>priority</code>: higher values lease first where supported</li>
+<li><code>max_attempts</code>: retry budget</li>
+<li>lease owner and timestamps</li>
+<li>DLQ reason and timestamp</li>
+<li>creation and update timestamps</li>
+</ul>
+<h3 id="jobattempt"><a class="header" href="#jobattempt">JobAttempt</a></h3>
+<p><code>JobAttempt</code> is the durable audit record of one handler invocation. It stores attempt ID and
+number, job ID, worker ID, start and finish timestamps, status, error code, error message, and
+latency. Failure belongs to an attempt; a retryable job itself returns to a future queued state.</p>
+<h3 id="jobexecution"><a class="header" href="#jobexecution">JobExecution</a></h3>
+<p><code>JobExecution</code> is the in-flight claim connecting a job, attempt, worker, lease expiration, and
+start time. It answers, "Who currently has the right to mutate this running job?"</p>
+<h3 id="worker-and-queue"><a class="header" href="#worker-and-queue">Worker and Queue</a></h3>
+<p>A worker identity owns leases and attempts. A queue selects which jobs a worker polls and provides
+an isolation boundary for ordering, policies, depth metrics, and scaling.</p>
+<h3 id="event-and-consumer-group"><a class="header" href="#event-and-consumer-group">Event and Consumer Group</a></h3>
+<p>An <code>Event</code> is an immutable stream record with a stream-local monotonic sequence, event type, JSON
+payload, and timestamp. A consumer group stores its highest acknowledged sequence. Groups share the
+log but advance independently.</p>
+<h2 id="5-canonical-job-state-machine"><a class="header" href="#5-canonical-job-state-machine">5. Canonical Job State Machine</a></h2>
+<pre><code class="language-text">SCHEDULED
+    |
+    v
+QUEUED
+    |
+    v
+RUNNING ---------&gt; COMPLETED
+   | |
+   | +-----------&gt; CANCELLED
+   +-------------&gt; DLQ
+   |
+   v
+RETRY_WAIT
+   |
+   +-------------&gt; QUEUED
+</code></pre>
+<p>Legal transitions are exactly:</p>
+<div class="table-wrapper"><table><thead><tr><th>Current state</th><th>Legal next state</th></tr></thead><tbody>
+<tr><td><code>SCHEDULED</code></td><td><code>QUEUED</code></td></tr>
+<tr><td><code>QUEUED</code></td><td><code>RUNNING</code></td></tr>
+<tr><td><code>RUNNING</code></td><td><code>COMPLETED</code>, <code>RETRY_WAIT</code>, <code>CANCELLED</code>, or <code>DLQ</code></td></tr>
+<tr><td><code>RETRY_WAIT</code></td><td><code>QUEUED</code></td></tr>
+<tr><td><code>COMPLETED</code></td><td>none</td></tr>
+<tr><td><code>CANCELLED</code></td><td>none</td></tr>
+<tr><td><code>DLQ</code></td><td>none; replay creates a new job instead</td></tr>
+</tbody></table>
+</div>
+<p>Every unlisted transition is illegal. <code>COMPLETED</code>, <code>CANCELLED</code>, and <code>DLQ</code> are terminal.</p>
+<p>Storage keeps <code>SCHEDULED</code> and <code>RETRY_WAIT</code> compact: both use a queued job with future <code>run_at</code>.
+Lifecycle reconstruction distinguishes them using the future timestamp and whether prior failed
+attempts exist. The canonical rules are implemented by <code>JobLifecycleState</code> in
+<a href="../../crates/azums-core/src/model.rs">model.rs</a>.</p>
+<h2 id="6-one-jobs-end-to-end-journey"><a class="header" href="#6-one-jobs-end-to-end-journey">6. One Job's End-to-End Journey</a></h2>
+<p>This is the best path through the code for understanding how the execution layer works.</p>
+<h3 id="step-1-the-producer-constructs-work"><a class="header" href="#step-1-the-producer-constructs-work">Step 1: The producer constructs work</a></h3>
+<p>The application creates a <code>Job</code>, usually through builder methods:</p>
+<pre><code class="language-rust ignore">let job = azums::Job::new(
+    "send_welcome_email",
+    serde_json::json!({ "user_id": "user-123" }),
+)
+.queue("emails")
+.priority(10)
+.max_attempts(5)
+.idempotency_key("welcome:user-123");</code></pre>
+<p><code>Job::new</code> provides defaults; converting it to <code>NewJob</code> removes execution-owned fields before
+enqueue.</p>
+<h3 id="step-2-the-client-selects-a-backend"><a class="header" href="#step-2-the-client-selects-a-backend">Step 2: The client selects a backend</a></h3>
+<p><code>quickstart(url)</code> maps the URL to an adapter, runs storage setup or migrations, and returns a
+<code>QuickstartFlow</code>:</p>
+<pre><code class="language-text">memory                         -&gt; MemoryBackend
+sqlite://jobs.db?mode=rwc      -&gt; SqliteBackend
+postgres://...                 -&gt; PostgresBackend
+redis://... or rediss://...    -&gt; RedisBackend
+</code></pre>
+<h3 id="step-3-enqueue-becomes-durable-backend-state"><a class="header" href="#step-3-enqueue-becomes-durable-backend-state">Step 3: Enqueue becomes durable backend state</a></h3>
+<p><code>QuickstartFlow::enqueue</code> calls <code>StorageBackend::enqueue</code>. The backend validates and persists the
+job, applies idempotency rules, and returns the logical job ID. Notifications are only wake-up
+hints; the stored job is the source of truth.</p>
+<h3 id="step-4-a-worker-leases-eligible-jobs"><a class="header" href="#step-4-a-worker-leases-eligible-jobs">Step 4: A worker leases eligible jobs</a></h3>
+<p><code>run</code> or <code>run_with_shutdown</code> repeatedly asks the backend for runnable work. Eligibility considers
+queue, status, <code>run_at</code>, deadline, ordering, priority, and backend policy. The lease records
+<code>locked_by</code> and <code>lock_expires_at</code>.</p>
+<p>PostgreSQL coordinates leases using SQL row locking such as <code>FOR UPDATE SKIP LOCKED</code>. SQLite uses
+embedded SQL transactions, Redis uses atomic Redis operations, and Memory uses an in-process lock.</p>
+<h3 id="step-5-the-runtime-starts-attempts"><a class="header" href="#step-5-the-runtime-starts-attempts">Step 5: The runtime starts attempts</a></h3>
+<p>Before calling handlers, <code>start_attempts_batch</code> creates durable attempt records. Starting an
+attempt requires the job to be running under the requesting worker's lease. This prevents a worker
+from manufacturing an attempt for work it does not own.</p>
+<h3 id="step-6-dispatch-and-heartbeat"><a class="header" href="#step-6-dispatch-and-heartbeat">Step 6: Dispatch and heartbeat</a></h3>
+<p>The runtime finds the registered handler by <code>job_type</code>. While the handler runs, a heartbeat task
+tries to extend the lease every half-lease interval. Missing handlers become classified failures.
+Handlers run in Tokio tasks so panics can be isolated and recorded rather than terminating the
+entire worker loop.</p>
+<h3 id="step-7-success-failure-or-timeout"><a class="header" href="#step-7-success-failure-or-timeout">Step 7: Success, failure, or timeout</a></h3>
+<ul>
+<li>Success closes the attempt and ACKs the job as completed.</li>
+<li>A timeout aborts the handler task and enters normal retry/DLQ classification as <code>TIMEOUT</code>.</li>
+<li>A panic is captured with available panic information and routed to DLQ.</li>
+<li>Retryable and system failures are rescheduled with backoff and jitter while attempts remain.</li>
+<li>Permanent failures and exhausted retries enter DLQ.</li>
+</ul>
+<p>Every mutation of running work checks worker ownership. Completion cannot be applied by a worker
+that no longer owns the lease.</p>
+<h3 id="step-8-recovery-after-disappearance"><a class="header" href="#step-8-recovery-after-disappearance">Step 8: Recovery after disappearance</a></h3>
+<p>Workers periodically reap expired leases. Recovery records the abandoned attempt as
+<code>LEASE_EXPIRED</code>, clears lease ownership, and makes the job eligible again according to retry rules.
+The committed job does not silently vanish.</p>
+<p>Because a handler may have completed its external effect before its process died, recovery can
+cause duplicate execution. This is expected at-least-once behavior.</p>
+<h3 id="step-9-explanation-and-operations"><a class="header" href="#step-9-explanation-and-operations">Step 9: Explanation and operations</a></h3>
+<p><code>explain_job(job_id)</code> returns the current status, retries, last worker, error, trace ID, event
+timeline, and a human-readable summary where the backend has native observability. <code>queue_metrics</code>
+and <code>metrics_snapshot</code> expose queue-level counters and latency summaries.</p>
+<h2 id="7-feature-catalog"><a class="header" href="#7-feature-catalog">7. Feature Catalog</a></h2>
+<h3 id="job-production"><a class="header" href="#job-production">Job production</a></h3>
+<ul>
+<li>individual and batch enqueue</li>
+<li>named job types and queues</li>
+<li>arbitrary JSON payloads and typed deserialization</li>
+<li>priorities and queue ordering configuration</li>
+<li>idempotency keys</li>
+<li>payload and producer-rate guards</li>
+<li>replay with lineage</li>
+</ul>
+<h3 id="scheduling"><a class="header" href="#scheduling">Scheduling</a></h3>
+<ul>
+<li>immediate execution</li>
+<li>absolute <code>run_at</code></li>
+<li>relative delay</li>
+<li>execution deadline</li>
+<li>per-attempt timeout</li>
+<li>retry delay, exponential backoff, cap, and jitter</li>
+<li>fixed-interval recurring execution</li>
+<li>deterministic recovery of scheduled jobs after downtime</li>
+</ul>
+<h3 id="worker-execution"><a class="header" href="#worker-execution">Worker execution</a></h3>
+<ul>
+<li>closure handlers and trait-based <code>JobProcessor</code> handlers</li>
+<li>batch leasing</li>
+<li>worker identities</li>
+<li>exclusive leases</li>
+<li>background heartbeat extension</li>
+<li>graceful shutdown with <code>CancellationToken</code></li>
+<li>periodic expired-lease recovery</li>
+<li>notification-driven wake-up with polling fallback</li>
+<li>periodic backend maintenance</li>
+</ul>
+<h3 id="failure-handling"><a class="header" href="#failure-handling">Failure handling</a></h3>
+<ul>
+<li>retryable error</li>
+<li>permanent error</li>
+<li>timeout</li>
+<li>panic isolation</li>
+<li>cancellation</li>
+<li>system failure</li>
+<li>configurable maximum attempts</li>
+<li>dead-letter queue inspection</li>
+<li>durable errors, reasons, workers, timings, and attempts where retained</li>
+<li>DLQ replay</li>
+</ul>
+<h3 id="coordination-and-overload"><a class="header" href="#coordination-and-overload">Coordination and overload</a></h3>
+<ul>
+<li>concurrent workers</li>
+<li>queue isolation</li>
+<li>priority and FIFO leasing where declared</li>
+<li>PostgreSQL execution-rate queue policies</li>
+<li>backlog-only behavior for Memory, SQLite, and Redis</li>
+<li>queue policy and ingest decision records</li>
+<li>producer storm controls</li>
+</ul>
+<h3 id="streams"><a class="header" href="#streams">Streams</a></h3>
+<ul>
+<li>append-only events</li>
+<li>monotonic per-stream sequence numbers</li>
+<li>offset reads</li>
+<li>independent consumer-group offsets</li>
+<li>monotonic ACK</li>
+<li>replay without implicit ACK</li>
+<li>notification subscription</li>
+<li>retention-aware pruning that respects the slowest known group offset</li>
+</ul>
+<h3 id="observability-and-operations"><a class="header" href="#observability-and-operations">Observability and operations</a></h3>
+<ul>
+<li>job lookup and lifecycle explanation</li>
+<li>attempt and worker history</li>
+<li>structured job log events</li>
+<li>queue metrics</li>
+<li>retry, DLQ, execution, and claim information</li>
+<li>maintenance and archive support</li>
+<li>CLI tools including <code>azumsctl</code>, <code>azums-perf</code>, and <code>azums-perf-guard</code></li>
+<li>optional admin/dashboard package</li>
+<li>deployment guide, recovery runbook, benchmark harness, and architecture book</li>
+</ul>
+<h2 id="8-backend-capability-matrix"><a class="header" href="#8-backend-capability-matrix">8. Backend Capability Matrix</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Capability</th><th>Memory</th><th>SQLite</th><th>PostgreSQL</th><th>Redis</th></tr></thead><tbody>
+<tr><td>Portable job API</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Idempotent enqueue</td><td>Process-local</td><td>Unique index</td><td>Unique index</td><td>Redis hash</td></tr>
+<tr><td>Same-app-data transaction</td><td>No</td><td>Same SQLite DB</td><td>Same PostgreSQL DB</td><td>No</td></tr>
+<tr><td>Job durability</td><td>No</td><td>File-backed DB</td><td>Persistent DB</td><td>Depends on Redis configuration</td></tr>
+<tr><td>Notifications</td><td>In-process</td><td>In-process plus polling</td><td>LISTEN/NOTIFY hint</td><td>Pub/Sub plus polling</td></tr>
+<tr><td>Streams</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Consumer-group offsets</td><td>Process-local</td><td>SQL</td><td>SQL</td><td>Redis hash</td></tr>
+<tr><td>Distributed workers</td><td>No</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Ordering</td><td>FIFO and fastest modes</td><td>FIFO and fastest modes</td><td>FIFO and fastest modes</td><td>FIFO leasing</td></tr>
+<tr><td>Backpressure</td><td>Backlog</td><td>Backlog</td><td>Execution-rate policies</td><td>Backlog</td></tr>
+<tr><td>Retention</td><td>Process lifetime</td><td>Explicit maintenance</td><td>Explicit maintenance</td><td>Backend configured</td></tr>
+</tbody></table>
+</div>
+<p>Selection guidance:</p>
+<ul>
+<li>Choose <strong>Memory</strong> for tests and short-lived local work.</li>
+<li>Choose <strong>SQLite</strong> for durable embedded, desktop, edge, CLI, or single-binary applications.</li>
+<li>Choose <strong>PostgreSQL</strong> when application mutations and jobs must share a transaction or workers run
+across hosts.</li>
+<li>Choose <strong>Redis</strong> for Redis-native distributed execution when Redis persistence and eviction are
+configured appropriately and SQL transaction coupling is not required.</li>
+</ul>
+<p>Production code should inspect capabilities instead of assuming them:</p>
+<pre><code class="language-rust ignore">let client = azums::quickstart(std::env::var("DATABASE_URL")?).await?;
+let caps = client.capabilities();
+
+anyhow::ensure!(caps.durable_jobs, "production requires durable jobs");
+anyhow::ensure!(
+    caps.distributed_workers,
+    "this deployment runs workers on multiple hosts"
+);</code></pre>
+<h2 id="9-what-does-azums-promise"><a class="header" href="#9-what-does-azums-promise">9. What Does Azums Promise?</a></h2>
+<h3 id="guaranteed-across-the-portable-contract"><a class="header" href="#guaranteed-across-the-portable-contract">Guaranteed across the portable contract</a></h3>
+<ul>
+<li>Successfully enqueued, runnable, non-cancelled work is delivered at least once while the chosen
+backend retains it and workers are available.</li>
+<li>Illegal lifecycle transitions are rejected.</li>
+<li>Terminal states remain terminal.</li>
+<li>A job has at most one valid active lease.</li>
+<li>Expired leases are recoverable.</li>
+<li>Attempt numbers and consumer offsets do not move backward.</li>
+<li>Failure classification determines retry or DLQ behavior consistently.</li>
+<li>A non-null idempotency key identifies one logical job.</li>
+<li>Jobs are not intentionally leased before scheduling eligibility according to the backend clock.</li>
+<li>Stream sequence numbers increase monotonically within a stream.</li>
+<li>Replay creates new work with lineage and preserves original history.</li>
+<li>Cancellation follows lease ownership and terminal-state rules.</li>
+</ul>
+<h3 id="backend-dependent"><a class="header" href="#backend-dependent">Backend-dependent</a></h3>
+<ul>
+<li>durability through process, machine, or storage failure</li>
+<li>job, attempt, and stream retention</li>
+<li>transaction scope</li>
+<li>notification behavior and wake-up latency</li>
+<li>distributed worker coordination</li>
+<li>ordering strength</li>
+<li>backpressure enforcement</li>
+<li>Redis persistence and eviction behavior</li>
+<li>backend clock authority and scheduling precision</li>
+</ul>
+<h3 id="explicitly-not-guaranteed"><a class="header" href="#explicitly-not-guaranteed">Explicitly not guaranteed</a></h3>
+<ul>
+<li>exactly-once job execution</li>
+<li>exactly-once external side effects</li>
+<li>execution at the exact <code>run_at</code> instant</li>
+<li>global ordering or completion ordering</li>
+<li>worker fairness</li>
+<li>automatic consumer-group member assignment or balancing</li>
+<li>transactions across arbitrary external services</li>
+<li>permanent retention</li>
+<li>automatic scaling, producer blocking, or load shedding</li>
+<li>calendar or daylight-saving-aware recurrence</li>
+<li>generation of every missed recurring occurrence after downtime</li>
+<li>cancellation undoing an external effect that already occurred</li>
+</ul>
+<h2 id="10-questions-azums-can-answer"><a class="header" href="#10-questions-azums-can-answer">10. Questions Azums Can Answer</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Question</th><th>Precise answer</th></tr></thead><tbody>
+<tr><td>Can a committed job silently disappear?</td><td>A retained job on a correctly configured durable backend is not intentionally discarded. A crashed worker's lease expires and the job becomes recoverable. Memory and misconfigured Redis do not provide the same durability.</td></tr>
+<tr><td>Is execution exactly once?</td><td>No. Delivery is at least once. A crash after side effect but before ACK can cause another execution.</td></tr>
+<tr><td>How do I make side effects safe?</td><td>Use application-level idempotency keyed by job ID, idempotency key, or stream sequence, or use a same-database transaction/outbox boundary.</td></tr>
+<tr><td>Will a scheduled job run exactly on time?</td><td>It will not intentionally lease before eligibility. Exact start time is not guaranteed.</td></tr>
+<tr><td>What happens when a handler fails?</td><td>The error is classified. Retryable failures wait according to policy; permanent failures, panics, and exhausted attempts go to DLQ.</td></tr>
+<tr><td>What happens when a worker dies?</td><td>Heartbeats stop, the lease expires, recovery records abandonment, and the job can become executable again.</td></tr>
+<tr><td>Can two workers hold the same lease?</td><td>The contract permits at most one valid active lease. Backend-specific atomic claim mechanisms enforce it.</td></tr>
+<tr><td>Does cancellation stop a running external API call?</td><td>Cancellation changes Azums state according to ownership rules; it cannot undo an already completed external effect.</td></tr>
+<tr><td>Does replay retry the same historical object?</td><td>Job replay creates a new job with lineage. Stream replay reads history. Neither erases original history.</td></tr>
+<tr><td>Can Redis enqueue atomically with PostgreSQL app data?</td><td>No. Redis is atomic inside Redis, not inside an unrelated SQL transaction.</td></tr>
+<tr><td>Which stream event does a group receive next?</td><td>The first retained event with <code>sequence_no &gt; last_acked_seq</code> for that group.</td></tr>
+<tr><td>Do consumer groups divide work automatically?</td><td>No. Azums 1.0 provides durable offsets, not automatic membership or balancing.</td></tr>
+<tr><td>What happens under overload?</td><td>Memory, SQLite, and Redis accept backlog according to capacity. PostgreSQL can throttle execution leases. Azums does not automatically scale or silently invent an admission policy.</td></tr>
+<tr><td>Is completion order FIFO?</td><td>No. Ordering affects lease selection. Different handler durations and retries can change completion order.</td></tr>
+<tr><td>How long is history retained?</td><td>Backend-dependent. Inspect retention capabilities and configure maintenance explicitly.</td></tr>
+</tbody></table>
+</div>
+<h2 id="11-transactional-enqueue"><a class="header" href="#11-transactional-enqueue">11. Transactional Enqueue</a></h2>
+<p>For SQLite and PostgreSQL, application data and job data can use one transaction:</p>
+<pre><code class="language-rust ignore">use azums::{Job, PostgresBackend};
+use serde_json::json;
+
+async fn create_user(
+    pool: &amp;sqlx::PgPool,
+    backend: &amp;PostgresBackend,
+) -&gt; anyhow::Result&lt;()&gt; {
+    let mut tx = pool.begin().await?;
+
+    sqlx::query("INSERT INTO users (id) VALUES ($1)")
+        .bind("user-123")
+        .execute(&amp;mut *tx)
+        .await?;
+
+    backend
+        .enqueue_in_tx(
+            &amp;mut tx,
+            Job::new(
+                "send_welcome_email",
+                json!({ "user_id": "user-123" }),
+            )
+            .into(),
+        )
+        .await?;
+
+    tx.commit().await?;
+    Ok(())
+}</code></pre>
+<p>A successful commit preserves both records. Rollback, transaction drop before commit, deferred
+commit failure, connection loss before commit, and process termination before commit preserve
+neither. PostgreSQL notifications issued in the transaction are visible only after commit. SQLite
+workers discover committed jobs through their polling fallback.</p>
+<h2 id="12-idempotency-and-duplicate-delivery"><a class="header" href="#12-idempotency-and-duplicate-delivery">12. Idempotency and Duplicate Delivery</a></h2>
+<p>Idempotent enqueue and idempotent execution solve different problems:</p>
+<pre><code class="language-text">100 enqueue calls + same idempotency key
+                  -&gt; one logical job
+
+one logical job + crash before ACK
+                  -&gt; handler may run again
+</code></pre>
+<p>For an external API, pass a stable key derived from the logical operation:</p>
+<pre><code class="language-rust ignore">let external_key = format!("azums-job:{}", job.id);
+payment_api.charge_with_idempotency_key(external_key, amount).await?;</code></pre>
+<p>For a database effect, record processed job IDs or stream sequences under a unique constraint in
+the same transaction as the effect. A duplicate delivery then becomes a no-op.</p>
+<h2 id="13-durable-event-streaming"><a class="header" href="#13-durable-event-streaming">13. Durable Event Streaming</a></h2>
+<pre><code class="language-rust ignore">use azums::{quickstart, NewEvent};
+use serde_json::json;
+
+async fn stream_example() -&gt; anyhow::Result&lt;()&gt; {
+    let client = quickstart("memory").await?;
+    let orders = client.stream("orders");
+
+    let seq = orders
+        .publish("order_created", json!({ "order_id": "ord-1001" }))
+        .await?;
+
+    let events = orders.read_next("billing", 100).await?;
+    for event in events {
+        // Make the external effect idempotent by sequence number.
+        orders.ack("billing", event.sequence_no).await?;
+    }
+
+    println!("published sequence {seq}");
+    Ok(())
+}</code></pre>
+<p><code>read_next</code> begins after the group's durable ACK. Reading does not advance the offset; successful
+processing must ACK. If the consumer crashes before ACK, the event is delivered again. Retention
+pruning cannot delete beyond the lowest known group offset.</p>
+<h2 id="14-observability"><a class="header" href="#14-observability">14. Observability</a></h2>
+<p>The application can ask Azums to explain a job instead of reading internal tables:</p>
+<pre><code class="language-rust ignore">if let Some(explanation) = client.explain_job(job_id).await? {
+    println!("{}", explanation.summary);
+    println!("status: {}", explanation.status);
+    println!("retries: {}", explanation.retry_count);
+    println!("last worker: {:?}", explanation.last_worker_id);
+    println!("last error: {:?}", explanation.last_error);
+}
+
+for metrics in client.metrics_snapshot().await? {
+    println!("{} depth={}", metrics.queue, metrics.queue_depth);
+}</code></pre>
+<p>Stable observation fields include job ID, attempt, worker ID, queue, duration, status, retry count,
+error, and trace ID. Metrics cover totals, completions, failures, retries, DLQ count, queue depth,
+latencies, and worker count where the backend can measure them. Backends without native attempt
+observability return a reduced explanation from the current job state rather than fabricating data.</p>
+<h2 id="15-test-and-release-evidence"><a class="header" href="#15-test-and-release-evidence">15. Test and Release Evidence</a></h2>
+<p>The release-candidate record for the exact 1.0.0 tree states that no known documented guarantee was
+violated. It is evidence from a specific tree and environment, not a mathematical proof that all
+future programs or infrastructure failures are harmless.</p>
+<h3 id="release-gates-run"><a class="header" href="#release-gates-run">Release gates run</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Area</th><th>Evidence recorded for 1.0.0</th></tr></thead><tbody>
+<tr><td>Full workspace</td><td><code>cargo test --workspace</code> passed.</td></tr>
+<tr><td>Integration</td><td>Included in workspace tests; PostgreSQL and Redis profiles ran when services were reachable.</td></tr>
+<tr><td>State invariants</td><td>Core unit tests and generated lifecycle transition properties passed.</td></tr>
+<tr><td>Lease recovery</td><td>Lease expiry, worker crash, heartbeat, phantom recovery, and wrong-owner paths passed.</td></tr>
+<tr><td>Transactions</td><td>SQLite/PostgreSQL commit and rollback boundaries, commit failure, connection loss, and process termination passed.</td></tr>
+<tr><td>Failure handling</td><td>Retry, classification, timeout, panic, cancellation, DLQ, and replay suites passed.</td></tr>
+<tr><td>Idempotency</td><td>Duplicate enqueue and crash-after-side-effect patterns passed.</td></tr>
+<tr><td>Scheduling</td><td>Eligibility, downtime, skew-sensitive boundaries, deadlines, timeouts, and recurrence suites passed.</td></tr>
+<tr><td>Streams</td><td>Append, independent offsets, restart, replay, duplicates, ordering, concurrency, and retention passed.</td></tr>
+<tr><td>Property tests</td><td>M12 generated job sequences, transitions, retries, schedules, duplicates, workers, and rollback combinations passed.</td></tr>
+<tr><td>Fuzz hardening</td><td>M13 malformed payload, metadata, type, queue, serialization, event, and API-boundary tests passed.</td></tr>
+<tr><td>Chaos</td><td>Standard chaos suite plus 10,000 randomized memory scenarios passed.</td></tr>
+<tr><td>Large concurrency</td><td>24 combinations of 1, 2, 5, 10, 50, and 100 workers with 10k, 50k, 100k, and 1m jobs passed.</td></tr>
+<tr><td>Scale total</td><td>The final matrix executed 6.96 million jobs in 219.27 seconds on the recorded release machine.</td></tr>
+<tr><td>Benchmarks</td><td>Criterion suites and the reproducible M14 harness passed; Redis Criterion remained opt-in.</td></tr>
+<tr><td>Regression guard</td><td>M15 throughput, latency, and measured resource regression logic passed.</td></tr>
+<tr><td>Documentation</td><td><code>mdbook build docs</code> passed with previously documented benchmark HTML warnings.</td></tr>
+<tr><td>Security audit</td><td><code>cargo audit</code> reported zero active shipped-path vulnerabilities against 1,216 advisories on 2026-08-15; an inactive optional MySQL RSA lockfile dependency was scoped and documented.</td></tr>
+<tr><td>API compatibility</td><td>API audit, matrix guard, doctests, and the declared <code>v0.2.0</code> to <code>1.0.0</code> semver-major transition check passed.</td></tr>
+</tbody></table>
+</div>
+<h3 id="what-was-not-turned-into-a-universal-claim"><a class="header" href="#what-was-not-turned-into-a-universal-claim">What was not turned into a universal claim</a></h3>
+<ul>
+<li>Redis-specific Criterion throughput is opt-in and requires controlled Redis infrastructure.</li>
+<li>Live PostgreSQL/Redis database restarts, network partitions, and process-death profiles depend on
+infrastructure capable of injecting those failures.</li>
+<li>Benchmark throughput is workload, hardware, backend, configuration, and version specific.</li>
+<li>Static and generated tests reduce risk; they do not prove that arbitrary external side effects
+are exactly once.</li>
+</ul>
+<p>Test sources are under <a href="../../crates/azums/tests">crates/azums/tests</a>, with core properties under
+<a href="../../crates/azums-core/tests">crates/azums-core/tests</a>. The summarized proof is in
+<a href="release_candidate.html">M20 Release Candidate Evidence</a>.</p>
+<h2 id="16-implementing-azums-in-a-new-application"><a class="header" href="#16-implementing-azums-in-a-new-application">16. Implementing Azums in a New Application</a></h2>
+<h3 id="step-1-add-dependencies"><a class="header" href="#step-1-add-dependencies">Step 1: Add dependencies</a></h3>
+<pre><code class="language-text">cargo add azums@1.0.0 anyhow serde serde_json
+cargo add tokio --features macros,rt-multi-thread
+</code></pre>
+<p>Enable or select the storage features required by your application according to the published
+crate's feature list.</p>
+<h3 id="step-2-begin-in-memory"><a class="header" href="#step-2-begin-in-memory">Step 2: Begin in memory</a></h3>
+<pre><code class="language-rust ignore">use azums::{quickstart, Job};
+use serde::Deserialize;
+use serde_json::json;
+
+#[derive(Deserialize)]
+struct EmailPayload {
+    to: String,
+}
+
+#[tokio::main]
+async fn main() -&gt; anyhow::Result&lt;()&gt; {
+    let client = quickstart("memory").await?.with_queue("emails");
+
+    client
+        .register_handler("send_email", |job| async move {
+            let payload: EmailPayload = job.payload_typed()?;
+            println!("send to {}", payload.to);
+            Ok(())
+        })
+        .await;
+
+    let id = client
+        .enqueue(
+            Job::new("send_email", json!({ "to": "user@example.com" }))
+                .queue("emails")
+                .max_attempts(5)
+                .idempotency_key("welcome:user@example.com"),
+        )
+        .await?;
+
+    client.run_until_empty().await?;
+    println!("{:?}", client.explain_job(id).await?);
+    Ok(())
+}</code></pre>
+<p>Run the tested repository example with:</p>
+<pre><code class="language-text">cargo run -p azums --example install_enqueue_process_retry_inspect
+</code></pre>
+<h3 id="step-3-move-to-sqlite-for-local-durability"><a class="header" href="#step-3-move-to-sqlite-for-local-durability">Step 3: Move to SQLite for local durability</a></h3>
+<p>Change only the URL:</p>
+<pre><code class="language-rust ignore">let client = quickstart("sqlite://jobs.db?mode=rwc").await?;</code></pre>
+<p>Use this for embedded applications, developer machines, CLIs, and single-process services. Verify
+that the database file is on durable storage and include it in backup and disk-capacity planning.</p>
+<h3 id="step-4-move-to-postgresql-or-redis-for-distributed-workers"><a class="header" href="#step-4-move-to-postgresql-or-redis-for-distributed-workers">Step 4: Move to PostgreSQL or Redis for distributed workers</a></h3>
+<p>PostgreSQL is the default recommendation when application rows and jobs must commit together.
+Redis is suitable when the deployment is Redis-native and its persistence/eviction configuration
+matches the application's durability requirements.</p>
+<p>Give every process a unique worker ID and select its queue:</p>
+<pre><code class="language-text">AZUMS_WORKER_ID=worker-email-01
+AZUMS_QUEUE=emails
+AZUMS_LEASE_SECONDS=30
+</code></pre>
+<h3 id="step-5-run-continuously-with-graceful-shutdown"><a class="header" href="#step-5-run-continuously-with-graceful-shutdown">Step 5: Run continuously with graceful shutdown</a></h3>
+<pre><code class="language-rust ignore">let shutdown = tokio_util::sync::CancellationToken::new();
+let worker = client.clone();
+let worker_shutdown = shutdown.clone();
+
+let task = tokio::spawn(async move {
+    worker.run_with_shutdown(worker_shutdown).await
+});
+
+// On SIGTERM or application shutdown:
+shutdown.cancel();
+task.await??;</code></pre>
+<p>Set lease duration longer than normal heartbeat and handler scheduling delays but shorter than the
+maximum acceptable crash-recovery time. Handler timeouts and lease duration solve different
+problems: timeout bounds one attempt; the lease decides when another worker may recover abandoned
+work.</p>
+<h3 id="step-6-design-side-effect-idempotency"><a class="header" href="#step-6-design-side-effect-idempotency">Step 6: Design side-effect idempotency</a></h3>
+<p>Before production, answer:</p>
+<ol>
+<li>What happens if this handler runs twice?</li>
+<li>Can the destination accept an idempotency key?</li>
+<li>Can a processed-job record and database mutation share a transaction?</li>
+<li>Is replay allowed to repeat the effect?</li>
+</ol>
+<p>Do not deploy a payment, email, webhook, or provisioning handler until duplicate behavior is
+deliberate.</p>
+<h3 id="step-7-add-operations"><a class="header" href="#step-7-add-operations">Step 7: Add operations</a></h3>
+<ul>
+<li>alert on queue depth, retries, DLQ, execution latency, and lease expiry</li>
+<li>set payload and enqueue-rate limits</li>
+<li>protect the admin API with authentication, TLS, and network restrictions</li>
+<li>run migrations as a controlled deployment step</li>
+<li>canary new worker versions</li>
+<li>back up durable storage</li>
+<li>document replay authorization</li>
+<li>rehearse database and worker failure recovery</li>
+</ul>
+<h2 id="17-how-to-learn-the-repository"><a class="header" href="#17-how-to-learn-the-repository">17. How to Learn the Repository</a></h2>
+<h3 id="beginner-path-use-the-product-first"><a class="header" href="#beginner-path-use-the-product-first">Beginner path: use the product first</a></h3>
+<ol>
+<li><a href="quickstart.html">Zero-Config Quickstart</a></li>
+<li><a href="developer_experience.html">Developer Experience</a></li>
+<li><a href="../../crates/azums/examples/install_enqueue_process_retry_inspect.rs">install_enqueue_process_retry_inspect.rs</a></li>
+<li><a href="../../crates/azums/examples/embedded_sqlite.rs">embedded_sqlite.rs</a></li>
+<li><a href="semantics.html">Execution Semantics</a></li>
+</ol>
+<p>At this stage, be able to enqueue, register a handler, process, retry, inspect, and explain why
+delivery is at least once.</p>
+<h3 id="application-engineer-path-integrate-safely"><a class="header" href="#application-engineer-path-integrate-safely">Application engineer path: integrate safely</a></h3>
+<ol>
+<li><a href="backend_equivalence.html">Storage Backend Equivalence</a></li>
+<li><a href="transactional_integrity.html">Transactional Integrity</a></li>
+<li><a href="idempotency.html">Idempotency</a></li>
+<li><a href="leasing.html">Lease Recovery</a></li>
+<li><a href="failure_handling.html">Failure Handling</a></li>
+<li><a href="time_semantics.html">Scheduling and Time</a></li>
+<li><a href="observability.html">Observability</a></li>
+<li><a href="production_deployment.html">Production Deployment</a></li>
+<li><a href="failure_recovery_runbook.html">Failure and Recovery Runbook</a></li>
+</ol>
+<p>At this stage, be able to choose a backend, define transaction and idempotency boundaries, tune a
+lease, handle shutdown, and operate DLQ/replay safely.</p>
+<h3 id="maintainer-path-follow-one-job-through-the-code"><a class="header" href="#maintainer-path-follow-one-job-through-the-code">Maintainer path: follow one job through the code</a></h3>
+<ol>
+<li>Models and state rules: <a href="../../crates/azums-core/src/model.rs">azums-core/src/model.rs</a></li>
+<li>Machine-readable contract: <a href="../../crates/azums-core/src/semantics.rs">azums-core/src/semantics.rs</a></li>
+<li>Backend interface: <a href="../../crates/azums-core/src/backend/mod.rs">azums-core/src/backend/mod.rs</a></li>
+<li>Beginner facade and worker loop: <a href="../../crates/azums/src/quickstart.rs">azums/src/quickstart.rs</a></li>
+<li>PostgreSQL job mutations: <a href="../../crates/azums/src/jobs/repo.rs">azums/src/jobs/repo.rs</a></li>
+<li>Attempt records: <a href="../../crates/azums/src/jobs/attempts.rs">azums/src/jobs/attempts.rs</a></li>
+<li>Retry decisions: <a href="../../crates/azums/src/jobs/retry.rs">azums/src/jobs/retry.rs</a></li>
+<li>SQLite adapter: <a href="../../crates/azums/src/backend/sqlite.rs">azums/src/backend/sqlite.rs</a></li>
+<li>PostgreSQL adapter: <a href="../../crates/azums/src/backend/postgres.rs">azums/src/backend/postgres.rs</a></li>
+<li>Redis adapter: <a href="../../crates/azums-redis/src/backend.rs">azums-redis/src/backend.rs</a></li>
+<li>Stream contract and facade: <a href="../../crates/azums-core/src/backend/stream.rs">stream.rs</a> and <a href="../../crates/azums/src/stream_handle.rs">stream_handle.rs</a></li>
+<li>Invariant tests: <a href="../../crates/azums-core/tests/core_unit.rs">core_unit.rs</a>, <a href="../../crates/azums/tests/lease_recovery.rs">lease_recovery.rs</a>, and <a href="../../crates/azums/tests/m12_property_based.rs">m12_property_based.rs</a></li>
+</ol>
+<p>Read one backend mutation and its corresponding tests together. For example, read lease claim,
+attempt creation, ACK, retry, and expired-lease reaping as one lifecycle rather than isolated SQL
+methods.</p>
+<h3 id="backend-implementer-path"><a class="header" href="#backend-implementer-path">Backend implementer path</a></h3>
+<p>A custom backend implements <code>StorageBackend</code> and optionally <code>StreamBackend</code> and
+<code>ObservabilityBackend</code>. It must:</p>
+<ul>
+<li>declare truthful capability flags and detailed semantics</li>
+<li>make claims atomic</li>
+<li>enforce lease ownership on running mutations</li>
+<li>reject terminal-state mutation</li>
+<li>preserve monotonic attempts and offsets</li>
+<li>make expired work recoverable</li>
+<li>ensure notifications remain hints rather than the source of truth</li>
+<li>implement idempotency in the documented scope</li>
+<li>add unit, integration, concurrency, failure, and backend matrix tests</li>
+</ul>
+<p>Do not copy a capability profile unless the backend genuinely provides every declared behavior.</p>
+<h2 id="18-documentation-map"><a class="header" href="#18-documentation-map">18. Documentation Map</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Need</th><th>Start here</th></tr></thead><tbody>
+<tr><td>What is Azums?</td><td>This handbook and <a href="architecture.html">Architecture Overview</a></td></tr>
+<tr><td>What is guaranteed?</td><td><a href="semantics.html">Execution Semantics</a></td></tr>
+<tr><td>Which backend should I use?</td><td><a href="backend_equivalence.html">Backend Equivalence</a></td></tr>
+<tr><td>How do jobs transition?</td><td><a href="job_lifecycle.html">Job Lifecycle</a></td></tr>
+<tr><td>How do retries and DLQ work?</td><td><a href="failure_handling.html">Failure Handling</a></td></tr>
+<tr><td>How do leases recover crashes?</td><td><a href="leasing.html">Lease Recovery</a></td></tr>
+<tr><td>How do SQL transactions work?</td><td><a href="transactional_integrity.html">Transactional Integrity</a></td></tr>
+<tr><td>How do duplicates work?</td><td><a href="idempotency.html">Idempotency</a></td></tr>
+<tr><td>How does scheduling behave?</td><td><a href="time_semantics.html">Time Semantics</a></td></tr>
+<tr><td>How do streams and offsets work?</td><td><a href="event_streaming.html">Durable Event Streaming</a></td></tr>
+<tr><td>How does overload behave?</td><td><a href="concurrency_backpressure.html">Concurrency and Backpressure</a></td></tr>
+<tr><td>How do I observe failures?</td><td><a href="observability.html">Observability</a></td></tr>
+<tr><td>How was it tested?</td><td><a href="primitive_correctness.html">Primitive Correctness</a>, <a href="chaos_engineering.html">Chaos</a>, <a href="property_testing.html">Property Testing</a>, <a href="fuzzing_input_hardening.html">Fuzzing</a>, and <a href="release_candidate.html">Release Evidence</a></td></tr>
+<tr><td>How do I deploy it?</td><td><a href="production_deployment.html">Production Deployment</a></td></tr>
+<tr><td>What do I do during an incident?</td><td><a href="failure_recovery_runbook.html">Failure and Recovery Runbook</a></td></tr>
+<tr><td>Which APIs are stable?</td><td><a href="../../STABILITY.html">API Stability Policy</a> and <a href="stable_release.html">Stable Release Gate</a></td></tr>
+</tbody></table>
+</div>
+<h2 id="19-production-checklist"><a class="header" href="#19-production-checklist">19. Production Checklist</a></h2>
+<p>Before adopting Azums in production, verify:</p>
+<ul>
+<li>the backend capability profile satisfies your durability and coordination needs</li>
+<li>every worker has a unique ID</li>
+<li>queue names and queue ownership are documented</li>
+<li>lease duration, handler timeout, retry budget, and deadline are independently configured</li>
+<li>external side effects are idempotent</li>
+<li>SQL transactional enqueue is used where app/job divergence would be harmful</li>
+<li>Redis persistence and eviction are intentional, if Redis is selected</li>
+<li>SQLite is not being used as an undocumented multi-host coordinator</li>
+<li>payload and enqueue-rate limits are configured</li>
+<li>admin access is authenticated and network restricted</li>
+<li>migrations and rollback procedures are reviewed</li>
+<li>queue depth, retry, DLQ, latency, worker, and lease-expiry alerts exist</li>
+<li>operators know when replay is safe</li>
+<li>retention, pruning, archive, and backups are configured</li>
+<li>graceful shutdown and forced-kill recovery have been rehearsed</li>
+<li>the application's own failure scenarios are tested in addition to Azums' suite</li>
+</ul>
+<h2 id="20-final-mental-model"><a class="header" href="#20-final-mental-model">20. Final Mental Model</a></h2>
+<p>Think of Azums as three related layers:</p>
+<pre><code class="language-text">1. Durable intent
+   Job, schedule, priority, idempotency, stream event
+
+2. Controlled execution
+   claim, lease, heartbeat, attempt, handler, ACK, retry, DLQ
+
+3. Explanation and recovery
+   persisted history, offsets, replay, metrics, lifecycle explanation
+</code></pre>
+<p>The durable record is the source of truth. Notifications make workers faster but do not define
+correctness. Leases make abandoned work recoverable but imply at-least-once delivery. Idempotency
+protects logical production and application-designed side effects. Backend capabilities tell the
+application which operational promises are actually available.</p>
+<p>That is the purpose of the Azums execution layer: allow Rust applications to move work out of the
+immediate request path without losing a precise answer to what happened, what can happen next, and
+what the system promised.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="quickstart.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="architecture_book.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="quickstart.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="architecture_book.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>
