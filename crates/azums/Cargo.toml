@@ -48,7 +48,7 @@ tokio-util = "0.7"
 [dev-dependencies]
 serial_test = "3"
 dotenvy = "0.15"
-criterion = { version = "0.5", features = ["async_tokio"] }
+criterion = { version = "0.8", features = ["async_tokio"] }
 proptest = "1"
 
 [[bench]]
