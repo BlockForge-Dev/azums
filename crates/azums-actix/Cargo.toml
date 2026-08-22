@@ -16,7 +16,7 @@ categories = ["web-programming::http-server", "asynchronous"]
 azums = { version = "1.0.0", path = "../azums" }
 azums-core = { version = "1.0.0", path = "../azums-core" }
 
-actix-web = "4"
+actix-web = { version = "4.15", default-features = false, features = ["macros"] }
 futures-util = "0.3"
 
 tokio = { version = "1", features = ["full"] }

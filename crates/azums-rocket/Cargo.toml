@@ -16,7 +16,7 @@ categories = ["web-programming::http-server", "asynchronous"]
 azums = { version = "1.0.0", path = "../azums" }
 azums-core = { version = "1.0.0", path = "../azums-core" }
 
-rocket = "0.5"
+rocket = { version = "0.5.1", default-features = false }
 
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
@@ -26,4 +26,4 @@ uuid = { version = "1", features = ["v4", "serde"] }
 anyhow = "1"
 
 [dev-dependencies]
-rocket = { version = "0.5", features = ["json"] }
+rocket = { version = "0.5.1", default-features = false, features = ["json"] }
