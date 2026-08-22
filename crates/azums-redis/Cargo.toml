@@ -17,7 +17,7 @@ azums-core = { version = "1.0.1", path = "../azums-core" }
 async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
-redis = { version = "0.25", features = ["tokio-comp", "aio", "connection-manager", "json"] }
+redis = { version = "1.2", features = ["tokio-comp", "aio", "connection-manager", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }
