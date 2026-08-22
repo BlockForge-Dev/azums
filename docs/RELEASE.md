@@ -28,11 +28,23 @@ The release workflow:
 The publish script is restartable. It skips a crate only when that exact version is already visible
 on crates.io. Authentication, packaging, network, and registry errors fail the workflow.
 
-## Required Secret
+## Trusted Publisher
 
-| Secret | Where | Purpose |
-|---|---|---|
-| `CARGO_REGISTRY_TOKEN` | Repository settings -> Actions secrets | Publish crates to crates.io |
+Publication uses crates.io trusted publishing through GitHub Actions OIDC. No long-lived
+`CARGO_REGISTRY_TOKEN` repository secret is required. Each Azums crate must authorize the same
+publisher configuration on crates.io:
+
+| Field | Value |
+|---|---|
+| Publisher | GitHub |
+| Repository owner | `BlockForge-Dev` |
+| Repository name | `azums` |
+| Workflow filename | `release.yml` |
+| Environment name | `crates-io` |
+
+The `crates-io` GitHub environment must exist and allow the tagged release workflow to run. The
+workflow exchanges GitHub's short-lived identity token for the `CARGO_REGISTRY_TOKEN` consumed by
+the publish script; that generated token is never stored as a repository secret.
 
 ## Release Procedure
 
@@ -44,12 +56,12 @@ on crates.io. Authentication, packaging, network, and registry errors fail the w
 6. Create and push an annotated version tag.
 
 ```bash
-bash scripts/publish-crates.sh --check 1.0.0
+bash scripts/publish-crates.sh --check 1.0.1
 cargo test --workspace --locked
 cargo publish -p azums-core --dry-run --locked
 
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
+git tag -a v1.0.1 -m "Release v1.0.1"
+git push origin v1.0.1
 ```
 
 Pushing the tag starts `.github/workflows/release.yml`. Do not publish individual downstream crates
@@ -88,7 +100,7 @@ After the release workflow succeeds, verify the registry from a fresh project:
 cargo search azums --limit 10
 cargo init /tmp/azums-test
 cd /tmp/azums-test
-cargo add azums@1.0.0
+cargo add azums@1.0.1
 cargo check
 ```
 

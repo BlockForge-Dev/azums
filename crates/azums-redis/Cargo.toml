@@ -1,6 +1,6 @@
 [package]
 name = "azums-redis"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 rust-version = "1.88"
 description = "Production-grade Redis storage and streaming backend driver for azums"
@@ -13,7 +13,7 @@ keywords = ["redis", "job-queue", "background-jobs", "task-queue", "storage-back
 categories = ["database", "asynchronous"]
 
 [dependencies]
-azums-core = { version = "1.0.0", path = "../azums-core" }
+azums-core = { version = "1.0.1", path = "../azums-core" }
 async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }

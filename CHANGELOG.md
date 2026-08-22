@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-08-22
+
+### Documentation
+- Completed runnable example coverage for the public API and rewrote the README around Azums as a
+  durable execution layer with explicit Guaranteed, Backend-dependent, and Unspecified semantics.
+- Expanded the product handbook and implementation guidance without changing the stable 1.0
+  execution contract.
+
+### Security
+- Removed inactive HTTP/2 feature paths that selected vulnerable `h2 0.3.27` and upgraded the
+  active dependency graph to `h2 0.4.18`, addressing `RUSTSEC-2026-0258`.
+
+### CI
+- Repaired benchmark workflow validation, isolated baseline worktrees per runner, and upgraded the
+  GitHub Pages deployment action to its immutable v4.1.0 commit.
+- Verified the patch across the full CI matrix, CodeQL, documentation, dependency audit, coverage,
+  Criterion benchmarks, the four-backend M14 performance matrix, and regression confirmation.
+
 ## [1.0.0] - 2026-08-15
 
 ### Stable Guarantees

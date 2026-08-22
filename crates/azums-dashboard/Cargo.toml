@@ -1,6 +1,6 @@
 [package]
 name = "azums-dashboard"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 rust-version = "1.88"
 description = "Web administration UI dashboard console for azums background job processing"
@@ -9,9 +9,9 @@ repository = "https://github.com/BlockForge-Dev/azums"
 publish = false
 
 [dependencies]
-azums-core = { version = "1.0.0", path = "../azums-core" }
-azums = { version = "1.0.0", path = "../azums" }
-azums-postgres = { version = "1.0.0", path = "../azums-postgres" }
+azums-core = { version = "1.0.1", path = "../azums-core" }
+azums = { version = "1.0.1", path = "../azums" }
+azums-postgres = { version = "1.0.1", path = "../azums-postgres" }
 async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
 axum = "0.7"
