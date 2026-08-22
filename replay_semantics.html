@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Introduction - Azums Guide &amp; Reference</title>
+        <title>Replay Semantics - Azums Guide &amp; Reference</title>
 
 
         <!-- Custom HTML head -->
@@ -88,7 +88,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item affix "><a href="introduction.html" class="active">Introduction</a></li><li class="chapter-item affix "><a href="quickstart.html">Zero-Config Quickstart</a></li><li class="chapter-item affix "><a href="product_handbook.html">Product & Implementation Handbook</a></li><li class="chapter-item affix "><a href="architecture_book.html">The Azums Architecture Book</a></li><li class="chapter-item affix "><li class="part-title">Part I - Philosophy</li><li class="chapter-item "><a href="architecture.html"><strong aria-hidden="true">1.</strong> Architecture Overview</a></li><li class="chapter-item "><a href="semantics.html"><strong aria-hidden="true">2.</strong> Execution Semantics</a></li><li class="chapter-item "><a href="primitive_correctness.html"><strong aria-hidden="true">3.</strong> Primitive Correctness Audit</a></li><li class="chapter-item affix "><li class="part-title">Part II - Execution Model</li><li class="chapter-item "><a href="job_lifecycle.html"><strong aria-hidden="true">4.</strong> Job Lifecycle</a></li><li class="chapter-item "><a href="time_semantics.html"><strong aria-hidden="true">5.</strong> Scheduling & Time Semantics</a></li><li class="chapter-item "><a href="replay_semantics.html"><strong aria-hidden="true">6.</strong> Replay Semantics</a></li><li class="chapter-item affix "><li class="part-title">Part III - Core Primitives</li><li class="chapter-item "><a href="backend_equivalence.html"><strong aria-hidden="true">7.</strong> Storage Backend Equivalence</a></li><li class="chapter-item "><a href="transactional_integrity.html"><strong aria-hidden="true">8.</strong> Transactional Integrity</a></li><li class="chapter-item "><a href="idempotency.html"><strong aria-hidden="true">9.</strong> Idempotency & Duplicate Execution</a></li><li class="chapter-item affix "><li class="part-title">Part IV - Reliability</li><li class="chapter-item "><a href="leasing.html"><strong aria-hidden="true">10.</strong> Lease Recovery</a></li><li class="chapter-item "><a href="chaos_engineering.html"><strong aria-hidden="true">11.</strong> Chaos Engineering</a></li><li class="chapter-item "><a href="property_testing.html"><strong aria-hidden="true">12.</strong> Property-Based Testing</a></li><li class="chapter-item "><a href="fuzzing_input_hardening.html"><strong aria-hidden="true">13.</strong> Fuzzing & Input Hardening</a></li><li class="chapter-item affix "><li class="part-title">Part V - Storage Backends</li><li class="chapter-item "><a href="redis_backend.html"><strong aria-hidden="true">14.</strong> Redis Storage Backend</a></li><li class="chapter-item "><a href="partitioning.html"><strong aria-hidden="true">15.</strong> Dataset Partitioning Strategy</a></li><li class="chapter-item affix "><li class="part-title">Part VI - Coordination</li><li class="chapter-item "><a href="concurrency_backpressure.html"><strong aria-hidden="true">16.</strong> Concurrency, Ordering & Backpressure</a></li><li class="chapter-item "><a href="ordering.html"><strong aria-hidden="true">17.</strong> Ordering Guarantees</a></li><li class="chapter-item "><a href="instant_wakeup.html"><strong aria-hidden="true">18.</strong> Event-Driven Instant Wake-Up</a></li><li class="chapter-item affix "><li class="part-title">Part VII - Event Streaming</li><li class="chapter-item "><a href="streams.html"><strong aria-hidden="true">19.</strong> Redis-Style Event Streams</a></li><li class="chapter-item "><a href="event_streaming.html"><strong aria-hidden="true">20.</strong> Durable Event Streaming</a></li><li class="chapter-item affix "><li class="part-title">Part VIII - Performance</li><li class="chapter-item "><a href="performance_engineering.html"><strong aria-hidden="true">21.</strong> Performance Engineering</a></li><li class="chapter-item "><a href="performance_regression_protection.html"><strong aria-hidden="true">22.</strong> Performance Regression Protection</a></li><li class="chapter-item "><a href="../PERFORMANCE_TUNING.html"><strong aria-hidden="true">23.</strong> Performance Tuning Guide</a></li><li class="chapter-item "><a href="../benchmarks/index.html"><strong aria-hidden="true">24.</strong> Interactive Benchmark Dashboard</a></li><li class="chapter-item affix "><li class="part-title">Part IX - Failure Engineering</li><li class="chapter-item "><a href="failure_handling.html"><strong aria-hidden="true">25.</strong> Retry, Failure Classification & DLQ</a></li><li class="chapter-item affix "><li class="part-title">Part X - Integrations</li><li class="chapter-item "><a href="developer_experience.html"><strong aria-hidden="true">26.</strong> Developer Experience & Integration</a></li><li class="chapter-item "><a href="admin_api.html"><strong aria-hidden="true">27.</strong> Admin API & Web UI</a></li><li class="chapter-item affix "><li class="part-title">Part XI - Operations</li><li class="chapter-item "><a href="production_readiness.html"><strong aria-hidden="true">28.</strong> Production Readiness</a></li><li class="chapter-item "><a href="production_deployment.html"><strong aria-hidden="true">29.</strong> Production Deployment Guide</a></li><li class="chapter-item "><a href="failure_recovery_runbook.html"><strong aria-hidden="true">30.</strong> Failure And Recovery Runbook</a></li><li class="chapter-item "><a href="observability.html"><strong aria-hidden="true">31.</strong> Observability</a></li><li class="chapter-item "><a href="comparison.html"><strong aria-hidden="true">32.</strong> Feature Comparison Matrix</a></li><li class="chapter-item affix "><li class="part-title">Part XII - Internals</li><li class="chapter-item "><a href="LLD.html"><strong aria-hidden="true">33.</strong> Low-Level Design & DSA</a></li><li class="chapter-item "><a href="release_candidate.html"><strong aria-hidden="true">34.</strong> M20 Release Candidate Evidence</a></li><li class="chapter-item "><a href="stable_release.html"><strong aria-hidden="true">35.</strong> M21 Stable Release Gate</a></li></ol>
+                <ol class="chapter"><li class="chapter-item affix "><a href="introduction.html">Introduction</a></li><li class="chapter-item affix "><a href="quickstart.html">Zero-Config Quickstart</a></li><li class="chapter-item affix "><a href="product_handbook.html">Product & Implementation Handbook</a></li><li class="chapter-item affix "><a href="architecture_book.html">The Azums Architecture Book</a></li><li class="chapter-item affix "><li class="part-title">Part I - Philosophy</li><li class="chapter-item "><a href="architecture.html"><strong aria-hidden="true">1.</strong> Architecture Overview</a></li><li class="chapter-item "><a href="semantics.html"><strong aria-hidden="true">2.</strong> Execution Semantics</a></li><li class="chapter-item "><a href="primitive_correctness.html"><strong aria-hidden="true">3.</strong> Primitive Correctness Audit</a></li><li class="chapter-item affix "><li class="part-title">Part II - Execution Model</li><li class="chapter-item "><a href="job_lifecycle.html"><strong aria-hidden="true">4.</strong> Job Lifecycle</a></li><li class="chapter-item "><a href="time_semantics.html"><strong aria-hidden="true">5.</strong> Scheduling & Time Semantics</a></li><li class="chapter-item expanded "><a href="replay_semantics.html" class="active"><strong aria-hidden="true">6.</strong> Replay Semantics</a></li><li class="chapter-item affix "><li class="part-title">Part III - Core Primitives</li><li class="chapter-item "><a href="backend_equivalence.html"><strong aria-hidden="true">7.</strong> Storage Backend Equivalence</a></li><li class="chapter-item "><a href="transactional_integrity.html"><strong aria-hidden="true">8.</strong> Transactional Integrity</a></li><li class="chapter-item "><a href="idempotency.html"><strong aria-hidden="true">9.</strong> Idempotency & Duplicate Execution</a></li><li class="chapter-item affix "><li class="part-title">Part IV - Reliability</li><li class="chapter-item "><a href="leasing.html"><strong aria-hidden="true">10.</strong> Lease Recovery</a></li><li class="chapter-item "><a href="chaos_engineering.html"><strong aria-hidden="true">11.</strong> Chaos Engineering</a></li><li class="chapter-item "><a href="property_testing.html"><strong aria-hidden="true">12.</strong> Property-Based Testing</a></li><li class="chapter-item "><a href="fuzzing_input_hardening.html"><strong aria-hidden="true">13.</strong> Fuzzing & Input Hardening</a></li><li class="chapter-item affix "><li class="part-title">Part V - Storage Backends</li><li class="chapter-item "><a href="redis_backend.html"><strong aria-hidden="true">14.</strong> Redis Storage Backend</a></li><li class="chapter-item "><a href="partitioning.html"><strong aria-hidden="true">15.</strong> Dataset Partitioning Strategy</a></li><li class="chapter-item affix "><li class="part-title">Part VI - Coordination</li><li class="chapter-item "><a href="concurrency_backpressure.html"><strong aria-hidden="true">16.</strong> Concurrency, Ordering & Backpressure</a></li><li class="chapter-item "><a href="ordering.html"><strong aria-hidden="true">17.</strong> Ordering Guarantees</a></li><li class="chapter-item "><a href="instant_wakeup.html"><strong aria-hidden="true">18.</strong> Event-Driven Instant Wake-Up</a></li><li class="chapter-item affix "><li class="part-title">Part VII - Event Streaming</li><li class="chapter-item "><a href="streams.html"><strong aria-hidden="true">19.</strong> Redis-Style Event Streams</a></li><li class="chapter-item "><a href="event_streaming.html"><strong aria-hidden="true">20.</strong> Durable Event Streaming</a></li><li class="chapter-item affix "><li class="part-title">Part VIII - Performance</li><li class="chapter-item "><a href="performance_engineering.html"><strong aria-hidden="true">21.</strong> Performance Engineering</a></li><li class="chapter-item "><a href="performance_regression_protection.html"><strong aria-hidden="true">22.</strong> Performance Regression Protection</a></li><li class="chapter-item "><a href="../PERFORMANCE_TUNING.html"><strong aria-hidden="true">23.</strong> Performance Tuning Guide</a></li><li class="chapter-item "><a href="../benchmarks/index.html"><strong aria-hidden="true">24.</strong> Interactive Benchmark Dashboard</a></li><li class="chapter-item affix "><li class="part-title">Part IX - Failure Engineering</li><li class="chapter-item "><a href="failure_handling.html"><strong aria-hidden="true">25.</strong> Retry, Failure Classification & DLQ</a></li><li class="chapter-item affix "><li class="part-title">Part X - Integrations</li><li class="chapter-item "><a href="developer_experience.html"><strong aria-hidden="true">26.</strong> Developer Experience & Integration</a></li><li class="chapter-item "><a href="admin_api.html"><strong aria-hidden="true">27.</strong> Admin API & Web UI</a></li><li class="chapter-item affix "><li class="part-title">Part XI - Operations</li><li class="chapter-item "><a href="production_readiness.html"><strong aria-hidden="true">28.</strong> Production Readiness</a></li><li class="chapter-item "><a href="production_deployment.html"><strong aria-hidden="true">29.</strong> Production Deployment Guide</a></li><li class="chapter-item "><a href="failure_recovery_runbook.html"><strong aria-hidden="true">30.</strong> Failure And Recovery Runbook</a></li><li class="chapter-item "><a href="observability.html"><strong aria-hidden="true">31.</strong> Observability</a></li><li class="chapter-item "><a href="comparison.html"><strong aria-hidden="true">32.</strong> Feature Comparison Matrix</a></li><li class="chapter-item affix "><li class="part-title">Part XII - Internals</li><li class="chapter-item "><a href="LLD.html"><strong aria-hidden="true">33.</strong> Low-Level Design & DSA</a></li><li class="chapter-item "><a href="release_candidate.html"><strong aria-hidden="true">34.</strong> M20 Release Candidate Evidence</a></li><li class="chapter-item "><a href="stable_release.html"><strong aria-hidden="true">35.</strong> M21 Stable Release Gate</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -150,7 +150,7 @@
                         <a href="https://github.com/BlockForge-Dev/azums" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/BlockForge-Dev/azums/edit/main/docs/src/introduction.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/BlockForge-Dev/azums/edit/main/docs/src/replay_semantics.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -179,45 +179,51 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="introduction-to-postgresflow"><a class="header" href="#introduction-to-postgresflow">Introduction to PostgresFlow</a></h1>
-<p><strong>PostgresFlow</strong> is a modern, high-performance background job queue engine built entirely on <strong>PostgreSQL</strong>, <strong>SQLx</strong>, and <strong>Tokio</strong>.</p>
-<pre><code>+-------------------------------------------------------------------------+
-|                              PostgresFlow                               |
-|                                                                         |
-|  +--------------------+  +----------------------+  +-----------------+  |
-|  | Transactional      |  | Time-Partitioned     |  | Built-in Admin  |  |
-|  | ACID Enqueue       |  | Dataset Storage      |  | HTTP Web UI     |  |
-|  +--------------------+  +----------------------+  +-----------------+  |
-|  | FOR UPDATE         |  | Auto Retries &amp;       |  | Prometheus      |  |
-|  | SKIP LOCKED        |  | Dead-Letter Queue    |  | Metrics         |  |
-|  +--------------------+  +----------------------+  +-----------------+  |
-+-------------------------------------------------------------------------+
-</code></pre>
-<h2 id="why-postgres-only-background-jobs"><a class="header" href="#why-postgres-only-background-jobs">Why Postgres-Only Background Jobs?</a></h2>
-<p>Traditional background job systems force application developers to introduce secondary stateful infrastructure (such as Redis, RabbitMQ, Sidekiq, or Celery).</p>
-<p>Introducing a second broker creates dual-write consistency problems:</p>
-<ol>
-<li>Your application commits a database transaction (e.g. <code>users.insert(...)</code>).</li>
-<li>Your application tries to publish a job to Redis/RabbitMQ.</li>
-<li>If the network fails or the server crashes between step 1 and step 2, your database contains records without corresponding background jobs, leading to silent state drift and data loss.</li>
-</ol>
-<p><strong>PostgresFlow solves this by allowing jobs to be enqueued directly inside your application's Postgres transactions.</strong> If your SQL transaction rolls back, the background job never exists. If your SQL transaction commits, the job exists atomically with the rest of that transaction.</p>
-<h2 id="key-features"><a class="header" href="#key-features">Key Features</a></h2>
+                        <h1 id="replay-semantics"><a class="header" href="#replay-semantics">Replay Semantics</a></h1>
+<p>Replay creates a new logical job from a retained source job. It is an operational recovery primitive,
+not a promise that previous external side effects are undone or made exactly-once.</p>
+<p>Implementation:</p>
 <ul>
-<li>⚡ <strong>Zero-Config Quickstart</strong>: Go from zero to a running job worker in under 2 minutes.</li>
-<li><strong>Transactional Enqueue</strong>: Enqueue jobs inside SQL transactions when using a SQL backend.</li>
-<li>⚡ <strong>Concurrent Leasing</strong>: Multi-worker parallel processing powered by Postgres <code>FOR UPDATE SKIP LOCKED</code>.</li>
-<li>📁 <strong>Dataset Time Partitioning</strong>: Bounded table sizes via monthly table partitioning and archiving.</li>
-<li>🔄 <strong>Retries &amp; Backoff</strong>: Configurable exponential backoff with random jitter and DLQ routing.</li>
-<li>📊 <strong>Visual Web UI</strong>: Built-in HTTP dashboard and Prometheus metrics endpoint.</li>
+<li>Portable API: <a href="../../crates/azums-core/src/backend/mod.rs">backend/mod.rs</a></li>
+<li>Memory implementation: <a href="../../crates/azums-core/src/backend/memory.rs">memory.rs</a></li>
+<li>PostgreSQL repository path: <a href="../../crates/azums/src/jobs/repo.rs">repo.rs</a></li>
+<li>Quickstart helper: <a href="../../crates/azums/src/quickstart.rs">quickstart.rs</a></li>
+</ul>
+<p>Tests:</p>
+<ul>
+<li>Replay coverage: <a href="../../crates/azums/tests/replay.rs">replay.rs</a></li>
+<li>Beginner inspect and replay path: <a href="../../crates/azums/tests/m16_developer_experience.rs">m16_developer_experience.rs</a></li>
+</ul>
+<h2 id="guarantees"><a class="header" href="#guarantees">Guarantees</a></h2>
+<p>Guaranteed:</p>
+<ul>
+<li>Replay returns a new job ID.</li>
+<li>The replayed job records <code>replay_of_job_id</code> when the backend supports retained source history.</li>
+<li>Replay uses the original payload unless the caller routes it to another queue or run time through
+backend-specific options.</li>
+</ul>
+<p>Backend-dependent:</p>
+<ul>
+<li>Whether archived jobs remain replayable.</li>
+<li>How long source payload and metadata are retained.</li>
+<li>Whether replay participates in a surrounding application transaction.</li>
+</ul>
+<p>Not guaranteed:</p>
+<ul>
+<li>Replay does not undo the original job.</li>
+<li>Replay does not prove the original handler's external side effects failed.</li>
+<li>Replay does not provide exactly-once external side-effect semantics.</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="time_semantics.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
 
-                            <a rel="next prefetch" href="quickstart.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="backend_equivalence.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -227,8 +233,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="time_semantics.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
 
-                    <a rel="next prefetch" href="quickstart.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="backend_equivalence.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
