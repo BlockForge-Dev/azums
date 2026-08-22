@@ -15,8 +15,6 @@ jobs:
   benchmark:
     name: Run Criterion Benchmarks
     runs-on: ubuntu-latest
-    env:
-      BASELINE_SOURCE_DIR: ${{ runner.temp }}/azums-perf-baseline-src-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
       contents: write
 
@@ -74,6 +72,7 @@ jobs:
 
       - name: Run Baseline M14 Performance Matrix
         env:
+          BASELINE_SOURCE_DIR: ${{ runner.temp }}/azums-perf-baseline-src-${{ github.run_id }}-${{ github.run_attempt }}
           BASELINE_SHA: ${{ github.event.before }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           DATABASE_URL: postgres://postgres:postgrespassword@127.0.0.1:5432/azums_perf_baseline
@@ -111,6 +110,7 @@ jobs:
 
       - name: Guard Performance Regressions
         env:
+          BASELINE_SOURCE_DIR: ${{ runner.temp }}/azums-perf-baseline-src-${{ github.run_id }}-${{ github.run_attempt }}
           AZUMS_PERF_BACKENDS: memory,sqlite,postgres,redis
           AZUMS_PERF_JOBS: 1000
           AZUMS_PERF_ITERATIONS: 3
@@ -158,7 +158,7 @@ jobs:
 
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./target/dashboard
