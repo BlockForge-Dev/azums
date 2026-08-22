@@ -1,7 +1,16 @@
-// src/jobs/error_codes.rs
+﻿// src/jobs/error_codes.rs
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 /// Canonical machine-readable failure code used by attempts and DLQ decisions.
+/// # Examples
+///
+/// ```rust
+/// use azums::jobs::error_codes::{suggested_action, ErrorCode};
+///
+/// let code = ErrorCode::from_str("TIMEOUT");
+/// assert_eq!(code.as_str(), "TIMEOUT");
+/// assert!(!suggested_action(code.as_str()).is_empty());
+/// ```
 pub enum ErrorCode {
     /// Handler execution exceeded its configured timeout.
     Timeout,
@@ -56,14 +65,41 @@ impl std::str::FromStr for ErrorCode {
     }
 }
 
+/// # Examples
+///
+/// ```rust
+/// use azums::jobs::error_codes::{suggested_action, ErrorCode};
+///
+/// let code = ErrorCode::from_str("TIMEOUT");
+/// assert_eq!(code.as_str(), "TIMEOUT");
+/// assert!(!suggested_action(code.as_str()).is_empty());
+/// ```
 impl ErrorCode {
     #[allow(clippy::should_implement_trait)]
     /// Parses an error code, returning [`ErrorCode::Unknown`] for unrecognized text.
+    /// # Examples
+    ///
+    /// ```rust
+    /// use azums::jobs::error_codes::{suggested_action, ErrorCode};
+    ///
+    /// let code = ErrorCode::from_str("TIMEOUT");
+    /// assert_eq!(code.as_str(), "TIMEOUT");
+    /// assert!(!suggested_action(code.as_str()).is_empty());
+    /// ```
     pub fn from_str(s: &str) -> Self {
         s.parse().unwrap_or(Self::Unknown)
     }
 
     /// Returns the canonical uppercase representation stored in error records.
+    /// # Examples
+    ///
+    /// ```rust
+    /// use azums::jobs::error_codes::{suggested_action, ErrorCode};
+    ///
+    /// let code = ErrorCode::from_str("TIMEOUT");
+    /// assert_eq!(code.as_str(), "TIMEOUT");
+    /// assert!(!suggested_action(code.as_str()).is_empty());
+    /// ```
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Timeout => "TIMEOUT",
@@ -85,6 +121,15 @@ impl ErrorCode {
 }
 
 /// Returns concise operator guidance for a machine-readable failure code.
+/// # Examples
+///
+/// ```rust
+/// use azums::jobs::error_codes::{suggested_action, ErrorCode};
+///
+/// let code = ErrorCode::from_str("TIMEOUT");
+/// assert_eq!(code.as_str(), "TIMEOUT");
+/// assert!(!suggested_action(code.as_str()).is_empty());
+/// ```
 pub fn suggested_action(code: &str) -> &'static str {
     match ErrorCode::from_str(code) {
         ErrorCode::Timeout => {

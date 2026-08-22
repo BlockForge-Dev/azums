@@ -1,9 +1,21 @@
-use chrono::{DateTime, Utc};
+﻿use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::PgPool;
 
 #[derive(Debug, Serialize)]
 /// Point-in-time PostgreSQL queue health and throughput summary.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::MetricsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let metrics = MetricsRepo::new(pool);
+/// let _ = metrics;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub struct Metrics {
     /// Time at which the snapshot was calculated.
     pub at: DateTime<Utc>,
@@ -26,17 +38,65 @@ pub struct Metrics {
 
 #[derive(Clone)]
 /// PostgreSQL repository for queue-level operational metrics.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::MetricsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let metrics = MetricsRepo::new(pool);
+/// let _ = metrics;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub struct MetricsRepo {
     pool: PgPool,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::MetricsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let metrics = MetricsRepo::new(pool);
+/// let _ = metrics;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 impl MetricsRepo {
     /// Creates a metrics repository backed by `pool`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::MetricsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let metrics = MetricsRepo::new(pool);
+    /// let _ = metrics;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
     /// Returns one metrics snapshot for every known queue.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::MetricsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let metrics = MetricsRepo::new(pool);
+    /// let _ = metrics;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn snapshot_all(&self) -> anyhow::Result<Vec<Metrics>> {
         let queues: Vec<String> = sqlx::query_scalar(
             r#"
@@ -57,6 +117,18 @@ impl MetricsRepo {
     }
 
     /// Calculates a metrics snapshot for one queue.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::MetricsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let metrics = MetricsRepo::new(pool);
+    /// let _ = metrics;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn snapshot_for_queue(&self, queue: &str) -> anyhow::Result<Metrics> {
         // Depth (runnable queued)
         let depth: i64 = sqlx::query_scalar(

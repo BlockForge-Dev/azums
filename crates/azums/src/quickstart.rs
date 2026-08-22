@@ -1,4 +1,4 @@
-use crate::{
+﻿use crate::{
     backend::PostgresBackend,
     jobs::{
         model::{Job, NewJob},
@@ -24,6 +24,15 @@ pub type Client = QuickstartFlow;
 ///
 /// `QuickstartFlow` manages job enqueueing, handler registration, background worker leasing loops,
 /// and the optional Axum admin web console through an abstract [`StorageBackend`].
+/// # Examples
+///
+/// ```rust,no_run
+/// # async fn example() -> anyhow::Result<()> {
+/// let client = azums::quickstart("memory").await?;
+/// assert_eq!(client.queue(), "default");
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone)]
 pub struct QuickstartFlow {
     backend: Arc<dyn StorageBackend>,
@@ -35,8 +44,26 @@ pub struct QuickstartFlow {
     retry_cfg: RetryConfig,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// # async fn example() -> anyhow::Result<()> {
+/// let client = azums::quickstart("memory").await?;
+/// assert_eq!(client.queue(), "default");
+/// # Ok(())
+/// # }
+/// ```
 impl QuickstartFlow {
     /// Creates a `QuickstartFlow` wrapping a custom [`StorageBackend`].
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(backend: Arc<dyn StorageBackend>) -> Self {
         let queue = std::env::var("AZUMS_QUEUE").unwrap_or_else(|_| "default".to_string());
         let worker_id =
@@ -58,66 +85,174 @@ impl QuickstartFlow {
     }
 
     /// Sets the target queue name for this [`QuickstartFlow`] worker.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_queue(mut self, queue: impl Into<String>) -> Self {
         self.queue = queue.into();
         self
     }
 
     /// Sets the unique worker ID string for this [`QuickstartFlow`].
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_worker_id(mut self, worker_id: impl Into<String>) -> Self {
         self.worker_id = worker_id.into();
         self
     }
 
     /// Sets the lease lock duration in seconds for leased jobs.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_lease_seconds(mut self, lease_seconds: i64) -> Self {
         self.lease_seconds = lease_seconds.max(1);
         self
     }
 
     /// Configures queue options (such as [`QueueOrdering`](azums_core::QueueOrdering)) for a specified queue.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn configure_queue(&self, queue: impl Into<String>, config: azums_core::QueueConfig) {
         let mut configs = self.queue_configs.write().await;
         configs.insert(queue.into(), config);
     }
 
     /// Returns the active [`QueueConfig`](azums_core::QueueConfig) for a specified queue (defaults to FIFO).
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn get_queue_config(&self, queue: &str) -> azums_core::QueueConfig {
         let configs = self.queue_configs.read().await;
         configs.get(queue).cloned().unwrap_or_default()
     }
 
     /// Returns reference to the underlying [`StorageBackend`].
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn backend(&self) -> &Arc<dyn StorageBackend> {
         &self.backend
     }
 
     /// Returns the default queue name used by this client.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn queue(&self) -> &str {
         &self.queue
     }
 
     /// Returns the worker identity used by this client when running jobs.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn worker_id(&self) -> &str {
         &self.worker_id
     }
 
     /// Returns the storage guarantees and feature support declared by the active backend.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn capabilities(&self) -> azums_core::BackendCapabilities {
         self.backend.capabilities()
     }
 
     /// Returns the backend's detailed semantic capability profile.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn semantic_capabilities(&self) -> Option<azums_core::BackendSemanticCapabilities> {
         self.backend.semantic_capabilities()
     }
 
     /// Fetches a job by ID for simple inspection and debugging.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {
         self.backend.get_job(job_id).await
     }
 
     /// Replays a previously stored job into the queue.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn replay_job(&self, job_id: Uuid) -> anyhow::Result<Uuid> {
         self.backend.replay_job(job_id, None, None).await
     }
@@ -126,6 +261,15 @@ impl QuickstartFlow {
     ///
     /// Backends with native observability return attempt history and latency data. Other backends
     /// fall back to the current durable job row so callers still get stable fields.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn explain_job(
         &self,
         job_id: Uuid,
@@ -138,6 +282,15 @@ impl QuickstartFlow {
     }
 
     /// Returns queue-level metrics using backend-native counters where available.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn queue_metrics(
         &self,
         queue: Option<&str>,
@@ -150,11 +303,29 @@ impl QuickstartFlow {
     }
 
     /// Returns metrics for all queues visible to this client.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn metrics_snapshot(&self) -> anyhow::Result<Vec<azums_core::QueueMetrics>> {
         self.queue_metrics(None).await
     }
 
     /// Builds one structured log event for the latest known state of a job.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn job_log_event(&self, job_id: Uuid) -> anyhow::Result<Option<serde_json::Value>> {
         let Some(explanation) = self.explain_job(job_id).await? else {
             return Ok(None);
@@ -221,6 +392,15 @@ impl QuickstartFlow {
     }
 
     /// Returns a [`StreamHandle`](crate::StreamHandle) for high-level Redis-style stream log operations.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn stream(&self, name: impl Into<String>) -> crate::stream_handle::StreamHandle {
         crate::stream_handle::StreamHandle::new(self.backend.clone(), name)
     }
@@ -245,6 +425,15 @@ impl QuickstartFlow {
     }
 
     /// Enqueues multiple jobs in a batch into the queue backend.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn enqueue_batch(
         &self,
         jobs: impl IntoIterator<Item = impl Into<NewJob>>,
@@ -257,6 +446,15 @@ impl QuickstartFlow {
     }
 
     /// Cancels a queued/scheduled job or a running job owned by `worker_id`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn cancel_job(&self, job_id: Uuid, worker_id: Option<&str>) -> anyhow::Result<()> {
         self.backend.cancel_job(job_id, worker_id).await
     }
@@ -291,6 +489,15 @@ impl QuickstartFlow {
     }
 
     /// Registers a trait-based [`JobProcessor`](azums_core::JobProcessor) for a specific `job_type`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn register_processor<P>(&self, job_type: impl Into<String>, processor: P)
     where
         P: azums_core::JobProcessor + 'static,
@@ -304,11 +511,29 @@ impl QuickstartFlow {
     }
 
     /// Gracefully shuts down background resources and connections.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn shutdown(&self) -> anyhow::Result<()> {
         Ok(())
     }
 
     /// Performs database maintenance operations (such as PostgreSQL `VACUUM ANALYZE` or SQLite `PRAGMA incremental_vacuum`).
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn perform_maintenance(&self) -> anyhow::Result<()> {
         self.backend.perform_maintenance().await
     }
@@ -334,6 +559,15 @@ impl QuickstartFlow {
     }
 
     /// Starts the in-process worker polling loop with a `CancellationToken` for graceful shutdown.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = azums::quickstart("memory").await?;
+    /// assert_eq!(client.queue(), "default");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn run_with_shutdown(
         &self,
         shutdown_token: tokio_util::sync::CancellationToken,

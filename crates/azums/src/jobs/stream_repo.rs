@@ -1,17 +1,53 @@
-use azums_core::{
+﻿use azums_core::{
     backend::NotificationStream,
     model::{ConsumerGroupStatus, Event, NewEvent},
 };
 use sqlx::PgPool;
 
 /// Repository providing PostgreSQL transactional event streaming operations.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::jobs::stream_repo::StreamRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let stream = StreamRepo::new(pool);
+/// let _ = stream;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 #[derive(Clone)]
 pub struct StreamRepo {
     pool: PgPool,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::jobs::stream_repo::StreamRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let stream = StreamRepo::new(pool);
+/// let _ = stream;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 impl StreamRepo {
     /// Creates a new `StreamRepo` wrapping a SQLx PostgreSQL connection pool.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::jobs::stream_repo::StreamRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let stream = StreamRepo::new(pool);
+    /// let _ = stream;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -31,6 +67,18 @@ impl StreamRepo {
     }
 
     /// Appends a new event into `stream_events` and issues PostgreSQL `NOTIFY`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::jobs::stream_repo::StreamRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let stream = StreamRepo::new(pool);
+    /// let _ = stream;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn publish(&self, stream: &str, event: NewEvent) -> anyhow::Result<i64> {
         let seq = sqlx::query_scalar::<_, i64>(
             r#"
@@ -55,6 +103,18 @@ impl StreamRepo {
     }
 
     /// Subscribes to PostgreSQL `LISTEN` events for stream updates.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::jobs::stream_repo::StreamRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let stream = StreamRepo::new(pool);
+    /// let _ = stream;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn subscribe_stream(
         &self,
         stream: &str,
@@ -75,6 +135,18 @@ impl StreamRepo {
     }
 
     /// Acknowledges processed sequence number up to `seq` for a consumer group.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::jobs::stream_repo::StreamRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let stream = StreamRepo::new(pool);
+    /// let _ = stream;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn ack(&self, stream: &str, consumer_group: &str, seq: i64) -> anyhow::Result<()> {
         sqlx::query(
             r#"
@@ -95,6 +167,18 @@ impl StreamRepo {
     }
 
     /// Reads events from a stream log with sequence numbers strictly greater than `after_seq`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::jobs::stream_repo::StreamRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let stream = StreamRepo::new(pool);
+    /// let _ = stream;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn read_events(
         &self,
         stream: &str,
@@ -120,6 +204,18 @@ impl StreamRepo {
     }
 
     /// Prunes retained stream events without deleting entries needed by known consumer groups.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::jobs::stream_repo::StreamRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let stream = StreamRepo::new(pool);
+    /// let _ = stream;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn prune_events(&self, stream: &str, through_seq: i64) -> anyhow::Result<u64> {
         let res = sqlx::query(
             r#"
@@ -147,6 +243,18 @@ impl StreamRepo {
     }
 
     /// Returns offset status for consumer groups registered on a stream log.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::jobs::stream_repo::StreamRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let stream = StreamRepo::new(pool);
+    /// let _ = stream;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn consumer_group_info(
         &self,
         stream: &str,

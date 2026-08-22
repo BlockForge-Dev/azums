@@ -1,20 +1,68 @@
-use chrono::{DateTime, Duration, Utc};
+﻿use chrono::{DateTime, Duration, Utc};
 use sqlx::PgPool;
 
 #[derive(Clone)]
 /// PostgreSQL repository for archival, history pruning, and table maintenance.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::MaintenanceRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let maintenance = MaintenanceRepo::new(pool);
+/// let _ = maintenance;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub struct MaintenanceRepo {
     pool: PgPool,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::MaintenanceRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let maintenance = MaintenanceRepo::new(pool);
+/// let _ = maintenance;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 impl MaintenanceRepo {
     /// Creates a maintenance repository backed by `pool`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::MaintenanceRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let maintenance = MaintenanceRepo::new(pool);
+    /// let _ = maintenance;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
     /// Move succeeded jobs older than `cutoff` into jobs_archive (idempotent).
     /// Returns number archived.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::MaintenanceRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let maintenance = MaintenanceRepo::new(pool);
+    /// let _ = maintenance;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn archive_succeeded_older_than(
         &self,
         cutoff: DateTime<Utc>,
@@ -106,6 +154,18 @@ impl MaintenanceRepo {
 
     /// Delete attempts + policy decisions for succeeded jobs older than `cutoff`.
     /// Returns (attempts_deleted, policy_deleted).
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::MaintenanceRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let maintenance = MaintenanceRepo::new(pool);
+    /// let _ = maintenance;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn delete_history_for_succeeded_older_than(
         &self,
         cutoff: DateTime<Utc>,
@@ -161,6 +221,18 @@ impl MaintenanceRepo {
     }
 
     /// Executes VACUUM ANALYZE on core job queue tables outside active transactions.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::MaintenanceRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let maintenance = MaintenanceRepo::new(pool);
+    /// let _ = maintenance;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn vacuum_analyze(&self) -> anyhow::Result<()> {
         let tables = [
             "jobs",
@@ -177,6 +249,18 @@ impl MaintenanceRepo {
     }
 
     /// Queries `pg_stat_user_tables` for dead tuple counts, live tuple counts, and vacuum timestamps.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::MaintenanceRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let maintenance = MaintenanceRepo::new(pool);
+    /// let _ = maintenance;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn get_maintenance_status(&self) -> anyhow::Result<Vec<TableMaintenanceInfo>> {
         let rows = sqlx::query_as::<_, TableMaintenanceInfo>(
             r#"
@@ -201,6 +285,18 @@ impl MaintenanceRepo {
 }
 
 /// Statistics and vacuum status metadata for a database table.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::MaintenanceRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let maintenance = MaintenanceRepo::new(pool);
+/// let _ = maintenance;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct TableMaintenanceInfo {
     /// PostgreSQL relation name.
@@ -220,6 +316,18 @@ pub struct TableMaintenanceInfo {
 }
 
 /// Convenience: compute cutoff like "now - N days"
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::MaintenanceRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let maintenance = MaintenanceRepo::new(pool);
+/// let _ = maintenance;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub fn cutoff_days(days: i64) -> DateTime<Utc> {
     Utc::now() - Duration::days(days)
 }

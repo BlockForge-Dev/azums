@@ -1,9 +1,21 @@
-use chrono::{DateTime, Utc};
+﻿use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 /// Durable record of one handler execution attempt.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::AttemptsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let attempts = AttemptsRepo::new(pool);
+/// let _ = attempts;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub struct JobAttempt {
     /// Unique attempt identifier.
     pub id: Uuid,
@@ -32,6 +44,18 @@ pub struct JobAttempt {
 }
 
 /// Persisted execution-attempt status.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::AttemptsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let attempts = AttemptsRepo::new(pool);
+/// let _ = attempts;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub enum AttemptStatus {
     /// Handler execution is in progress.
     Running,
@@ -41,8 +65,32 @@ pub enum AttemptStatus {
     Failed,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::AttemptsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let attempts = AttemptsRepo::new(pool);
+/// let _ = attempts;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 impl AttemptStatus {
     /// Returns the compact status stored by SQL backends.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::AttemptsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let attempts = AttemptsRepo::new(pool);
+    /// let _ = attempts;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn as_str(&self) -> &'static str {
         match self {
             AttemptStatus::Running => "running",
@@ -54,17 +102,65 @@ impl AttemptStatus {
 
 #[derive(Clone)]
 /// PostgreSQL repository for durable job-attempt history.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::AttemptsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let attempts = AttemptsRepo::new(pool);
+/// let _ = attempts;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub struct AttemptsRepo {
     pool: PgPool,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::AttemptsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let attempts = AttemptsRepo::new(pool);
+/// let _ = attempts;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 impl AttemptsRepo {
     /// Creates an attempt repository backed by `pool`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::AttemptsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let attempts = AttemptsRepo::new(pool);
+    /// let _ = attempts;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
     /// Insert attempt row as "running", auto-increment attempt_no per job.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::AttemptsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let attempts = AttemptsRepo::new(pool);
+    /// let _ = attempts;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn start_attempt(&self, job_id: Uuid, worker_id: &str) -> anyhow::Result<JobAttempt> {
         let dataset_id = sqlx::query_scalar::<_, String>(
             r#"
@@ -83,6 +179,18 @@ impl AttemptsRepo {
     }
 
     /// Insert attempt row as "running" when caller already knows dataset_id.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::AttemptsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let attempts = AttemptsRepo::new(pool);
+    /// let _ = attempts;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn start_attempt_for_dataset(
         &self,
         dataset_id: &str,
@@ -140,6 +248,18 @@ impl AttemptsRepo {
 
     /// Insert many "running" attempts in one round-trip.
     /// Returns tuples of (job_id, attempt_id, attempt_no).
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::AttemptsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let attempts = AttemptsRepo::new(pool);
+    /// let _ = attempts;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn start_attempts_batch(
         &self,
         dataset_ids: &[String],
@@ -205,6 +325,18 @@ impl AttemptsRepo {
     }
 
     /// Marks an attempt succeeded and records its final latency.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::AttemptsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let attempts = AttemptsRepo::new(pool);
+    /// let _ = attempts;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn finish_succeeded(&self, attempt_id: Uuid, latency_ms: i32) -> anyhow::Result<()> {
         let status = AttemptStatus::Succeeded.as_str();
 
@@ -227,6 +359,18 @@ impl AttemptsRepo {
     }
 
     /// Fast-path for successful batch execution: updates many attempts in one statement.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::AttemptsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let attempts = AttemptsRepo::new(pool);
+    /// let _ = attempts;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn finish_succeeded_batch(&self, updates: &[(Uuid, i32)]) -> anyhow::Result<()> {
         if updates.is_empty() {
             return Ok(());
@@ -261,6 +405,18 @@ impl AttemptsRepo {
     }
 
     /// Marks an attempt failed with its final latency and error details.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::AttemptsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let attempts = AttemptsRepo::new(pool);
+    /// let _ = attempts;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn finish_failed(
         &self,
         attempt_id: Uuid,
@@ -293,6 +449,18 @@ impl AttemptsRepo {
     }
 
     /// Lists a job's attempts in ascending attempt-number order.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::AttemptsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let attempts = AttemptsRepo::new(pool);
+    /// let _ = attempts;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn list_attempts_for_job(&self, job_id: Uuid) -> anyhow::Result<Vec<JobAttempt>> {
         let rows = sqlx::query_as::<_, JobAttempt>(
             r#"

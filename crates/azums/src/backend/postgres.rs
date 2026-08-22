@@ -1,4 +1,4 @@
-use async_trait::async_trait;
+﻿use async_trait::async_trait;
 use azums_core::{
     backend::{NotificationStream, StorageBackend, StreamBackend},
     model::{ConsumerGroupStatus, Event, Job, JobListItem, NewEvent, NewJob},
@@ -16,6 +16,18 @@ use crate::{
 };
 
 /// PostgreSQL implementation of [`StorageBackend`] using SQLx.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::PostgresBackend;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let backend = PostgresBackend::new(pool);
+/// assert!(!backend.pool().is_closed());
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 #[derive(Clone)]
 pub struct PostgresBackend {
     pool: PgPool,
@@ -25,8 +37,32 @@ pub struct PostgresBackend {
     stream_repo: StreamRepo,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::PostgresBackend;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let backend = PostgresBackend::new(pool);
+/// assert!(!backend.pool().is_closed());
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 impl PostgresBackend {
     /// Creates a new `PostgresBackend` from a SQLx connection pool.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PostgresBackend;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let backend = PostgresBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new(pool: PgPool) -> Self {
         Self {
             jobs_repo: JobsRepo::new(pool.clone()),
@@ -38,6 +74,18 @@ impl PostgresBackend {
     }
 
     /// Creates a new `PostgresBackend` with a pool and database connection URL for dedicated `LISTEN` sockets.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PostgresBackend;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let backend = PostgresBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new_with_url(pool: PgPool, database_url: impl Into<String>) -> Self {
         let url_str = database_url.into();
         Self {
@@ -50,31 +98,103 @@ impl PostgresBackend {
     }
 
     /// Returns reference to the underlying SQLx `PgPool`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PostgresBackend;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let backend = PostgresBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn pool(&self) -> &PgPool {
         &self.pool
     }
 
     /// Returns reference to the underlying `JobsRepo`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PostgresBackend;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let backend = PostgresBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn jobs_repo(&self) -> &JobsRepo {
         &self.jobs_repo
     }
 
     /// Returns reference to the underlying `AttemptsRepo`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PostgresBackend;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let backend = PostgresBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn attempts_repo(&self) -> &AttemptsRepo {
         &self.attempts_repo
     }
 
     /// Returns reference to the underlying `StreamRepo`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PostgresBackend;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let backend = PostgresBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn stream_repo(&self) -> &StreamRepo {
         &self.stream_repo
     }
 
     /// Returns reference to the underlying `MaintenanceRepo`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PostgresBackend;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let backend = PostgresBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn maintenance_repo(&self) -> &MaintenanceRepo {
         &self.maintenance_repo
     }
 
     /// Inserts a job using the caller's PostgreSQL transaction.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PostgresBackend;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let backend = PostgresBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn enqueue_in_tx(
         &self,
         tx: &mut Transaction<'_, Postgres>,

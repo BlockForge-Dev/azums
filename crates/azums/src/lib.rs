@@ -1,13 +1,15 @@
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg, rustdoc_missing_doc_code_examples))]
+#![cfg_attr(docsrs, deny(rustdoc::missing_doc_code_examples))]
 #![allow(clippy::double_must_use)]
 #![deny(missing_docs)]
 //! # Azums
 //!
-//! **High-performance job queue & streaming engine for Rust — from embedded to cloud.**
+//! **The durable execution layer for Rust.**
 //!
-//! `azums` delivers enterprise background job processing with ACID guarantees,
-//! row-level FOR UPDATE SKIP LOCKED leasing, dead-letter queues (DLQ), exponential backoff retries,
-//! and time-partitioned storage tables.
+//! `azums` turns ordinary async Rust handlers into recoverable, retryable, observable at-least-once
+//! execution across Memory, SQLite, PostgreSQL, and Redis. It manages persistence, scheduling,
+//! leases, heartbeats, attempts, retries, dead-letter handling, replay, and durable event streams
+//! without requiring a separate message broker.
 //!
 //! *Performance claims are benchmark-derived and reproducible through `azums-perf` and Criterion.*
 //! See [Live Benchmark Dashboard](https://blockforge-dev.github.io/azums/) for current measured results and conditions.
@@ -20,7 +22,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! azums = "0.2"
+//! azums = "1.0"
 //! tokio = { version = "1", features = ["full"] }
 //! serde = { version = "1", features = ["derive"] }
 //! ```
@@ -96,7 +98,7 @@ pub mod quickstart;
 /// High-level durable event stream handle.
 pub mod stream_handle;
 
-// ── Convenience re-exports (stable public API) ──
+// Convenience re-exports forming the stable public API.
 
 pub use azums_core::{
     semantic_contract, BackendCapabilities, BackendSemanticCapabilities, BackpressureCapability,

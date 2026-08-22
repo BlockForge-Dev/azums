@@ -1,4 +1,4 @@
-/// Application and worker runtime configuration loaded from environment variables or `.env`.
+﻿/// Application and worker runtime configuration loaded from environment variables or `.env`.
 ///
 /// Supported environment variables:
 /// - `DATABASE_URL`: Postgres database connection string (required).
@@ -13,6 +13,15 @@
 /// - `AZUMS_MIGRATE_ON_STARTUP`: Run SQL migrations automatically on startup (`1`/`0`).
 /// - `AZUMS_MAX_PAYLOAD_BYTES`: Maximum allowed job payload size in bytes (default: `262144` / 256KB).
 /// - `AZUMS_MAX_ENQUEUE_PER_MINUTE`: Maximum enqueues per minute per queue (default: `10000`).
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::Config;
+///
+/// let config = Config::from_env()?;
+/// assert!(config.lease_seconds > 0);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Clone, Debug)]
 pub struct Config {
     /// Storage connection URL used by the runtime.
@@ -45,6 +54,15 @@ pub struct Config {
     pub sqlite_incremental_vacuum_n: u64,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::Config;
+///
+/// let config = Config::from_env()?;
+/// assert!(config.lease_seconds > 0);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 impl Config {
     /// Loads configuration settings from environment variables and `.env`.
     ///

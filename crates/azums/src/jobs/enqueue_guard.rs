@@ -1,9 +1,9 @@
-//  this is like the security gate + baggage check at an airport before you enter the terminal (the jobs table).
+﻿//  this is like the security gate + baggage check at an airport before you enter the terminal (the jobs table).
 
-// If your bag is too big → you don’t enter.
+// If your bag is too big â†’ you donâ€™t enter.
 
-// If too many people are trying to enter at once → some are stopped to prevent stampede.
-// And every time someone is denied, the guard writes it down in a logbook table (ingest_decisions) so you can prove later: “we denied this for reason X”.
+// If too many people are trying to enter at once â†’ some are stopped to prevent stampede.
+// And every time someone is denied, the guard writes it down in a logbook table (ingest_decisions) so you can prove later: â€œwe denied this for reason Xâ€.
 
 use chrono::{DateTime, Timelike, Utc};
 use serde_json::json;
@@ -13,6 +13,19 @@ use crate::jobs::ingest_decisions::IngestDecisionsRepo;
 
 #[derive(Clone, Debug)]
 /// Limits applied before a PostgreSQL enqueue is admitted.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::{EnqueueGuard, EnqueueGuardConfig, IngestDecisionsRepo};
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let decisions = IngestDecisionsRepo::new(pool.clone());
+/// let guard = EnqueueGuard::new(pool, decisions, EnqueueGuardConfig::default());
+/// assert_eq!(guard.max_payload_bytes(), 256 * 1024);
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub struct EnqueueGuardConfig {
     /// Maximum accepted serialized payload size in bytes.
     pub max_payload_bytes: usize,
@@ -31,6 +44,19 @@ impl Default for EnqueueGuardConfig {
 
 /// Enqueue-time protection: payload-size + enqueue rate limiting.
 /// Writes ingest_decisions rows for denials so Law 4 is provable without logs.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::{EnqueueGuard, EnqueueGuardConfig, IngestDecisionsRepo};
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let decisions = IngestDecisionsRepo::new(pool.clone());
+/// let guard = EnqueueGuard::new(pool, decisions, EnqueueGuardConfig::default());
+/// assert_eq!(guard.max_payload_bytes(), 256 * 1024);
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 #[derive(Clone)]
 pub struct EnqueueGuard {
     pool: PgPool,
@@ -38,8 +64,34 @@ pub struct EnqueueGuard {
     cfg: EnqueueGuardConfig,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::{EnqueueGuard, EnqueueGuardConfig, IngestDecisionsRepo};
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let decisions = IngestDecisionsRepo::new(pool.clone());
+/// let guard = EnqueueGuard::new(pool, decisions, EnqueueGuardConfig::default());
+/// assert_eq!(guard.max_payload_bytes(), 256 * 1024);
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 impl EnqueueGuard {
     /// Creates a guard using the database, audit repository, and limits supplied.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{EnqueueGuard, EnqueueGuardConfig, IngestDecisionsRepo};
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let decisions = IngestDecisionsRepo::new(pool.clone());
+    /// let guard = EnqueueGuard::new(pool, decisions, EnqueueGuardConfig::default());
+    /// assert_eq!(guard.max_payload_bytes(), 256 * 1024);
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new(pool: PgPool, decisions: IngestDecisionsRepo, cfg: EnqueueGuardConfig) -> Self {
         Self {
             pool,
@@ -49,11 +101,37 @@ impl EnqueueGuard {
     }
 
     /// Returns the configured payload-size limit in bytes.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{EnqueueGuard, EnqueueGuardConfig, IngestDecisionsRepo};
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let decisions = IngestDecisionsRepo::new(pool.clone());
+    /// let guard = EnqueueGuard::new(pool, decisions, EnqueueGuardConfig::default());
+    /// assert_eq!(guard.max_payload_bytes(), 256 * 1024);
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn max_payload_bytes(&self) -> usize {
         self.cfg.max_payload_bytes
     }
 
     /// Rejects an oversized payload and records the denial decision.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{EnqueueGuard, EnqueueGuardConfig, IngestDecisionsRepo};
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let decisions = IngestDecisionsRepo::new(pool.clone());
+    /// let guard = EnqueueGuard::new(pool, decisions, EnqueueGuardConfig::default());
+    /// assert_eq!(guard.max_payload_bytes(), 256 * 1024);
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn check_payload(&self, queue: &str, payload_bytes: usize) -> anyhow::Result<()> {
         if payload_bytes > self.cfg.max_payload_bytes {
             let _ = self
@@ -74,6 +152,19 @@ impl EnqueueGuard {
     }
 
     /// Atomically increments the queue's minute counter and rejects excess production.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{EnqueueGuard, EnqueueGuardConfig, IngestDecisionsRepo};
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let decisions = IngestDecisionsRepo::new(pool.clone());
+    /// let guard = EnqueueGuard::new(pool, decisions, EnqueueGuardConfig::default());
+    /// assert_eq!(guard.max_payload_bytes(), 256 * 1024);
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn check_rate(&self, queue: &str) -> anyhow::Result<()> {
         let now = Utc::now();
         let window_start =
@@ -94,8 +185,8 @@ impl EnqueueGuard {
         .bind(queue)
         .bind(window_start)
         .fetch_one(&mut *tx)
-        //SQLx treats the transaction as an executor (like a “connection handle” you can run queries on).
-        // Running a query through a transaction requires mutable access to that transaction object, because the transaction’s internal state is being used/advanced
+        //SQLx treats the transaction as an executor (like a â€œconnection handleâ€ you can run queries on).
+        // Running a query through a transaction requires mutable access to that transaction object, because the transactionâ€™s internal state is being used/advanced
         .await?;
 
         if count > self.cfg.max_enqueues_per_minute_per_queue {

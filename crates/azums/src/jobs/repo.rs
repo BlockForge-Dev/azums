@@ -1,4 +1,4 @@
-// crates/azums/src/jobs/repo.rs
+﻿// crates/azums/src/jobs/repo.rs
 
 use crate::jobs::model::{Job, JobListItem, JobStatus, NewJob};
 use chrono::{DateTime, Utc};
@@ -10,14 +10,50 @@ use uuid::Uuid;
 ///
 /// Handles enqueueing, transactional batch leasing (`SKIP LOCKED`), execution completion,
 /// re-scheduling retries, moving jobs to DLQ, and replay.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::JobsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let jobs = JobsRepo::new(pool);
+/// let _ = jobs;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 #[derive(Clone)]
 pub struct JobsRepo {
     pool: PgPool,
     database_url: Option<String>,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::JobsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let jobs = JobsRepo::new(pool);
+/// let _ = jobs;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 impl JobsRepo {
     /// Creates a new `JobsRepo` wrapping a SQLx PostgreSQL connection pool.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new(pool: PgPool) -> Self {
         Self {
             pool,
@@ -26,6 +62,18 @@ impl JobsRepo {
     }
 
     /// Creates a new `JobsRepo` with a dedicated `database_url` for unpooled `LISTEN` connections.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new_with_url(pool: PgPool, database_url: impl Into<String>) -> Self {
         Self {
             pool,
@@ -152,6 +200,18 @@ impl JobsRepo {
     /// Use this when an application state mutation and job enqueue must commit or roll back
     /// together. The `pg_notify` call is executed inside the same transaction, so PostgreSQL only
     /// delivers the wake-up notification if the transaction commits.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn enqueue_in_tx(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -316,6 +376,18 @@ impl JobsRepo {
     // ----------------------------
 
     /// Fetches a single [`Job`] record by primary key `job_id`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn get_job(&self, job_id: Uuid) -> anyhow::Result<Option<Job>> {
         let job = sqlx::query_as::<_, Job>("SELECT * FROM jobs WHERE id = $1")
             .bind(job_id)
@@ -325,6 +397,18 @@ impl JobsRepo {
     }
 
     /// Extends the lock expiration timestamp for a running job.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn extend_lease(
         &self,
         job_id: Uuid,
@@ -357,6 +441,18 @@ impl JobsRepo {
     ///
     /// - queue/status are optional filters
     /// - limit is clamped to [1, 500]
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn list_jobs(
         &self,
         queue: Option<&str>,
@@ -548,6 +644,18 @@ impl JobsRepo {
     // ----------------------------
 
     /// Returns: (queued, running, succeeded_last_60s, failed_or_dlq_last_60s)
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn metrics_snapshot(&self) -> anyhow::Result<(i64, i64, i64, i64)> {
         let queued: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs WHERE status = 'queued'")
             .fetch_one(&self.pool)
@@ -596,6 +704,18 @@ impl JobsRepo {
     /// - write a row into policy_decisions
     /// - reschedule one candidate slightly (throttle_delay_ms)
     /// - return an empty batch
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn lease_jobs_batch(
         &self,
         queue: &str,
@@ -614,6 +734,18 @@ impl JobsRepo {
     }
 
     /// Lease up to `batch_size` runnable jobs for this worker using specified [`azums_core::QueueOrdering`].
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn lease_jobs_batch_with_ordering(
         &self,
         queue: &str,
@@ -895,6 +1027,18 @@ impl JobsRepo {
     }
 
     /// Compatibility helper for call sites/tests that still lease one-by-one.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn lease_one_job(
         &self,
         queue: &str,
@@ -912,6 +1056,18 @@ impl JobsRepo {
     // ----------------------------
 
     /// Fails active attempts whose leases expired, clears ownership, and requeues their jobs.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn reap_expired_locks(&self) -> anyhow::Result<u64> {
         let mut tx = self.pool.begin().await?;
 
@@ -986,6 +1142,18 @@ impl JobsRepo {
     // ----------------------------
 
     /// Fast-path for successful batch execution: transitions many jobs in one statement.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn mark_succeeded_batch(
         &self,
         job_ids: &[Uuid],
@@ -1025,6 +1193,18 @@ impl JobsRepo {
     }
 
     /// Dataset-aware fast-path for partition-pruned successful batch updates.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn mark_succeeded_batch_for_dataset(
         &self,
         dataset_id: &str,
@@ -1067,6 +1247,18 @@ impl JobsRepo {
     }
 
     /// Completes a running job only when `worker_id` owns its active lease.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn mark_succeeded(&self, job_id: Uuid, worker_id: &str) -> anyhow::Result<()> {
         let res = sqlx::query(
             r#"
@@ -1095,6 +1287,18 @@ impl JobsRepo {
     }
 
     /// Returns a running job to queued retry wait with its latest error and eligibility time.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn reschedule_for_retry(
         &self,
         job_id: Uuid,
@@ -1133,6 +1337,18 @@ impl JobsRepo {
     }
 
     /// Applies the legacy failed status to a running job owned by `worker_id`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn mark_failed(
         &self,
         job_id: Uuid,
@@ -1171,6 +1387,18 @@ impl JobsRepo {
     }
 
     /// Moves a running job owned by `worker_id` into the terminal dead-letter queue.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn mark_dlq(
         &self,
         job_id: Uuid,
@@ -1213,6 +1441,18 @@ impl JobsRepo {
     }
 
     /// Cancels queued work or running work owned by the supplied worker.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn cancel_job(&self, job_id: Uuid, worker_id: Option<&str>) -> anyhow::Result<()> {
         let mut tx = self.pool.begin().await?;
 
@@ -1294,6 +1534,18 @@ impl JobsRepo {
     // ----------------------------
 
     /// Creates a new queued job from retained history and records replay lineage.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn replay_job(
         &self,
         job_id: Uuid,
@@ -1362,6 +1614,18 @@ impl JobsRepo {
     }
 
     /// Subscribes to PostgreSQL `LISTEN` events for job enqueueing on a channel named `azums_job_enqueued_<queue>`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::JobsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let jobs = JobsRepo::new(pool);
+    /// let _ = jobs;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn subscribe(&self, queue: &str) -> anyhow::Result<azums_core::NotificationStream> {
         use sqlx::postgres::PgListener;
         use tokio_stream::StreamExt;

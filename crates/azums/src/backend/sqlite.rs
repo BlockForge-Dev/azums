@@ -1,4 +1,4 @@
-use async_trait::async_trait;
+﻿use async_trait::async_trait;
 use azums_core::{
     backend::{NotificationStream, StorageBackend, StreamBackend},
     model::{ConsumerGroupStatus, Event, Job, JobListItem, NewEvent, NewJob},
@@ -16,6 +16,18 @@ use std::{
 use uuid::Uuid;
 
 /// Constructs a SQLite connection pool tuned for single-writer concurrency (WAL mode, 5s busy timeout).
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::{make_sqlite_pool, SqliteBackend};
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let pool = make_sqlite_pool("sqlite::memory:").await?;
+/// let backend = SqliteBackend::new(pool);
+/// assert!(!backend.pool().is_closed());
+/// # Ok(())
+/// # }
+/// ```
 pub async fn make_sqlite_pool(database_url: &str) -> anyhow::Result<SqlitePool> {
     let options = SqliteConnectOptions::from_str(database_url)?
         .create_if_missing(true)
@@ -34,6 +46,18 @@ pub async fn make_sqlite_pool(database_url: &str) -> anyhow::Result<SqlitePool> 
 }
 
 /// SQLite implementation of [`StorageBackend`] optimized for embedded, zero-network environments.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::{make_sqlite_pool, SqliteBackend};
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let pool = make_sqlite_pool("sqlite::memory:").await?;
+/// let backend = SqliteBackend::new(pool);
+/// assert!(!backend.pool().is_closed());
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone)]
 pub struct SqliteBackend {
     pool: SqlitePool,
@@ -43,13 +67,49 @@ pub struct SqliteBackend {
     incremental_vacuum_n: u64,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::{make_sqlite_pool, SqliteBackend};
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let pool = make_sqlite_pool("sqlite::memory:").await?;
+/// let backend = SqliteBackend::new(pool);
+/// assert!(!backend.pool().is_closed());
+/// # Ok(())
+/// # }
+/// ```
 impl SqliteBackend {
     /// Creates a new `SqliteBackend` wrapping a SQLx `SqlitePool`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{make_sqlite_pool, SqliteBackend};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let pool = make_sqlite_pool("sqlite::memory:").await?;
+    /// let backend = SqliteBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(pool: SqlitePool) -> Self {
         Self::with_vacuum_n(pool, 100)
     }
 
     /// Creates a new `SqliteBackend` with a custom incremental vacuum threshold N.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{make_sqlite_pool, SqliteBackend};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let pool = make_sqlite_pool("sqlite::memory:").await?;
+    /// let backend = SqliteBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_vacuum_n(pool: SqlitePool, incremental_vacuum_n: u64) -> Self {
         Self {
             pool,
@@ -61,6 +121,18 @@ impl SqliteBackend {
     }
 
     /// Returns reference to the underlying `SqlitePool`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{make_sqlite_pool, SqliteBackend};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let pool = make_sqlite_pool("sqlite::memory:").await?;
+    /// let backend = SqliteBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
     }
@@ -84,6 +156,18 @@ impl SqliteBackend {
     /// Use this when application data and queued work live in the same SQLite database and must
     /// commit or roll back together. This method does not emit an immediate wake-up notification;
     /// SQLite workers still use interval fallback and storage state as the source of truth.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{make_sqlite_pool, SqliteBackend};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let pool = make_sqlite_pool("sqlite::memory:").await?;
+    /// let backend = SqliteBackend::new(pool);
+    /// assert!(!backend.pool().is_closed());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn enqueue_in_tx(
         &self,
         tx: &mut Transaction<'_, Sqlite>,

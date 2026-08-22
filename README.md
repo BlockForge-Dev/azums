@@ -1,105 +1,78 @@
-
-# Azums 🦀⚡
+# Azums
 
 [![Crates.io](https://img.shields.io/crates/v/azums.svg)](https://crates.io/crates/azums)
 [![Docs.rs](https://docs.rs/azums/badge.svg)](https://docs.rs/azums)
-[![📊 Live Benchmarks](https://img.shields.io/badge/%F0%9F%93%8A_Live_Benchmarks-Dashboard-blue)](https://blockforge-dev.github.io/azums/)
-[![Durable Execution](https://img.shields.io/badge/Rust-Durable_Execution_Layer-brightgreen)](./docs/src/semantics.md)
 [![CI Status](https://github.com/BlockForge-Dev/azums/actions/workflows/ci.yml/badge.svg)](https://github.com/BlockForge-Dev/azums/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](https://github.com/BlockForge-Dev/azums#license)
+[![Live Benchmarks](https://img.shields.io/badge/benchmarks-live-blue)](https://blockforge-dev.github.io/azums/)
+[![Execution Semantics](https://img.shields.io/badge/contract-execution_semantics-brightgreen)](./docs/src/semantics.md)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 > **The durable execution layer for Rust.**
-> Run important async Rust functions outside the immediate request path without introducing a separate message broker.
+> Run important asynchronous Rust functions outside the immediate request path without requiring a separate message broker.
 
-Azums is an embedded execution runtime for Rust applications.
+Azums is an embedded execution runtime for Rust applications. Applications register ordinary async
+handlers; Azums manages the execution lifecycle around them: persistence, scheduling, claiming,
+leases, heartbeats, attempts, retries, crash recovery, dead-letter handling, replay, event streams,
+and observability.
 
-Applications register ordinary async Rust handlers. Azums takes responsibility for the execution lifecycle around those handlers: persistence, scheduling, claiming, leasing, heartbeats, retries, crash recovery, dead-letter handling, replay, execution history, and observability.
+Use the storage environment that fits the deployment:
 
-It runs on the storage environment that fits your application:
+- **Memory** for tests and ephemeral work.
+- **SQLite** for embedded, desktop, CLI, edge, and single-binary applications.
+- **PostgreSQL** for durable transactions and distributed workers.
+- **Redis** for Redis-native distributed deployments.
 
-* **Memory** for tests and ephemeral workloads
-* **SQLite** for embedded, desktop, CLI, edge, and single-binary applications
-* **PostgreSQL** for durable transactional applications and distributed workers
-* **Redis** for Redis-native distributed deployments
+The handler model remains portable. Backend capabilities remain explicit.
 
-You do **not** need Redis, Kafka, RabbitMQ, or another broker just to execute background Rust functions reliably.
-
-If your architecture already uses Redis, Azums can use it. If your application already depends on PostgreSQL, Azums can keep execution state there. If you are building an embedded application, SQLite is enough.
-
-The programming model remains the same while the operational capabilities of each backend remain explicit.
-
----
+Azums provides **at-least-once execution**. It does not guarantee exactly-once execution or
+exactly-once external side effects.
 
 ## Why Azums Exists
 
-Rust applications frequently need to perform work after the operation that requested it has finished:
+Rust applications regularly need to do work after the operation that requested it has finished:
 
-* send an email after creating an account
-* process a payment webhook
-* call an unreliable external API
-* generate reports or exports
-* index documents after a database mutation
-* process uploaded media
-* execute long-running AI inference or tool workflows
-* process telemetry from edge devices
-* schedule work for later
-* publish durable events
-* rebuild projections from event history
+- send email after account creation
+- process payment webhooks
+- call unreliable external APIs
+- generate reports and exports
+- index documents after database mutations
+- process media uploads
+- run AI inference or tool workflows
+- defer telemetry synchronization on an edge device
+- schedule work for later
+- publish and replay durable events
 
-You can use `tokio::spawn`:
+`tokio::spawn` attaches that work to the lifetime of the current process:
 
 ```text
-request
-   |
-   v
-tokio::spawn(handler())
+request -> tokio::spawn(handler()) -> process exits -> future disappears
 ```
 
-but the task belongs to the lifetime of that process.
-
-If the process disappears, so does the in-memory future.
-
-Azums changes the model:
+Azums persists execution intent and controls what happens next:
 
 ```text
 application
     |
-    | submit durable work
     v
-  Azums
+persist execution intent
     |
-    +--> persist execution intent
-    |
-    +--> lease to worker
-    |
-    +--> run handler
-    |
-    +--> heartbeat ownership
-    |
-    +--> record attempt
-    |
-    +--> complete
-    |
-    +--> retry after failure
-    |
-    +--> recover after worker loss
-    |
-    +--> DLQ when execution cannot continue
+    v
+claim -> lease -> heartbeat -> attempt -> handler -> ACK
+                                    |
+                                    +-> retry
+                                    +-> cancel
+                                    +-> DLQ
 ```
 
-The central idea is:
+The central idea is simple:
 
-> **Failure should not silently erase an important execution.**
+> **Failure should not silently erase important work.**
 
-Once durable work is successfully accepted, Azums retains responsibility for its execution lifecycle until it reaches a defined terminal outcome, subject to the guarantees of the selected backend and worker availability.
+Once a durable backend accepts committed work, Azums keeps its lifecycle recoverable until a
+defined terminal outcome, subject to the selected backend's declared capabilities and worker
+availability.
 
-Azums provides **at-least-once execution**, not exactly-once external side effects.
-
----
-
-## ⚡ Quickstart
-
-Add Azums:
+## Quickstart
 
 ```toml
 [dependencies]
@@ -109,7 +82,7 @@ serde_json = "1"
 anyhow = "1"
 ```
 
-Register a handler, enqueue work, and execute it:
+Register a handler, enqueue work, execute it, and inspect the result:
 
 ```rust
 use azums::{quickstart, Job};
@@ -128,58 +101,60 @@ async fn main() -> anyhow::Result<()> {
 
     let job_id = client
         .enqueue(
-            Job::new(
-                "greet",
-                serde_json::json!({ "name": "World" }),
-            )
-            .queue("default")
-            .max_attempts(5)
-            .idempotency_key("greet:world"),
+            Job::new("greet", serde_json::json!({ "name": "World" }))
+                .queue("default")
+                .max_attempts(5)
+                .idempotency_key("greet:world"),
         )
         .await?;
 
     client.run_until_empty().await?;
 
-    println!("{:?}", client.explain_job(job_id).await?);
+    if let Some(explanation) = client.explain_job(job_id).await? {
+        println!("{}", explanation.summary);
+    }
 
     Ok(())
 }
 ```
 
-The same handler model works across supported storage environments:
-
-```rust
-let memory = quickstart("memory").await?;
-
-let sqlite =
-    quickstart("sqlite://jobs.db?mode=rwc").await?;
-
-let postgres =
-    quickstart("postgres://user:pass@localhost/app").await?;
-
-let redis =
-    quickstart("redis://127.0.0.1:6379").await?;
-```
-
-The API is portable.
-
-The guarantees are not assumed to be identical.
-
-Azums exposes backend differences through `BackendCapabilities`.
-
-For the progressive install → enqueue → process → retry → inspect path:
+Run the complete install, enqueue, process, retry, and inspect example:
 
 ```bash
 cargo run -p azums --example install_enqueue_process_retry_inspect
 ```
 
-Then read [Developer Experience & Integration](./docs/src/developer_experience.md).
+Change only the connection URL to select a backend:
 
----
+```rust,no_run
+# async fn example() -> anyhow::Result<()> {
+let memory = azums::quickstart("memory").await?;
+let sqlite = azums::quickstart("sqlite://jobs.db?mode=rwc").await?;
+let postgres = azums::quickstart("postgres://user:pass@localhost/app").await?;
+let redis = azums::quickstart("redis://127.0.0.1:6379").await?;
+# Ok(())
+# }
+```
 
-## 🧠 The Execution Model
+Portable API does not mean identical operational guarantees. Inspect requirements at startup:
 
-Azums is built around a controlled execution lifecycle:
+```rust,no_run
+# async fn example() -> anyhow::Result<()> {
+let client = azums::quickstart(std::env::var("DATABASE_URL")?).await?;
+let capabilities = client.capabilities();
+
+anyhow::ensure!(capabilities.durable_jobs, "durable storage is required");
+anyhow::ensure!(
+    capabilities.distributed_workers,
+    "this deployment runs workers on multiple hosts"
+);
+# Ok(())
+# }
+```
+
+## Execution Model
+
+The canonical lifecycle is:
 
 ```text
 SCHEDULED
@@ -189,9 +164,7 @@ QUEUED
     |
     v
 RUNNING ---------> COMPLETED
-   | |
    | +-----------> CANCELLED
-   |
    +-------------> DLQ
    |
    v
@@ -200,308 +173,90 @@ RETRY_WAIT
    +-------------> QUEUED
 ```
 
-`COMPLETED`, `CANCELLED`, and `DLQ` are terminal states.
+`COMPLETED`, `CANCELLED`, and `DLQ` are terminal. Invalid transitions are rejected. A running
+mutation such as heartbeat, ACK, retry, DLQ, or cancellation must be made by the worker that owns
+the valid lease.
 
-Every transition outside the documented lifecycle is illegal.
+If a worker disappears before ACK, its heartbeat stops, the lease expires, recovery records the
+abandoned attempt where supported, and the job becomes executable again. The handler may already
+have produced an external effect, which is why delivery is at least once.
 
-While work executes, Azums uses:
+## Jobs and Workers
 
-```text
-CLAIM
-  |
-  v
-LEASE
-  |
-  v
-HEARTBEAT
-  |
-  v
-ATTEMPT
-  |
-  v
-HANDLER
-  |
-  v
-ACK
-```
+Azums combines the primitives needed to run background work as infrastructure:
 
-The lease answers:
+| Area | Included primitives |
+|---|---|
+| Job definition | ID, type, queue, JSON payload, typed deserialization, metadata, priority, schedule, deadline, timeout, retry budget, idempotency key |
+| Execution | worker identity, exclusive claim, lease, heartbeat, durable attempt, handler timeout, ACK, graceful shutdown |
+| Failure | retryable and permanent failures, panic isolation, system failures, exponential backoff, jitter, DLQ reason codes |
+| Recovery | expired-lease reaping, retry, cancellation, replay lineage, retained execution history |
+| Operations | lifecycle explanation, queue metrics, structured job event, maintenance and retention APIs |
 
-> Which worker currently owns the right to execute and mutate this running job?
+Scheduling is based on **eligibility**, not exact wall-clock execution. A future job is not
+intentionally leased before `run_at`; actual start time depends on worker availability, queue depth,
+backend time, policy, and wake-up latency. A passed `deadline_at` moves eligible work to DLQ rather
+than running it late.
 
-The heartbeat answers:
+## Durable Event Streams
 
-> Is that worker still alive?
+Jobs answer, "What work must execute?" Streams answer, "What happened that consumers must observe?"
 
-The attempt records:
+Azums streams provide append, monotonic stream-local sequence numbers, reads after an offset,
+consumer-group offsets, monotonic ACK, replay, notifications, and retention-aware pruning.
 
-> What happened during this invocation?
-
-The ACK records successful completion.
-
-If a worker disappears before completion:
-
-```text
-worker disappears
-       |
-       v
-heartbeat stops
-       |
-       v
-lease expires
-       |
-       v
-abandoned execution is recorded
-       |
-       v
-work becomes recoverable
-```
-
-This is why Azums provides at-least-once execution.
-
----
-
-## 🛡️ Durable Execution, Not Just Queueing
-
-Azums combines several execution primitives under one runtime.
-
-### Durable Jobs
-
-* individual and batch enqueue
-* named job types
-* queues
-* arbitrary JSON payloads
-* typed payload deserialization
-* priorities
-* idempotency keys
-* delayed execution
-* execution deadlines
-* recurring execution
-* replay lineage
-
-### Worker Runtime
-
-* Tokio-native execution
-* handler registration
-* worker identities
-* batch leasing
-* exclusive leases
-* heartbeat extension
-* handler timeouts
-* graceful shutdown
-* notification wake-up with polling fallback
-* periodic expired-lease recovery
-
-### Failure Handling
-
-* retryable failures
-* permanent failures
-* timeouts
-* panic isolation
-* system failures
-* cancellation
-* configurable retry budgets
-* exponential backoff
-* jitter
-* dead-letter queue
-* DLQ inspection
-* replay
-
-### Execution History
-
-Azums separates current job state from execution history.
-
-A durable job can retain information about:
-
-* current lifecycle state
-* attempt count
-* workers
-* execution timings
-* failures
-* retry history
-* DLQ reason
-* replay lineage
-* trace information
-
-This allows an application to ask:
-
-> What happened?
-
-instead of reconstructing execution from unstructured logs.
-
----
-
-## 🔁 Durable Event Streams
-
-Jobs answer:
-
-> **What work must be executed?**
-
-Streams answer:
-
-> **What happened that consumers must be able to observe?**
-
-Azums supports durable event streams with:
-
-* append-only events
-* monotonic stream-local sequence numbers
-* consumer groups
-* durable offsets
-* monotonic ACK
-* independent consumer progress
-* replay
-* retention-aware pruning
-* notification subscriptions
-
-Example:
-
-```rust
-use azums::{quickstart, NewEvent};
+```rust,no_run
+use azums::quickstart;
 use serde_json::json;
 
-async fn example() -> anyhow::Result<()> {
-    let client = quickstart("memory").await?;
-    let orders = client.stream("orders");
+# async fn example() -> anyhow::Result<()> {
+let client = quickstart("memory").await?;
+let orders = client.stream("orders");
 
-    let sequence = orders
-        .publish(
-            "order_created",
-            json!({ "order_id": "ord-1001" }),
-        )
-        .await?;
+orders
+    .publish("order_created", json!({ "order_id": "ord-1001" }))
+    .await?;
 
-    let events = orders.read_next("billing", 100).await?;
-
-    for event in events {
-        // Process the event.
-
-        orders
-            .ack("billing", event.sequence_no)
-            .await?;
-    }
-
-    println!("Published sequence {sequence}");
-
-    Ok(())
+for event in orders.read_next("billing", 100).await? {
+    // Make this consumer's side effect idempotent before acknowledging.
+    orders.ack("billing", event.sequence_no).await?;
 }
+# Ok(())
+# }
 ```
 
-Reading an event does not automatically advance the consumer offset.
+Reading does not advance the offset. A crash before ACK can produce duplicate delivery. Consumer
+groups track durable progress; they do not automatically assign partitions, balance members, or
+provide exactly-once consumer execution.
 
-If a consumer crashes before ACK, the event may be delivered again.
+## Backend Capabilities
 
-Streams therefore use the same durability philosophy as jobs:
+One API is an architectural guarantee. Identical storage behavior is not.
 
-> Persist responsibility and make recovery explicit.
+| Capability | Memory | SQLite | PostgreSQL | Redis |
+|---|---|---|---|---|
+| Portable job and stream API | Yes | Yes | Yes | Yes |
+| Job durability | Process-local | File-backed | Persistent database | Persistence/eviction dependent |
+| Idempotency key | Process-local | Unique index | Unique index | Redis idempotency record |
+| App-data transaction | No | Same SQLite database | Same PostgreSQL database | No cross-store transaction |
+| Distributed workers | No | No | Yes | Yes |
+| Notifications | In-process hint | In-process hint plus polling | `LISTEN/NOTIFY` hint | Pub/Sub hint plus polling |
+| Lease ordering | FIFO and fastest | FIFO and fastest | FIFO and fastest | FIFO |
+| Backpressure | Backlog | Backlog | Backlog or execution-rate policy | Backlog |
+| Stream/group retention | Process lifetime | Explicit pruning | Explicit pruning | Backend configured |
 
----
+Notifications improve wake-up latency; persisted backend state defines correctness. Retention,
+durability, clock behavior, and notification delivery remain backend-dependent.
 
-## 🗄️ Use the Storage You Already Need
+Read the complete [backend compatibility matrix](./docs/src/backend_equivalence.md).
 
-Azums does not require a dedicated Azums database or a separate broker.
+## Transactional Enqueue
 
-### Memory
+PostgreSQL and SQLite can commit application state and a job in the same database transaction. This
+prevents the classic split result where a business mutation commits but its background work does
+not, or a job becomes visible for application state that later rolls back.
 
-```text
-Rust application
-      |
-    Azums
-      |
-   Memory
-```
-
-Best for:
-
-* tests
-* local development
-* short-lived workloads
-
-Memory is process-local and non-durable.
-
-### SQLite
-
-```text
-Rust application
-      |
-    Azums
-      |
-    SQLite
-```
-
-Best for:
-
-* embedded systems
-* desktop software
-* edge applications
-* CLI tools
-* single-binary deployments
-* single-process services
-
-SQLite provides durable local storage without operating another service.
-
-### PostgreSQL
-
-```text
-Application instances
-         |
-       Azums
-         |
-    PostgreSQL
-         |
-   Worker instances
-```
-
-Best for:
-
-* production backend services
-* multi-host workers
-* microservices
-* transactional applications
-* applications already using PostgreSQL
-
-PostgreSQL can also provide same-database transactional enqueue.
-
-### Redis
-
-```text
-Application
-     |
-   Azums
-     |
-   Redis
-```
-
-Best for deployments that already want Redis-native distributed execution and have intentionally configured Redis persistence and eviction behavior.
-
-Redis is supported.
-
-Redis is not required.
-
----
-
-## 🔐 Transactional Enqueue
-
-One of the most important failure boundaries in background execution is:
-
-```text
-application mutation succeeds
-           |
-           v
-enqueue fails
-```
-
-or the inverse:
-
-```text
-job becomes visible
-       |
-       v
-application transaction rolls back
-```
-
-With SQLite and PostgreSQL, application data and Azums work can share the same database transaction:
-
-```rust
+```rust,no_run
 use azums::{Job, PostgresBackend};
 use serde_json::json;
 
@@ -511,12 +266,10 @@ async fn create_user(
 ) -> anyhow::Result<()> {
     let mut tx = pool.begin().await?;
 
-    sqlx::query(
-        "INSERT INTO users (id) VALUES ($1)"
-    )
-    .bind("user-123")
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("INSERT INTO users (id) VALUES ($1)")
+        .bind("user-123")
+        .execute(&mut *tx)
+        .await?;
 
     backend
         .enqueue_in_tx(
@@ -530,575 +283,195 @@ async fn create_user(
         .await?;
 
     tx.commit().await?;
-
     Ok(())
 }
 ```
 
-The boundary is precise:
+Commit preserves both records. Rollback preserves neither. Azums does not coordinate distributed
+transactions across Redis plus SQL, HTTP APIs, payment processors, or unrelated services.
 
-```text
-BEGIN
-  application mutation
-  Azums enqueue
-COMMIT
+## Idempotency
+
+Azums separates two duplicate problems:
+
+1. **Duplicate submission:** the same non-null `idempotency_key` maps repeated enqueue attempts to
+   one logical job.
+2. **Duplicate execution:** a handler can perform a side effect and crash before ACK, so recovery
+   can invoke it again.
+
+The enqueue key solves the first problem. The application must solve the second with a provider's
+idempotency key or a unique application record committed with the side effect:
+
+```sql
+INSERT INTO processed_operations (operation_key, completed_at)
+VALUES ($1, now())
+ON CONFLICT (operation_key) DO NOTHING;
 ```
 
-Commit preserves both.
+Replay intentionally creates a new job and does not deduplicate previous external effects.
 
-Rollback preserves neither.
+## Guarantees
 
-Azums does not claim transactions across unrelated external systems.
+[Execution Semantics](./docs/src/semantics.md) is the canonical contract. Every important behavior
+is classified as **Guaranteed**, **Backend-dependent**, or **Unspecified**.
 
----
+### Guaranteed across the documented API
 
-## ♻️ Idempotency and At-Least-Once Execution
+- at-least-once delivery for retained, runnable, non-cancelled work while workers are available
+- rejection of illegal lifecycle transitions and terminal-state mutation
+- at most one valid active lease per job
+- recovery after lease expiry and reaping
+- deterministic retry, failure classification, and DLQ transitions
+- enqueue deduplication when a non-null idempotency key is supplied
+- no intentional leasing before scheduling eligibility
+- monotonic stream-local sequence numbers and consumer offsets
+- replay through new work with preserved lineage
 
-Two different duplicate problems exist.
+### Backend-dependent
 
-### Duplicate submission
+- durability through process or machine failure
+- transaction scope
+- distributed worker coordination
+- notification behavior and wake-up latency
+- ordering strength, backend clocks, retention, and backpressure
+- Redis persistence and eviction behavior
 
-```text
-100 enqueue calls
-same idempotency key
-        |
-        v
-one logical job
-```
+### Unspecified and not promised
 
-### Duplicate execution
+- exactly-once handler execution or external side effects
+- exact execution at `run_at`
+- global ordering, parallel completion order, or worker fairness
+- transactions across arbitrary external systems
+- automatic consumer-group work balancing
+- permanent retention, automatic scaling, compensation, or alerting
+- cancellation undoing an external effect that already happened
 
-```text
-handler performs external effect
-            |
-            v
-worker crashes before ACK
-            |
-            v
-job is recovered
-            |
-            v
-handler may execute again
-```
+## Where Azums Fits
 
-An enqueue idempotency key cannot make an arbitrary external side effect exactly once.
+Azums is a Rust execution primitive, not a web-framework-specific queue:
 
-For external systems, use a stable idempotency key:
+- **Web services:** email, billing, webhooks, indexing, exports, and transactional follow-up work.
+- **AI systems:** inference, tools, agent tasks, timeouts, retries, and durable workflow events.
+- **CLI and desktop:** SQLite-backed deferred work inside one distributable application.
+- **Embedded and edge:** local telemetry, synchronization, and recoverable offline work.
+- **Game backends:** asset processing, notifications, and asynchronous world tasks.
+- **Data systems:** durable events, projection rebuilds, batch jobs, and replay.
 
-```rust
-let external_key =
-    format!("azums-job:{}", job.id);
+Framework adapters provide ergonomic integration without changing the execution model:
 
-payment_api
-    .charge_with_idempotency_key(
-        external_key,
-        amount,
-    )
-    .await?;
-```
+- [`azums-axum`](https://crates.io/crates/azums-axum)
+- [`azums-actix`](https://crates.io/crates/azums-actix)
+- [`azums-poem`](https://crates.io/crates/azums-poem)
+- [`azums-rocket`](https://crates.io/crates/azums-rocket)
 
-For database effects, record the processed job ID or stream sequence under a unique constraint in the same transaction as the application mutation.
+## Observability
 
-Azums makes duplicate execution **visible and controllable**.
+Azums keeps current state separate from execution history. Where the backend supports durable
+observability, an explanation includes job ID, queue, status, attempts, workers, durations, retries,
+errors, DLQ reason, replay lineage, and trace context.
 
-It does not pretend distributed side effects are magically exactly once.
-
----
-
-## 🏗️ Backend Capabilities
-
-One API does not mean every backend provides the same operational guarantees.
-
-| Capability                          |           Memory |               SQLite |                         PostgreSQL |                      Redis |
-| ----------------------------------- | ---------------: | -------------------: | ---------------------------------: | -------------------------: |
-| Portable job API                    |                ✅ |                    ✅ |                                  ✅ |                          ✅ |
-| Durable jobs                        |                ❌ |                    ✅ |                                  ✅ |    Configuration-dependent |
-| Idempotent enqueue                  |    Process-local |                    ✅ |                                  ✅ |                          ✅ |
-| Same-database transactional enqueue |                ❌ |                    ✅ |                                  ✅ |                          ❌ |
-| Streams                             |                ✅ |                    ✅ |                                  ✅ |                          ✅ |
-| Consumer offsets                    |    Process-local |                    ✅ |                                  ✅ |                          ✅ |
-| Distributed workers                 |                ❌ |                    ❌ |                                  ✅ |                          ✅ |
-| Notifications                       |       In-process | In-process + polling | `LISTEN/NOTIFY` + polling fallback | Pub/Sub + polling fallback |
-| Retention                           | Process lifetime | Explicit maintenance |               Explicit maintenance |          Backend-dependent |
-| Execution-rate policies             |          Backlog |              Backlog |                                  ✅ |                    Backlog |
-
-Applications can inspect these guarantees at runtime:
-
-```rust
-let client = azums::quickstart(
-    std::env::var("DATABASE_URL")?
-).await?;
-
-let capabilities = client.capabilities();
-
-anyhow::ensure!(
-    capabilities.durable_jobs,
-    "this deployment requires durable jobs"
-);
-
-anyhow::ensure!(
-    capabilities.distributed_workers,
-    "this deployment runs workers on multiple hosts"
-);
-```
-
-The rule is:
-
-> **Same programming model. Explicit operational differences.**
-
----
-
-## 🌍 One Execution Model Across Rust Applications
-
-Azums is not tied to web servers.
-
-The same execution primitive can be used for:
-
-### Web Backends
-
-```text
-HTTP request
-    |
-    +--> database mutation
-    |
-    +--> Azums job
-              |
-              +--> email
-              +--> webhook
-              +--> billing
-              +--> indexing
-```
-
-### AI Systems
-
-```text
-AI request
-    |
-    +--> inference job
-    +--> tool workflow
-    +--> agent task
-    +--> durable event
-    +--> retry / timeout / recovery
-```
-
-### Embedded and Edge Systems
-
-```text
-device
-  |
-Azums
-  |
-SQLite
-  |
-telemetry / sync / deferred work
-```
-
-### Gaming
-
-```text
-game backend
-     |
-   Azums
-     |
-     +--> asset processing
-     +--> asynchronous world tasks
-     +--> notifications
-     +--> durable state workflows
-```
-
-### CLI and Desktop Applications
-
-```text
-application
-    |
-  Azums
-    |
- SQLite
-```
-
-No external broker process is required.
-
----
-
-## 🌐 Rust Framework Integrations
-
-Azums ships integration crates for common Rust web frameworks:
-
-* [`azums-axum`](https://crates.io/crates/azums-axum)
-* [`azums-actix`](https://crates.io/crates/azums-actix)
-* [`azums-poem`](https://crates.io/crates/azums-poem)
-* [`azums-rocket`](https://crates.io/crates/azums-rocket)
-
-Example integration:
-
-```rust
-async fn create_user(
-    queue: JobQueue,
-    Json(payload): Json<UserPayload>,
-) -> impl IntoResponse {
-    let job_id = queue
-        .enqueue_now(
-            "default",
-            "welcome_email",
-            json!(payload),
-        )
-        .await?;
-
-    Json(json!({
-        "status": "queued",
-        "id": job_id
-    }))
+```rust,no_run
+# async fn example(client: &azums::Client, job_id: uuid::Uuid) -> anyhow::Result<()> {
+if let Some(explanation) = client.explain_job(job_id).await? {
+    println!("{}", explanation.summary);
+    println!("status: {}", explanation.status);
+    println!("retries: {}", explanation.retry_count);
+    println!("last worker: {:?}", explanation.last_worker_id);
+    println!("last error: {:?}", explanation.last_error);
 }
+# Ok(())
+# }
 ```
 
-Web framework integration is convenience around the same Azums execution model.
+The operational question is not only "Did it fail?" It is:
 
----
+> **What happened, why, who owned the execution, and what can happen next?**
 
-## 📜 What Azums 1.0 Promises
+## Verification
 
-The most important source of truth is [Execution Semantics](./docs/src/semantics.md).
+The recorded 1.0 release evidence includes:
 
-Every important behavior is classified as:
+- full workspace, integration, documentation, property, and input-hardening suites
+- lifecycle, lease recovery, heartbeat, retry, DLQ, idempotency, scheduling, and stream tests
+- transaction commit, rollback, connection-loss, and failure-boundary tests
+- 10,000 randomized memory chaos scenarios
+- a 24-case stress matrix from 1 to 100 workers and 10,000 to 1,000,000 jobs
+- 6.96 million completed job executions in the recorded large-scale matrix
+- reproducible Criterion benchmarks and regression guards
+- dependency audit and API compatibility checks
+- 100% public API item documentation and 100% rustdoc example coverage for `azums`
 
-```text
-Guaranteed
-Backend-dependent
-Unspecified
-```
+These results mean no documented guarantee was known to be violated by that tested tree. They do
+not prove that arbitrary infrastructure or external side effects can never fail. Exact commands,
+conditions, caveats, and guarantee-to-test links live in
+[Release Candidate Evidence](./docs/src/release_candidate.md).
 
-### Portable guarantees include
+## Performance
 
-* at-least-once delivery for retained runnable work while workers are available
-* rejection of illegal lifecycle transitions
-* terminal states remain terminal
-* at most one valid active lease for a job
-* expired-lease recovery
-* deterministic failure classification
-* retry and DLQ behavior
-* non-null idempotency keys identify one logical job
-* no intentional leasing before scheduling eligibility
-* monotonically increasing stream sequences
-* monotonically advancing consumer offsets
-* replay with preserved lineage and history
-
-### Backend-dependent behavior includes
-
-* durability through process or machine failure
-* transaction scope
-* worker distribution
-* ordering strength
-* notifications
-* wake-up latency
-* retention
-* backpressure
-* Redis persistence and eviction behavior
-* backend clock behavior
-
-### Azums explicitly does not guarantee
-
-* exactly-once execution
-* exactly-once external side effects
-* exact wall-clock execution time
-* global completion ordering
-* worker fairness
-* transactions across arbitrary external services
-* automatic consumer-group balancing
-* permanent retention
-* automatic scaling
-* cancellation undoing an external effect that already happened
-
-Stable semantics matter more than a benchmark number.
-
----
-
-## 🧪 Tested for Failure, Not Only the Happy Path
-
-Azums 1.0 was tested against the types of failures its execution contract is designed to survive.
-
-Release evidence includes:
-
-* full workspace test suite
-* lifecycle invariant tests
-* property-based execution tests
-* malformed-input and fuzz-hardening tests
-* worker crash and lease-recovery tests
-* heartbeat and wrong-owner tests
-* transaction commit and rollback boundaries
-* connection-loss and failure-boundary tests
-* retry and DLQ tests
-* idempotency scenarios
-* scheduling and timeout tests
-* stream replay and consumer-offset tests
-* randomized chaos scenarios
-* concurrency testing from 1 to 100 workers
-* large-scale runs reaching one million jobs per matrix case
-* 6.96 million job executions in the final recorded large-scale matrix
-* benchmark regression gates
-* documentation build
-* dependency security audit
-* API compatibility checks
-
-The release evidence means:
-
-> No known documented Azums 1.0 guarantee was violated by the tested release.
-
-It does **not** mean arbitrary infrastructure or external side effects can never fail.
-
-See [Release Candidate Evidence](./docs/src/release_candidate.md).
-
----
-
-## ⚡ Performance
-
-Correctness comes first, but durable execution still needs to be fast.
-
-Azums includes reproducible benchmark tooling:
+Correctness comes first, but durable execution still needs to be efficient. Azums includes
+reproducible benchmark tooling:
 
 ```bash
 cargo run -p azums --release --bin azums-perf
-
 cargo bench -p azums
 ```
 
-Performance numbers depend on:
+Results depend on backend, persistence configuration, hardware, worker count, payload shape, and
+contention. Benchmark numbers are evidence, not semantic guarantees. See the
+[live benchmark dashboard](https://blockforge-dev.github.io/azums/) for measured results and test
+conditions.
 
-* backend
-* hardware
-* worker count
-* job shape
-* persistence configuration
-* contention
-* benchmark version
+## Documentation
 
-For that reason, benchmark results are evidence, not semantic guarantees.
+Start with the path that matches your goal:
 
-**[View the live benchmark dashboard](https://blockforge-dev.github.io/azums/).**
+1. **Build something:** [Quickstart](./docs/src/quickstart.md) and
+   [Developer Experience](./docs/src/developer_experience.md).
+2. **Understand the product:** [Product and Implementation Handbook](./docs/src/product_handbook.md).
+3. **Know exactly what is promised:** [Execution Semantics](./docs/src/semantics.md).
+4. **Choose storage:** [Backend Equivalence](./docs/src/backend_equivalence.md).
+5. **Understand internals:** [Architecture Overview](./ARCHITECTURE.md),
+   [Architecture Book](./docs/src/architecture_book.md), and
+   [Low-Level Design](./docs/architecture/LLD.md).
+6. **Operate it:** [Production Deployment](./docs/src/production_deployment.md) and
+   [Failure Recovery Runbook](./docs/src/failure_recovery_runbook.md).
+7. **Audit the evidence:** [Primitive Correctness](./docs/src/primitive_correctness.md),
+   [Chaos Engineering](./docs/src/chaos_engineering.md), and
+   [Release Candidate Evidence](./docs/src/release_candidate.md).
 
----
+API documentation is on [docs.rs](https://docs.rs/azums).
 
-## 📊 Observability
-
-Azums can explain execution state directly:
-
-```rust
-if let Some(explanation) =
-    client.explain_job(job_id).await?
-{
-    println!("{}", explanation.summary);
-    println!("status: {}", explanation.status);
-    println!(
-        "retries: {}",
-        explanation.retry_count
-    );
-    println!(
-        "last worker: {:?}",
-        explanation.last_worker_id
-    );
-    println!(
-        "last error: {:?}",
-        explanation.last_error
-    );
-}
-```
-
-Queue metrics include information such as:
-
-* queue depth
-* completions
-* failures
-* retries
-* DLQ count
-* execution latency
-* claim information
-* worker counts where measurable
-
-The goal is not merely to know that something failed.
-
-The goal is to answer:
-
-> **What happened, why did it happen, who owned the execution, and what can happen next?**
-
----
-
-## 🚀 Start Small, Scale Without Relearning the Execution Model
-
-A project can begin with:
+## Mental Model
 
 ```text
-Tests
-  |
-Azums
-  |
-Memory
+1. Durable intent
+   job, schedule, priority, idempotency, stream event
+                         |
+                         v
+2. Controlled execution
+   claim, lease, heartbeat, attempt, handler, ACK, retry, DLQ
+                         |
+                         v
+3. Explanation and recovery
+   history, worker ownership, offsets, replay, metrics
 ```
 
-move to:
-
-```text
-CLI / Desktop / Edge
-        |
-      Azums
-        |
-      SQLite
-```
-
-and later operate:
-
-```text
-Application instances
-         |
-       Azums
-         |
-    PostgreSQL
-         |
-   Worker instances
-```
-
-without changing the fundamental handler model.
-
-That is one of Azums' core design goals:
-
-> **The execution model should remain understandable as the deployment grows.**
-
----
-
-## 📚 Documentation
-
-### Start Here
-
-* **[Azums Product and Implementation Handbook](./docs/src/handbook.md)** — Product model, implementation walkthrough, guarantees, release evidence, and learning path.
-* **[Execution Semantics](./docs/src/semantics.md)** — Canonical source of truth for Azums guarantees.
-* **[Developer Experience & Integration](./docs/src/developer_experience.md)** — Install-to-production adoption path.
-* **[Storage Backend Equivalence](./docs/src/backend_equivalence.md)** — Capability matrix across Memory, SQLite, PostgreSQL, and Redis.
-
-### Reliability
-
-* **[Job Lifecycle](./docs/src/job_lifecycle.md)**
-* **[Lease Recovery](./docs/src/leasing.md)**
-* **[Retry, Failure Classification & DLQ](./docs/src/failure_handling.md)**
-* **[Idempotency & Duplicate Execution](./docs/src/idempotency.md)**
-* **[Transactional Integrity](./docs/src/transactional_integrity.md)**
-* **[Scheduling & Time Semantics](./docs/src/time_semantics.md)**
-
-### Streams and Operations
-
-* **[Durable Event Streaming](./docs/src/event_streaming.md)**
-* **[Concurrency & Backpressure](./docs/src/concurrency_backpressure.md)**
-* **[Observability](./docs/src/observability.md)**
-* **[Production Deployment](./docs/src/production_deployment.md)**
-* **[Failure & Recovery Runbook](./docs/src/failure_recovery_runbook.md)**
-
-### Architecture and Release Evidence
-
-* **[Architecture Overview](./ARCHITECTURE.md)**
-* **[Azums Low-Level Design](./docs/architecture/LLD.md)**
-* **[Primitive Correctness](./docs/src/primitive_correctness.md)**
-* **[Chaos Engineering](./docs/src/chaos_engineering.md)**
-* **[Property Testing](./docs/src/property_testing.md)**
-* **[Fuzzing & Input Hardening](./docs/src/fuzzing_input_hardening.md)**
-* **[Release Candidate Evidence](./docs/src/release_candidate.md)**
-* **[API Stability Policy](./STABILITY.md)**
-
-API documentation is available on [docs.rs](https://docs.rs/azums).
-
----
-
-## 🎯 The Mental Model
-
-Think of Azums as three related layers:
-
-```text
-1. Durable Intent
-
-   Job
-   schedule
-   priority
-   idempotency
-   stream event
-
-            |
-            v
-
-2. Controlled Execution
-
-   claim
-   lease
-   heartbeat
-   attempt
-   handler
-   ACK
-   retry
-   DLQ
-
-            |
-            v
-
-3. Explanation & Recovery
-
-   execution history
-   worker history
-   consumer offsets
-   replay
-   metrics
-   lifecycle explanation
-```
-
-The durable record is the source of truth.
-
-Notifications improve wake-up latency but do not define correctness.
-
-Leases make abandoned execution recoverable.
-
-Retries make transient failure survivable.
-
-Execution history makes failure explainable.
-
-Backend capabilities keep operational promises honest.
-
-And the application remains responsible for making external side effects safe under at-least-once execution.
+The backend record is the source of truth. Notifications are wake-up hints. Leases make abandoned
+execution recoverable. Retries make transient failure survivable. History makes failure
+explainable. Capabilities keep backend promises honest.
 
 > **Azums turns ordinary async Rust functions into recoverable, observable, durable execution.**
 
----
+## Contributing
 
+Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) and
+[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
-## 🤝 Contributing
+Questions and design discussions belong in
+[GitHub Discussions](https://github.com/BlockForge-Dev/azums/discussions). Bugs and implementation
+issues belong in the [issue tracker](https://github.com/BlockForge-Dev/azums/issues).
 
-Contributions are welcome.
+## License
 
-Please read:
-
-* [`CONTRIBUTING.md`](./CONTRIBUTING.md)
-* [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)
-
----
-
-
-## 📚 Documentation & Book
-
-- **[Docs.rs API Guide](https://docs.rs/azums)**: Comprehensive module documentation & inline examples.
-- **[Architecture & Technical Design (ARCHITECTURE.md)](./ARCHITECTURE.md)**: State machine, `FOR UPDATE SKIP LOCKED` leasing algorithm, phantom recovery, and partitioning.
-- **[Azums Low-Level Design (LLD + DSA)](./docs/architecture/LLD.md)**: Deep-dive architecture specs, data structures, and algorithm complexity.
-- **[Execution Semantics](./docs/src/semantics.md)**: Canonical guarantee matrix for scheduling, DLQ, idempotency, transactional enqueue, streams, consumer groups, replay, and cancellation.
-- **[Storage Backend Equivalence](./docs/src/backend_equivalence.md)**: Runtime capability model and compatibility matrix for Memory, SQLite, PostgreSQL, and Redis.
-- **[Transactional Integrity](./docs/src/transactional_integrity.md)**: Commit/rollback contract for SQL transactional enqueue.
-- **[Retry, Failure Classification & DLQ](./docs/src/failure_handling.md)**: Deterministic failure classes, backoff policy, DLQ inspection, and replay.
-- **[Idempotency & Duplicate Execution](./docs/src/idempotency.md)**: Enqueue dedupe keys and application-side side-effect idempotency.
-- **[Developer Experience & Integration](./docs/src/developer_experience.md)**: Install-to-inspect adoption path and integration notes.
-- **[Azums Architecture Book](https://blockforge-dev.github.io/azums/)**: FOR UPDATE SKIP LOCKED leasing, DLQ sequence diagrams, and table partitioning.
-
----
-
-## 💬 Community & Support
-
-- **[GitHub Discussions](https://github.com/BlockForge-Dev/azums/discussions)**: Have questions, feature requests, or architecture ideas? Join our GitHub Discussions.
-- **[Issue Tracker](https://github.com/BlockForge-Dev/azums/issues)**: Found a bug or issue? Report it on our GitHub Issues tracker.
-
----
-
-## 🤝 Contributing & License
-
-Contributions are welcome! Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md).
-
-Licensed under either of [Apache License, Version 2.0](./LICENSE-APACHE) or [MIT License](./LICENSE-MIT) at your option.
+Azums is licensed under either [Apache License 2.0](./LICENSE-APACHE) or
+[MIT License](./LICENSE-MIT), at your option.

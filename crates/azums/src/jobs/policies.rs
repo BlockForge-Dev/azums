@@ -1,7 +1,19 @@
-use sqlx::PgPool;
+﻿use sqlx::PgPool;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 /// PostgreSQL execution limits applied to one queue.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::PoliciesRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let policies = PoliciesRepo::new(pool);
+/// let _ = policies;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub struct QueuePolicy {
     /// Queue governed by this policy.
     pub queue: String,
@@ -15,17 +27,65 @@ pub struct QueuePolicy {
 
 #[derive(Clone)]
 /// PostgreSQL repository for queue execution policies.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::PoliciesRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let policies = PoliciesRepo::new(pool);
+/// let _ = policies;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub struct PoliciesRepo {
     pool: PgPool,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::PoliciesRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let policies = PoliciesRepo::new(pool);
+/// let _ = policies;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 impl PoliciesRepo {
     /// Creates a policy repository backed by `pool`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PoliciesRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let policies = PoliciesRepo::new(pool);
+    /// let _ = policies;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
     /// Returns the policy configured for `queue`, if one exists.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PoliciesRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let policies = PoliciesRepo::new(pool);
+    /// let _ = policies;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn get_policy(&self, queue: &str) -> anyhow::Result<Option<QueuePolicy>> {
         let rec = sqlx::query_as::<_, QueuePolicy>(
             r#"
@@ -42,6 +102,18 @@ impl PoliciesRepo {
     }
 
     /// Creates or replaces the execution policy for `queue`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PoliciesRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let policies = PoliciesRepo::new(pool);
+    /// let _ = policies;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn upsert_policy(
         &self,
         queue: &str,

@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+﻿use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -6,6 +6,14 @@ use crate::jobs::{AttemptsRepo, JobsRepo, PolicyDecisionsRepo};
 
 #[derive(Debug, Serialize)]
 /// Operator-oriented interpretation of what can happen to a job next.
+/// # Examples
+///
+/// ```rust
+/// use azums::jobs::debug_view::NextAction;
+///
+/// let action = NextAction::Queued;
+/// assert!(matches!(action, NextAction::Queued));
+/// ```
 pub enum NextAction {
     /// Job is waiting for a retry at the included time.
     RetryAt(DateTime<Utc>),
@@ -28,6 +36,14 @@ pub enum NextAction {
 
 #[derive(Debug, Serialize)]
 /// Unstable aggregate for debugging job state, history, and policy decisions.
+/// # Examples
+///
+/// ```rust
+/// use azums::jobs::debug_view::NextAction;
+///
+/// let action = NextAction::Queued;
+/// assert!(matches!(action, NextAction::Queued));
+/// ```
 pub struct DebugView {
     /// Job being inspected.
     pub job_id: Uuid,
@@ -42,6 +58,14 @@ pub struct DebugView {
 }
 
 /// Builds an unstable debug aggregate for `job_id`, or `None` when absent.
+/// # Examples
+///
+/// ```rust
+/// use azums::jobs::debug_view::NextAction;
+///
+/// let action = NextAction::Queued;
+/// assert!(matches!(action, NextAction::Queued));
+/// ```
 pub async fn build_debug_view(
     jobs: &JobsRepo,
     attempts: &AttemptsRepo,

@@ -74,6 +74,12 @@ jobs:
       - name: Workspace API Documentation Check
         run: cargo doc --workspace --all-features --no-deps
 
+      - name: Public API Example Coverage
+        if: matrix.rust == 'nightly'
+        run: cargo doc -p azums --lib --all-features --no-deps
+        env:
+          RUSTDOCFLAGS: --cfg docsrs
+
   cross-platform-test:
     name: Build & Test (${{ matrix.os }} / ${{ matrix.rust }})
     runs-on: ${{ matrix.os }}

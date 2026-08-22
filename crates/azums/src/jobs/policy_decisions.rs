@@ -1,10 +1,22 @@
-use chrono::{DateTime, Utc};
+﻿use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 /// Durable record explaining a queue-policy decision for one job.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::PolicyDecisionsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let decisions = PolicyDecisionsRepo::new(pool);
+/// let _ = decisions;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub struct PolicyDecisionRow {
     /// Unique decision identifier.
     pub id: Uuid,
@@ -22,17 +34,65 @@ pub struct PolicyDecisionRow {
 
 #[derive(Clone)]
 /// PostgreSQL repository for durable policy-decision history.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::PolicyDecisionsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let decisions = PolicyDecisionsRepo::new(pool);
+/// let _ = decisions;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub struct PolicyDecisionsRepo {
     pool: PgPool,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::PolicyDecisionsRepo;
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let decisions = PolicyDecisionsRepo::new(pool);
+/// let _ = decisions;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 impl PolicyDecisionsRepo {
     /// Creates a policy-decision repository backed by `pool`.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PolicyDecisionsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let decisions = PolicyDecisionsRepo::new(pool);
+    /// let _ = decisions;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
     /// Inserts one policy decision and returns its identifier.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PolicyDecisionsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let decisions = PolicyDecisionsRepo::new(pool);
+    /// let _ = decisions;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn insert_decision(
         &self,
         job_id: Uuid,
@@ -66,6 +126,18 @@ impl PolicyDecisionsRepo {
     }
 
     /// Lists policy decisions for a job in chronological order.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::PolicyDecisionsRepo;
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let decisions = PolicyDecisionsRepo::new(pool);
+    /// let _ = decisions;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn list_for_job(&self, job_id: Uuid) -> anyhow::Result<Vec<PolicyDecisionRow>> {
         let rows = sqlx::query_as::<_, PolicyDecisionRow>(
             r#"

@@ -1,4 +1,4 @@
-use crate::jobs::{
+﻿use crate::jobs::{
     attempts::AttemptsRepo,
     repo::JobsRepo,
     retry::{classify_error, next_delay_seconds, RetryConfig},
@@ -9,14 +9,62 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 /// Coordinates PostgreSQL attempt completion with job retry or terminal mutation.
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::{AttemptsRepo, JobRunner, JobsRepo, RetryConfig};
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let runner = JobRunner::new(
+///     JobsRepo::new(pool.clone()),
+///     AttemptsRepo::new(pool),
+///     RetryConfig::default(),
+/// );
+/// let _ = runner;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 pub struct JobRunner {
     jobs: JobsRepo,
     attempts: AttemptsRepo,
     retry_cfg: RetryConfig,
 }
 
+/// # Examples
+///
+/// ```rust,no_run
+/// use azums::{AttemptsRepo, JobRunner, JobsRepo, RetryConfig};
+/// use sqlx::postgres::PgPoolOptions;
+///
+/// let pool = PgPoolOptions::new()
+///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+/// let runner = JobRunner::new(
+///     JobsRepo::new(pool.clone()),
+///     AttemptsRepo::new(pool),
+///     RetryConfig::default(),
+/// );
+/// let _ = runner;
+/// # Ok::<(), sqlx::Error>(())
+/// ```
 impl JobRunner {
     /// Creates a runner from job, attempt, and retry repositories.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{AttemptsRepo, JobRunner, JobsRepo, RetryConfig};
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let runner = JobRunner::new(
+    ///     JobsRepo::new(pool.clone()),
+    ///     AttemptsRepo::new(pool),
+    ///     RetryConfig::default(),
+    /// );
+    /// let _ = runner;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub fn new(jobs: JobsRepo, attempts: AttemptsRepo, retry_cfg: RetryConfig) -> Self {
         Self {
             jobs,
@@ -26,6 +74,22 @@ impl JobRunner {
     }
 
     /// Completes one attempt and its leased job successfully.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{AttemptsRepo, JobRunner, JobsRepo, RetryConfig};
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let runner = JobRunner::new(
+    ///     JobsRepo::new(pool.clone()),
+    ///     AttemptsRepo::new(pool),
+    ///     RetryConfig::default(),
+    /// );
+    /// let _ = runner;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn on_success(
         &self,
         job_id: Uuid,
@@ -42,6 +106,22 @@ impl JobRunner {
     }
 
     /// Completes multiple attempts and jobs in one repository batch.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{AttemptsRepo, JobRunner, JobsRepo, RetryConfig};
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let runner = JobRunner::new(
+    ///     JobsRepo::new(pool.clone()),
+    ///     AttemptsRepo::new(pool),
+    ///     RetryConfig::default(),
+    /// );
+    /// let _ = runner;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn on_success_batch(
         &self,
         dataset_id: &str,
@@ -69,6 +149,22 @@ impl JobRunner {
 
     #[allow(clippy::too_many_arguments)]
     /// Records a failed attempt and deterministically retries or dead-letters the job.
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use azums::{AttemptsRepo, JobRunner, JobsRepo, RetryConfig};
+    /// use sqlx::postgres::PgPoolOptions;
+    ///
+    /// let pool = PgPoolOptions::new()
+    ///     .connect_lazy("postgres://postgres:postgres@localhost/azums")?;
+    /// let runner = JobRunner::new(
+    ///     JobsRepo::new(pool.clone()),
+    ///     AttemptsRepo::new(pool),
+    ///     RetryConfig::default(),
+    /// );
+    /// let _ = runner;
+    /// # Ok::<(), sqlx::Error>(())
+    /// ```
     pub async fn on_failure(
         &self,
         job_id: Uuid,
