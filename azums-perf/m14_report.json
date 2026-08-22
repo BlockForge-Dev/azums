@@ -1,0 +1,3288 @@
+{
+  "generated_at_unix_ms": 1787379460899,
+  "config": {
+    "jobs_per_scenario": 1000,
+    "iterations": 3,
+    "batch_size": 64,
+    "backends": [
+      "memory",
+      "sqlite",
+      "postgres",
+      "redis"
+    ],
+    "output_dir": "target/azums-perf"
+  },
+  "environment": {
+    "os": "linux",
+    "arch": "x86_64",
+    "rust_profile": "release",
+    "cpu_count_hint": 4,
+    "resource_notes": [
+      "CPU, allocation, disk I/O, and network I/O counters are not collected by the std-only harness; use platform profilers alongside the JSON output for those dimensions.",
+      "RAM is reported as null unless a platform-specific collector is added."
+    ]
+  },
+  "results": [
+    {
+      "backend": "memory",
+      "workload": "small_jobs",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 207557.15605184776,
+      "latency": {
+        "p50_ms": 2.14569,
+        "p95_ms": 2.36468,
+        "p99_ms": 2.36468,
+        "p999_ms": 2.36468
+      },
+      "resources": {
+        "wall_ms": 14.453850000000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "small_jobs",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 220369.2271709968,
+      "latency": {
+        "p50_ms": 2.4812689999999997,
+        "p95_ms": 2.551213,
+        "p99_ms": 2.551213,
+        "p999_ms": 2.551213
+      },
+      "resources": {
+        "wall_ms": 13.613516,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "small_jobs",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 209326.1060006468,
+      "latency": {
+        "p50_ms": 2.577552,
+        "p95_ms": 2.7042569999999997,
+        "p99_ms": 2.7042569999999997,
+        "p999_ms": 2.7042569999999997
+      },
+      "resources": {
+        "wall_ms": 14.331705,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "small_jobs",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 190684.4299806773,
+      "latency": {
+        "p50_ms": 2.563383,
+        "p95_ms": 2.5907,
+        "p99_ms": 2.5907,
+        "p999_ms": 2.5907
+      },
+      "resources": {
+        "wall_ms": 15.732800000000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "small_jobs",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 189751.73641813995,
+      "latency": {
+        "p50_ms": 2.589249,
+        "p95_ms": 2.644893,
+        "p99_ms": 2.644893,
+        "p999_ms": 2.644893
+      },
+      "resources": {
+        "wall_ms": 15.810132000000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "small_jobs",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 189268.0594061967,
+      "latency": {
+        "p50_ms": 2.6435400000000002,
+        "p95_ms": 2.648483,
+        "p99_ms": 2.648483,
+        "p999_ms": 2.648483
+      },
+      "resources": {
+        "wall_ms": 15.850534999999999,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "large_payloads",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 103021.76575185628,
+      "latency": {
+        "p50_ms": 3.2497789999999998,
+        "p95_ms": 3.9623039999999996,
+        "p99_ms": 3.9623039999999996,
+        "p999_ms": 3.9623039999999996
+      },
+      "resources": {
+        "wall_ms": 29.12006,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "large_payloads",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 139804.96741029705,
+      "latency": {
+        "p50_ms": 3.620874,
+        "p95_ms": 3.693299,
+        "p99_ms": 3.693299,
+        "p999_ms": 3.693299
+      },
+      "resources": {
+        "wall_ms": 21.458465,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "large_payloads",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 140612.65684521632,
+      "latency": {
+        "p50_ms": 3.842139,
+        "p95_ms": 4.226792,
+        "p99_ms": 4.226792,
+        "p999_ms": 4.226792
+      },
+      "resources": {
+        "wall_ms": 21.335206,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "large_payloads",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 137020.04333761276,
+      "latency": {
+        "p50_ms": 3.8992,
+        "p95_ms": 4.2292689999999995,
+        "p99_ms": 4.2292689999999995,
+        "p999_ms": 4.2292689999999995
+      },
+      "resources": {
+        "wall_ms": 21.894607,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "large_payloads",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 141903.59797991713,
+      "latency": {
+        "p50_ms": 3.675677,
+        "p95_ms": 3.834314,
+        "p99_ms": 3.834314,
+        "p999_ms": 3.834314
+      },
+      "resources": {
+        "wall_ms": 21.141113,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "large_payloads",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 143096.38638695457,
+      "latency": {
+        "p50_ms": 3.723717,
+        "p95_ms": 3.8985119999999998,
+        "p99_ms": 3.8985119999999998,
+        "p999_ms": 3.8985119999999998
+      },
+      "resources": {
+        "wall_ms": 20.96489,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "batch_jobs",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 232256.92570797718,
+      "latency": {
+        "p50_ms": 2.032077,
+        "p95_ms": 2.126023,
+        "p99_ms": 2.126023,
+        "p999_ms": 2.126023
+      },
+      "resources": {
+        "wall_ms": 12.91673,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "batch_jobs",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 224140.9182918938,
+      "latency": {
+        "p50_ms": 2.291714,
+        "p95_ms": 2.315318,
+        "p99_ms": 2.315318,
+        "p999_ms": 2.315318
+      },
+      "resources": {
+        "wall_ms": 13.384437,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "batch_jobs",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 211162.60428529166,
+      "latency": {
+        "p50_ms": 2.584074,
+        "p95_ms": 2.601761,
+        "p99_ms": 2.601761,
+        "p999_ms": 2.601761
+      },
+      "resources": {
+        "wall_ms": 14.207061,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "batch_jobs",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 210893.24042876845,
+      "latency": {
+        "p50_ms": 2.571295,
+        "p95_ms": 2.603034,
+        "p99_ms": 2.603034,
+        "p999_ms": 2.603034
+      },
+      "resources": {
+        "wall_ms": 14.225207,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "batch_jobs",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 213131.03125296606,
+      "latency": {
+        "p50_ms": 2.507511,
+        "p95_ms": 2.64625,
+        "p99_ms": 2.64625,
+        "p999_ms": 2.64625
+      },
+      "resources": {
+        "wall_ms": 14.075848,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "batch_jobs",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 208067.45491403659,
+      "latency": {
+        "p50_ms": 2.6063929999999997,
+        "p95_ms": 2.6922819999999996,
+        "p99_ms": 2.6922819999999996,
+        "p999_ms": 2.6922819999999996
+      },
+      "resources": {
+        "wall_ms": 14.418401000000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "mixed_priorities",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 229494.79322213138,
+      "latency": {
+        "p50_ms": 2.202126,
+        "p95_ms": 2.26255,
+        "p99_ms": 2.26255,
+        "p999_ms": 2.26255
+      },
+      "resources": {
+        "wall_ms": 13.072192,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "mixed_priorities",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 202619.04020576368,
+      "latency": {
+        "p50_ms": 2.774017,
+        "p95_ms": 2.8084719999999996,
+        "p99_ms": 2.8084719999999996,
+        "p999_ms": 2.8084719999999996
+      },
+      "resources": {
+        "wall_ms": 14.806111,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "mixed_priorities",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 208560.14248828933,
+      "latency": {
+        "p50_ms": 2.618784,
+        "p95_ms": 2.805407,
+        "p99_ms": 2.805407,
+        "p999_ms": 2.805407
+      },
+      "resources": {
+        "wall_ms": 14.38434,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "mixed_priorities",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 207648.35332779327,
+      "latency": {
+        "p50_ms": 2.676435,
+        "p95_ms": 2.737461,
+        "p99_ms": 2.737461,
+        "p999_ms": 2.737461
+      },
+      "resources": {
+        "wall_ms": 14.447502,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "mixed_priorities",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 212426.30135007534,
+      "latency": {
+        "p50_ms": 2.609667,
+        "p95_ms": 2.672297,
+        "p99_ms": 2.672297,
+        "p999_ms": 2.672297
+      },
+      "resources": {
+        "wall_ms": 14.122545,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "mixed_priorities",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 212227.741872774,
+      "latency": {
+        "p50_ms": 2.5726999999999998,
+        "p95_ms": 2.59626,
+        "p99_ms": 2.59626,
+        "p999_ms": 2.59626
+      },
+      "resources": {
+        "wall_ms": 14.135758,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "high_contention",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 127335.265094195,
+      "latency": {
+        "p50_ms": 2.2338359999999997,
+        "p95_ms": 2.325647,
+        "p99_ms": 2.325647,
+        "p999_ms": 2.325647
+      },
+      "resources": {
+        "wall_ms": 23.559852,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "high_contention",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 119125.40510083071,
+      "latency": {
+        "p50_ms": 2.816287,
+        "p95_ms": 2.88742,
+        "p99_ms": 2.88742,
+        "p999_ms": 2.88742
+      },
+      "resources": {
+        "wall_ms": 25.183545000000002,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "high_contention",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 120362.82651877125,
+      "latency": {
+        "p50_ms": 2.760044,
+        "p95_ms": 2.7750470000000003,
+        "p99_ms": 2.7750470000000003,
+        "p999_ms": 2.7750470000000003
+      },
+      "resources": {
+        "wall_ms": 24.924639,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "high_contention",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 122842.76335123739,
+      "latency": {
+        "p50_ms": 2.713795,
+        "p95_ms": 2.715445,
+        "p99_ms": 2.715445,
+        "p999_ms": 2.715445
+      },
+      "resources": {
+        "wall_ms": 24.421463,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "high_contention",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 121367.68761704901,
+      "latency": {
+        "p50_ms": 2.748112,
+        "p95_ms": 2.787252,
+        "p99_ms": 2.787252,
+        "p999_ms": 2.787252
+      },
+      "resources": {
+        "wall_ms": 24.718276,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "high_contention",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 121353.7348917634,
+      "latency": {
+        "p50_ms": 2.795094,
+        "p95_ms": 2.800417,
+        "p99_ms": 2.800417,
+        "p999_ms": 2.800417
+      },
+      "resources": {
+        "wall_ms": 24.721118,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "memory",
+      "workload": "idle_queue",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.000551,
+        "p95_ms": 0.001282,
+        "p99_ms": 0.001282,
+        "p999_ms": 0.001282
+      },
+      "resources": {
+        "wall_ms": 0.068488,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "memory",
+      "workload": "idle_queue",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.000752,
+        "p95_ms": 0.000851,
+        "p99_ms": 0.000851,
+        "p999_ms": 0.000851
+      },
+      "resources": {
+        "wall_ms": 0.045425,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "memory",
+      "workload": "idle_queue",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.000841,
+        "p95_ms": 0.001282,
+        "p99_ms": 0.001282,
+        "p999_ms": 0.001282
+      },
+      "resources": {
+        "wall_ms": 0.044372,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "memory",
+      "workload": "idle_queue",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.001452,
+        "p95_ms": 0.0025050000000000003,
+        "p99_ms": 0.0025050000000000003,
+        "p999_ms": 0.0025050000000000003
+      },
+      "resources": {
+        "wall_ms": 0.045045,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "memory",
+      "workload": "idle_queue",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.0028049999999999998,
+        "p95_ms": 0.0045780000000000005,
+        "p99_ms": 0.0045780000000000005,
+        "p999_ms": 0.0045780000000000005
+      },
+      "resources": {
+        "wall_ms": 0.049002000000000004,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "memory",
+      "workload": "idle_queue",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.00549,
+        "p95_ms": 0.008936999999999999,
+        "p99_ms": 0.008936999999999999,
+        "p999_ms": 0.008936999999999999
+      },
+      "resources": {
+        "wall_ms": 0.08116200000000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "workload": "small_jobs",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1880.6433640828136,
+      "latency": {
+        "p50_ms": 429.736759,
+        "p95_ms": 437.81749399999995,
+        "p99_ms": 437.81749399999995,
+        "p999_ms": 437.81749399999995
+      },
+      "resources": {
+        "wall_ms": 1595.19878,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "sqlite",
+      "workload": "large_payloads",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1601.7647056084827,
+      "latency": {
+        "p50_ms": 501.258338,
+        "p95_ms": 501.947861,
+        "p99_ms": 501.947861,
+        "p999_ms": 501.947861
+      },
+      "resources": {
+        "wall_ms": 1872.934264,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "sqlite",
+      "workload": "batch_jobs",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1904.3718761013042,
+      "latency": {
+        "p50_ms": 426.39919,
+        "p95_ms": 428.59934,
+        "p99_ms": 428.59934,
+        "p999_ms": 428.59934
+      },
+      "resources": {
+        "wall_ms": 1575.3225710000002,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "sqlite",
+      "workload": "mixed_priorities",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1849.3067320463992,
+      "latency": {
+        "p50_ms": 441.068828,
+        "p95_ms": 450.27245100000005,
+        "p99_ms": 450.27245100000005,
+        "p999_ms": 450.27245100000005
+      },
+      "resources": {
+        "wall_ms": 1622.229535,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "sqlite",
+      "workload": "high_contention",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1840.2016273591225,
+      "latency": {
+        "p50_ms": 441.277881,
+        "p95_ms": 446.465645,
+        "p99_ms": 446.465645,
+        "p999_ms": 446.465645
+      },
+      "resources": {
+        "wall_ms": 1630.256139,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "sqlite",
+      "workload": "idle_queue",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.239498,
+        "p95_ms": 0.251591,
+        "p99_ms": 0.251591,
+        "p999_ms": 0.251591
+      },
+      "resources": {
+        "wall_ms": 6.052157,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "workload": "idle_queue",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.45762800000000003,
+        "p95_ms": 0.45899999999999996,
+        "p99_ms": 0.45899999999999996,
+        "p999_ms": 0.45899999999999996
+      },
+      "resources": {
+        "wall_ms": 6.105429,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "workload": "idle_queue",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.731678,
+        "p95_ms": 0.767367,
+        "p99_ms": 0.767367,
+        "p999_ms": 0.767367
+      },
+      "resources": {
+        "wall_ms": 6.818012,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "workload": "idle_queue",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 1.293323,
+        "p95_ms": 1.33578,
+        "p99_ms": 1.33578,
+        "p999_ms": 1.33578
+      },
+      "resources": {
+        "wall_ms": 8.512042,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "workload": "idle_queue",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 2.573622,
+        "p95_ms": 2.624149,
+        "p99_ms": 2.624149,
+        "p999_ms": 2.624149
+      },
+      "resources": {
+        "wall_ms": 12.236578,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "workload": "idle_queue",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 4.651447,
+        "p95_ms": 4.984121,
+        "p99_ms": 4.984121,
+        "p999_ms": 4.984121
+      },
+      "resources": {
+        "wall_ms": 19.027249,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "postgres",
+      "workload": "small_jobs",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 256.9711368341086,
+      "latency": {
+        "p50_ms": 1722.5386799999999,
+        "p95_ms": 1803.334523,
+        "p99_ms": 1803.334523,
+        "p999_ms": 1803.334523
+      },
+      "resources": {
+        "wall_ms": 11674.462887000002,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "small_jobs",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 299.5752148675618,
+      "latency": {
+        "p50_ms": 1243.458705,
+        "p95_ms": 1349.041749,
+        "p99_ms": 1349.041749,
+        "p999_ms": 1349.041749
+      },
+      "resources": {
+        "wall_ms": 10014.179582,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "small_jobs",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 313.10605777214244,
+      "latency": {
+        "p50_ms": 1106.582795,
+        "p95_ms": 1138.063114,
+        "p99_ms": 1138.063114,
+        "p999_ms": 1138.063114
+      },
+      "resources": {
+        "wall_ms": 9581.417943,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "small_jobs",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 297.21623599771857,
+      "latency": {
+        "p50_ms": 1263.185029,
+        "p95_ms": 1315.405507,
+        "p99_ms": 1315.405507,
+        "p999_ms": 1315.405507
+      },
+      "resources": {
+        "wall_ms": 10093.661236000002,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "small_jobs",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 283.02712435975934,
+      "latency": {
+        "p50_ms": 1421.450827,
+        "p95_ms": 1454.581201,
+        "p99_ms": 1454.581201,
+        "p999_ms": 1454.581201
+      },
+      "resources": {
+        "wall_ms": 10599.690778,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "small_jobs",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 271.1454142505197,
+      "latency": {
+        "p50_ms": 1520.985998,
+        "p95_ms": 1576.674335,
+        "p99_ms": 1576.674335,
+        "p999_ms": 1576.674335
+      },
+      "resources": {
+        "wall_ms": 11064.173843,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "large_payloads",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 180.41234006713967,
+      "latency": {
+        "p50_ms": 2873.994029,
+        "p95_ms": 3691.977531,
+        "p99_ms": 3691.977531,
+        "p999_ms": 3691.977531
+      },
+      "resources": {
+        "wall_ms": 16628.574292,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "large_payloads",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 221.19974398692602,
+      "latency": {
+        "p50_ms": 2048.593019,
+        "p95_ms": 2116.731367,
+        "p99_ms": 2116.731367,
+        "p999_ms": 2116.731367
+      },
+      "resources": {
+        "wall_ms": 13562.402677,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "large_payloads",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 241.07289871575753,
+      "latency": {
+        "p50_ms": 1661.923293,
+        "p95_ms": 1683.910585,
+        "p99_ms": 1683.910585,
+        "p999_ms": 1683.910585
+      },
+      "resources": {
+        "wall_ms": 12444.368554,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "large_payloads",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 231.66147615641492,
+      "latency": {
+        "p50_ms": 1797.824108,
+        "p95_ms": 1833.9490380000002,
+        "p99_ms": 1833.9490380000002,
+        "p999_ms": 1833.9490380000002
+      },
+      "resources": {
+        "wall_ms": 12949.930432000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "large_payloads",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 225.77103774327483,
+      "latency": {
+        "p50_ms": 1861.2065229999998,
+        "p95_ms": 1956.197001,
+        "p99_ms": 1956.197001,
+        "p999_ms": 1956.197001
+      },
+      "resources": {
+        "wall_ms": 13287.798249,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "large_payloads",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 228.4641469256292,
+      "latency": {
+        "p50_ms": 1775.288163,
+        "p95_ms": 1783.860485,
+        "p99_ms": 1783.860485,
+        "p999_ms": 1783.860485
+      },
+      "resources": {
+        "wall_ms": 13131.163206,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "batch_jobs",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 176.82867380977672,
+      "latency": {
+        "p50_ms": 3216.234254,
+        "p95_ms": 3522.7577119999996,
+        "p99_ms": 3522.7577119999996,
+        "p999_ms": 3522.7577119999996
+      },
+      "resources": {
+        "wall_ms": 16965.574278,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "batch_jobs",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 208.9571847161058,
+      "latency": {
+        "p50_ms": 2378.9938089999996,
+        "p95_ms": 2467.176659,
+        "p99_ms": 2467.176659,
+        "p999_ms": 2467.176659
+      },
+      "resources": {
+        "wall_ms": 14357.008131,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "batch_jobs",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 233.63367119846671,
+      "latency": {
+        "p50_ms": 1853.72102,
+        "p95_ms": 2100.320693,
+        "p99_ms": 2100.320693,
+        "p999_ms": 2100.320693
+      },
+      "resources": {
+        "wall_ms": 12840.614902000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "batch_jobs",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 246.42779099703793,
+      "latency": {
+        "p50_ms": 1637.154955,
+        "p95_ms": 1717.937825,
+        "p99_ms": 1717.937825,
+        "p999_ms": 1717.937825
+      },
+      "resources": {
+        "wall_ms": 12173.951598,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "batch_jobs",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 233.6632259974205,
+      "latency": {
+        "p50_ms": 1852.8992959999998,
+        "p95_ms": 1871.653157,
+        "p99_ms": 1871.653157,
+        "p999_ms": 1871.653157
+      },
+      "resources": {
+        "wall_ms": 12838.990762,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "batch_jobs",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 224.7999156661018,
+      "latency": {
+        "p50_ms": 1948.093603,
+        "p95_ms": 2013.1438130000001,
+        "p99_ms": 2013.1438130000001,
+        "p999_ms": 2013.1438130000001
+      },
+      "resources": {
+        "wall_ms": 13345.200736,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "mixed_priorities",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 153.93369874301172,
+      "latency": {
+        "p50_ms": 3984.693934,
+        "p95_ms": 4126.267664,
+        "p99_ms": 4126.267664,
+        "p999_ms": 4126.267664
+      },
+      "resources": {
+        "wall_ms": 19488.909995,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "mixed_priorities",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 199.93625123267213,
+      "latency": {
+        "p50_ms": 2466.9902549999997,
+        "p95_ms": 2485.529561,
+        "p99_ms": 2485.529561,
+        "p999_ms": 2485.529561
+      },
+      "resources": {
+        "wall_ms": 15004.782682000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "mixed_priorities",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 220.1055204691488,
+      "latency": {
+        "p50_ms": 1903.662804,
+        "p95_ms": 1993.749117,
+        "p99_ms": 1993.749117,
+        "p999_ms": 1993.749117
+      },
+      "resources": {
+        "wall_ms": 13629.826247,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "mixed_priorities",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 215.87453216933355,
+      "latency": {
+        "p50_ms": 2045.870641,
+        "p95_ms": 2057.145073,
+        "p99_ms": 2057.145073,
+        "p999_ms": 2057.145073
+      },
+      "resources": {
+        "wall_ms": 13896.961211,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "mixed_priorities",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 211.53842157532804,
+      "latency": {
+        "p50_ms": 2163.2689219999997,
+        "p95_ms": 2194.0296369999996,
+        "p99_ms": 2194.0296369999996,
+        "p999_ms": 2194.0296369999996
+      },
+      "resources": {
+        "wall_ms": 14181.820861,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "mixed_priorities",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 209.15570043110924,
+      "latency": {
+        "p50_ms": 2066.549861,
+        "p95_ms": 2367.3703440000004,
+        "p99_ms": 2367.3703440000004,
+        "p999_ms": 2367.3703440000004
+      },
+      "resources": {
+        "wall_ms": 14343.38148,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "high_contention",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 151.90289905474714,
+      "latency": {
+        "p50_ms": 3927.187088,
+        "p95_ms": 4012.8361540000005,
+        "p99_ms": 4012.8361540000005,
+        "p999_ms": 4012.8361540000005
+      },
+      "resources": {
+        "wall_ms": 19749.458494,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "high_contention",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 176.37519107557085,
+      "latency": {
+        "p50_ms": 3051.979323,
+        "p95_ms": 3095.129889,
+        "p99_ms": 3095.129889,
+        "p999_ms": 3095.129889
+      },
+      "resources": {
+        "wall_ms": 17009.194897,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "high_contention",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 199.66447343628505,
+      "latency": {
+        "p50_ms": 2295.6306670000004,
+        "p95_ms": 2485.864333,
+        "p99_ms": 2485.864333,
+        "p999_ms": 2485.864333
+      },
+      "resources": {
+        "wall_ms": 15025.20678,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "high_contention",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 203.66110241613939,
+      "latency": {
+        "p50_ms": 2234.751363,
+        "p95_ms": 2294.806773,
+        "p99_ms": 2294.806773,
+        "p999_ms": 2294.806773
+      },
+      "resources": {
+        "wall_ms": 14730.353339000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "high_contention",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 193.6826810197564,
+      "latency": {
+        "p50_ms": 2459.9137130000004,
+        "p95_ms": 2546.301499,
+        "p99_ms": 2546.301499,
+        "p999_ms": 2546.301499
+      },
+      "resources": {
+        "wall_ms": 15489.252752,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "high_contention",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 184.03628127320133,
+      "latency": {
+        "p50_ms": 2654.23764,
+        "p95_ms": 2812.242357,
+        "p99_ms": 2812.242357,
+        "p999_ms": 2812.242357
+      },
+      "resources": {
+        "wall_ms": 16301.133555,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "postgres",
+      "workload": "idle_queue",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 207.12745099999998,
+        "p95_ms": 208.04804499999997,
+        "p99_ms": 208.04804499999997,
+        "p999_ms": 208.04804499999997
+      },
+      "resources": {
+        "wall_ms": 644.3194100000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "postgres",
+      "workload": "idle_queue",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 417.578238,
+        "p95_ms": 418.619013,
+        "p99_ms": 418.619013,
+        "p999_ms": 418.619013
+      },
+      "resources": {
+        "wall_ms": 1293.07818,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "postgres",
+      "workload": "idle_queue",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 485.78925,
+        "p95_ms": 488.762229,
+        "p99_ms": 488.762229,
+        "p999_ms": 488.762229
+      },
+      "resources": {
+        "wall_ms": 1502.755561,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "postgres",
+      "workload": "idle_queue",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 627.003507,
+        "p95_ms": 631.05176,
+        "p99_ms": 631.05176,
+        "p999_ms": 631.05176
+      },
+      "resources": {
+        "wall_ms": 1929.745419,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "postgres",
+      "workload": "idle_queue",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 801.768167,
+        "p95_ms": 802.034319,
+        "p99_ms": 802.034319,
+        "p999_ms": 802.034319
+      },
+      "resources": {
+        "wall_ms": 2448.0784249999997,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "postgres",
+      "workload": "idle_queue",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 883.2336720000001,
+        "p95_ms": 896.0783700000001,
+        "p99_ms": 896.0783700000001,
+        "p999_ms": 896.0783700000001
+      },
+      "resources": {
+        "wall_ms": 2707.572469,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "redis",
+      "workload": "small_jobs",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 598.9179468040844,
+      "latency": {
+        "p50_ms": 1087.553493,
+        "p95_ms": 1190.1902,
+        "p99_ms": 1190.1902,
+        "p999_ms": 1190.1902
+      },
+      "resources": {
+        "wall_ms": 5009.033401,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "small_jobs",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 777.8821444676636,
+      "latency": {
+        "p50_ms": 737.459906,
+        "p95_ms": 749.7180599999999,
+        "p99_ms": 749.7180599999999,
+        "p999_ms": 749.7180599999999
+      },
+      "resources": {
+        "wall_ms": 3856.625353,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "small_jobs",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1062.5276520607852,
+      "latency": {
+        "p50_ms": 409.938839,
+        "p95_ms": 421.274681,
+        "p99_ms": 421.274681,
+        "p999_ms": 421.274681
+      },
+      "resources": {
+        "wall_ms": 2823.4559299999996,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "small_jobs",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1306.423750466758,
+      "latency": {
+        "p50_ms": 230.979171,
+        "p95_ms": 232.281327,
+        "p99_ms": 232.281327,
+        "p999_ms": 232.281327
+      },
+      "resources": {
+        "wall_ms": 2296.34527,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "small_jobs",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1488.6729111202228,
+      "latency": {
+        "p50_ms": 138.758262,
+        "p95_ms": 139.187017,
+        "p99_ms": 139.187017,
+        "p999_ms": 139.187017
+      },
+      "resources": {
+        "wall_ms": 2015.2177,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "small_jobs",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1606.1808804217746,
+      "latency": {
+        "p50_ms": 86.165883,
+        "p95_ms": 88.13654899999999,
+        "p99_ms": 88.13654899999999,
+        "p999_ms": 88.13654899999999
+      },
+      "resources": {
+        "wall_ms": 1867.784654,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "large_payloads",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 563.3374082751616,
+      "latency": {
+        "p50_ms": 1188.840807,
+        "p95_ms": 1230.062224,
+        "p99_ms": 1230.062224,
+        "p999_ms": 1230.062224
+      },
+      "resources": {
+        "wall_ms": 5325.405264999999,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "large_payloads",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 721.7019961685418,
+      "latency": {
+        "p50_ms": 794.4598910000001,
+        "p95_ms": 796.1960839999999,
+        "p99_ms": 796.1960839999999,
+        "p999_ms": 796.1960839999999
+      },
+      "resources": {
+        "wall_ms": 4156.840380000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "large_payloads",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 936.3618863628574,
+      "latency": {
+        "p50_ms": 478.946088,
+        "p95_ms": 489.100562,
+        "p99_ms": 489.100562,
+        "p999_ms": 489.100562
+      },
+      "resources": {
+        "wall_ms": 3203.8894830000004,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "large_payloads",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1147.3935373924905,
+      "latency": {
+        "p50_ms": 290.080858,
+        "p95_ms": 290.624559,
+        "p99_ms": 290.624559,
+        "p999_ms": 290.624559
+      },
+      "resources": {
+        "wall_ms": 2614.621664,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "large_payloads",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1281.1743527000147,
+      "latency": {
+        "p50_ms": 192.76505999999998,
+        "p95_ms": 196.156527,
+        "p99_ms": 196.156527,
+        "p999_ms": 196.156527
+      },
+      "resources": {
+        "wall_ms": 2341.601667,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "large_payloads",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1374.3239197865068,
+      "latency": {
+        "p50_ms": 139.894949,
+        "p95_ms": 140.667182,
+        "p99_ms": 140.667182,
+        "p999_ms": 140.667182
+      },
+      "resources": {
+        "wall_ms": 2182.891498,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "batch_jobs",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 617.8389605677837,
+      "latency": {
+        "p50_ms": 1083.705671,
+        "p95_ms": 1084.018143,
+        "p99_ms": 1084.018143,
+        "p999_ms": 1084.018143
+      },
+      "resources": {
+        "wall_ms": 4855.634221,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "batch_jobs",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 787.9132628405529,
+      "latency": {
+        "p50_ms": 735.060706,
+        "p95_ms": 737.123647,
+        "p99_ms": 737.123647,
+        "p999_ms": 737.123647
+      },
+      "resources": {
+        "wall_ms": 3807.5257030000002,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "batch_jobs",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1065.8818619257681,
+      "latency": {
+        "p50_ms": 405.770142,
+        "p95_ms": 406.178478,
+        "p99_ms": 406.178478,
+        "p999_ms": 406.178478
+      },
+      "resources": {
+        "wall_ms": 2814.5708329999998,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "batch_jobs",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1291.7614701353689,
+      "latency": {
+        "p50_ms": 232.05420199999998,
+        "p95_ms": 233.097478,
+        "p99_ms": 233.097478,
+        "p999_ms": 233.097478
+      },
+      "resources": {
+        "wall_ms": 2322.410189,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "batch_jobs",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1498.2915049392298,
+      "latency": {
+        "p50_ms": 138.728194,
+        "p95_ms": 140.474878,
+        "p99_ms": 140.474878,
+        "p999_ms": 140.474878
+      },
+      "resources": {
+        "wall_ms": 2002.280591,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "batch_jobs",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1590.5280120853663,
+      "latency": {
+        "p50_ms": 85.095843,
+        "p95_ms": 85.69940500000001,
+        "p99_ms": 85.69940500000001,
+        "p999_ms": 85.69940500000001
+      },
+      "resources": {
+        "wall_ms": 1886.166089,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "mixed_priorities",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 614.8778832325162,
+      "latency": {
+        "p50_ms": 1109.2187840000001,
+        "p95_ms": 1112.9497589999999,
+        "p99_ms": 1112.9497589999999,
+        "p999_ms": 1112.9497589999999
+      },
+      "resources": {
+        "wall_ms": 4879.017577,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "mixed_priorities",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 745.3653365984813,
+      "latency": {
+        "p50_ms": 777.7295469999999,
+        "p95_ms": 851.895923,
+        "p99_ms": 851.895923,
+        "p999_ms": 851.895923
+      },
+      "resources": {
+        "wall_ms": 4024.8719020000003,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "mixed_priorities",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1062.5015164110184,
+      "latency": {
+        "p50_ms": 406.184908,
+        "p95_ms": 406.67825400000004,
+        "p99_ms": 406.67825400000004,
+        "p999_ms": 406.67825400000004
+      },
+      "resources": {
+        "wall_ms": 2823.5253820000003,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "mixed_priorities",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1289.5137859513914,
+      "latency": {
+        "p50_ms": 241.74099800000002,
+        "p95_ms": 247.970604,
+        "p99_ms": 247.970604,
+        "p999_ms": 247.970604
+      },
+      "resources": {
+        "wall_ms": 2326.4582609999998,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "mixed_priorities",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1451.6251640733817,
+      "latency": {
+        "p50_ms": 142.950823,
+        "p95_ms": 149.913125,
+        "p99_ms": 149.913125,
+        "p999_ms": 149.913125
+      },
+      "resources": {
+        "wall_ms": 2066.649211,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "mixed_priorities",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1609.2585338194194,
+      "latency": {
+        "p50_ms": 86.78079,
+        "p95_ms": 88.87615,
+        "p99_ms": 88.87615,
+        "p999_ms": 88.87615
+      },
+      "resources": {
+        "wall_ms": 1864.2125780000001,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "high_contention",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 559.9473755632993,
+      "latency": {
+        "p50_ms": 1066.5179229999999,
+        "p95_ms": 1112.4130969999999,
+        "p99_ms": 1112.4130969999999,
+        "p999_ms": 1112.4130969999999
+      },
+      "resources": {
+        "wall_ms": 5357.646327,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "high_contention",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 690.090964858101,
+      "latency": {
+        "p50_ms": 736.2447960000001,
+        "p95_ms": 746.790941,
+        "p99_ms": 746.790941,
+        "p999_ms": 746.790941
+      },
+      "resources": {
+        "wall_ms": 4347.252975,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "high_contention",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 905.2876180419463,
+      "latency": {
+        "p50_ms": 407.356729,
+        "p95_ms": 407.798978,
+        "p99_ms": 407.798978,
+        "p999_ms": 407.798978
+      },
+      "resources": {
+        "wall_ms": 3313.8639479999997,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "high_contention",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1057.4698470827116,
+      "latency": {
+        "p50_ms": 232.655989,
+        "p95_ms": 234.737265,
+        "p99_ms": 234.737265,
+        "p999_ms": 234.737265
+      },
+      "resources": {
+        "wall_ms": 2836.960324,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "high_contention",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1161.134119777136,
+      "latency": {
+        "p50_ms": 139.699495,
+        "p95_ms": 139.837175,
+        "p99_ms": 139.837175,
+        "p999_ms": 139.837175
+      },
+      "resources": {
+        "wall_ms": 2583.680859,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "high_contention",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 3000,
+      "throughput_jobs_per_sec": 1255.5224868044836,
+      "latency": {
+        "p50_ms": 84.059229,
+        "p95_ms": 86.62160100000001,
+        "p99_ms": 86.62160100000001,
+        "p999_ms": 86.62160100000001
+      },
+      "resources": {
+        "wall_ms": 2389.4434640000004,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": []
+    },
+    {
+      "backend": "redis",
+      "workload": "idle_queue",
+      "workers": 1,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.150742,
+        "p95_ms": 0.183604,
+        "p99_ms": 0.183604,
+        "p999_ms": 0.183604
+      },
+      "resources": {
+        "wall_ms": 2.598712,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "redis",
+      "workload": "idle_queue",
+      "workers": 2,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.283147,
+        "p95_ms": 0.310391,
+        "p99_ms": 0.310391,
+        "p999_ms": 0.310391
+      },
+      "resources": {
+        "wall_ms": 2.881979,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "redis",
+      "workload": "idle_queue",
+      "workers": 4,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 0.618642,
+        "p95_ms": 0.6525040000000001,
+        "p99_ms": 0.6525040000000001,
+        "p999_ms": 0.6525040000000001
+      },
+      "resources": {
+        "wall_ms": 3.9695039999999997,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "redis",
+      "workload": "idle_queue",
+      "workers": 8,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 1.165021,
+        "p95_ms": 1.180029,
+        "p99_ms": 1.180029,
+        "p999_ms": 1.180029
+      },
+      "resources": {
+        "wall_ms": 5.605904,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "redis",
+      "workload": "idle_queue",
+      "workers": 16,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 2.343505,
+        "p95_ms": 2.601577,
+        "p99_ms": 2.601577,
+        "p999_ms": 2.601577
+      },
+      "resources": {
+        "wall_ms": 9.313063,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    },
+    {
+      "backend": "redis",
+      "workload": "idle_queue",
+      "workers": 32,
+      "iterations": 3,
+      "jobs": 0,
+      "throughput_jobs_per_sec": 0.0,
+      "latency": {
+        "p50_ms": 4.792475,
+        "p95_ms": 5.230121,
+        "p99_ms": 5.230121,
+        "p999_ms": 5.230121
+      },
+      "resources": {
+        "wall_ms": 16.911047,
+        "cpu": null,
+        "ram_bytes": null,
+        "allocations": null,
+        "disk_io_bytes": null,
+        "network_io_bytes": null,
+        "notes": [
+          "wall-clock timing captured by std::time::Instant",
+          "resource counters intentionally nullable when not measured"
+        ]
+      },
+      "notes": [
+        "idle queue measures empty lease latency rather than job throughput"
+      ]
+    }
+  ]
+}
