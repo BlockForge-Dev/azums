@@ -148,7 +148,7 @@ jobs:
           TEST_DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/azums_test
 
       - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
